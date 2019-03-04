@@ -46,3 +46,41 @@ Thank you for considering contributing to the Cashier. You can read the contribu
 ## License
 
 Laravel Cashier is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Database
+
+Step 1: subscription creations (newSubscription)
+Plan
+	- id
+	- remote_plan_id
+	- billable_card_brand
+	- billable_card_last_four
+
+Owner
+	- id
+	- remote_owner_id
+
+Subscription
+	- id
+	- local_owner_id
+	- local_plan_id
+
+Subscription
+    - id
+    - gateway
+    - remote_id
+    - local_owner_id
+    - local_plan_id
+    - quantity
+    - trial_ends_at
+    - ends_at
+
+Step 2: subscription recurring ()
+
+Step 3: invoices listing (last invoice, next invoice, invoice list)
+    - Customers can quick view their invoices
+
+Step 4: Admin subscription editable
+
+Step 5: trials period
+

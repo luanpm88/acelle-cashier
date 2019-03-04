@@ -39,6 +39,45 @@ class Subscription extends Model
      * @var string|null
      */
     protected $billingCycleAnchor = null;
+    
+    /**
+     * Bootstrap any application services.
+     */
+    public static function boot()
+    {
+        parent::boot();
+
+        // Create uid when creating list.
+        static::creating(function ($item) {
+            // Create new uid
+            $uid = uniqid();
+            while (self::where('uid', '=', $uid)->count() > 0) {
+                $uid = uniqid();
+            }
+            $item->uid = $uid;
+        });
+    }
+    
+    /**
+     * Find item by uid.
+     *
+     * @return object
+     */
+    public static function findByUid($uid)
+    {
+        return self::where('uid', '=', $uid)->first();
+    }
+    
+    /**
+     * Associations.
+     *
+     * @var object | collect
+     */
+    public function plan()
+    {
+        // @todo how to know plan has uid
+        return $this->belongsTo('Acelle\Model\Plan', 'plan_id', 'uid');
+    }
 
     /**
      * Get the user that owns the subscription.
@@ -47,7 +86,8 @@ class Subscription extends Model
      */
     public function user()
     {
-        return $this->owner();
+        // @todo how to know user has uid
+        return $this->belongsTo('Acelle\Model\Customer', 'user_id', 'uid');
     }
 
     /**
@@ -208,6 +248,16 @@ class Subscription extends Model
 
         return $this;
     }
+    
+    /**
+     * Retrive subscription from remote.
+     *
+     * @return $this
+     */
+    public function retrieve($gateway)
+    {
+        return $gateway->retrieveSubscription($this->uid);
+    }
 
     /**
      * Change the billing cycle anchor on a plan change.
@@ -239,53 +289,23 @@ class Subscription extends Model
 
         return $this;
     }
-
+    
     /**
-     * Swap the subscription to a new Stripe plan.
+     * Update/Sync local subscription.
      *
-     * @param  string  $plan
      * @return $this
      */
-    public function swap($plan)
+    public function sync($gateway)
     {
-        $subscription = $this->asStripeSubscription();
-
-        $subscription->plan = $plan;
-
-        $subscription->prorate = $this->prorate;
-
-        $subscription->cancel_at_period_end = false;
-
-        if (! is_null($this->billingCycleAnchor)) {
-            $subscription->billing_cycle_anchor = $this->billingCycleAnchor;
-        }
-
-        // If no specific trial end date has been set, the default behavior should be
-        // to maintain the current trial state, whether that is "active" or to run
-        // the swap out with the exact number of days left on this current plan.
-        if ($this->onTrial()) {
-            $subscription->trial_end = $this->trial_ends_at->getTimestamp();
-        } else {
-            $subscription->trial_end = 'now';
-        }
-
-        // Again, if no explicit quantity was set, the default behaviors should be to
-        // maintain the current quantity onto the new plan. This is a sensible one
-        // that should be the expected behavior for most developers with Stripe.
-        if ($this->quantity) {
-            $subscription->quantity = $this->quantity;
-        }
-
-        $subscription->save();
-
-        $this->user->invoice();
-
-        $this->fill([
-            'stripe_plan' => $plan,
-            'ends_at' => null,
-        ])->save();
-
-        return $this;
+        $subscriptionParam = $gateway->retrieveSubscription($this->uid);
+        
+        // update ends at
+        $this->ends_at = $subscriptionParam->endsAt;
+        
+        // update plan if if changed
+        $this->plan_id = $subscriptionParam->planId;
+        
+        $this->save();
     }
 
     /**
@@ -293,28 +313,25 @@ class Subscription extends Model
      *
      * @return $this
      */
-    public function cancel()
+    public function cancel($gateway)
     {
-        $subscription = $this->asStripeSubscription();
-
-        $subscription->cancel_at_period_end = true;
-
-        $subscription->save();
-
-        // If the user was on trial, we will set the grace period to end when the trial
-        // would have ended. Otherwise, we'll retrieve the end of the billing period
-        // period and make that the end of the grace period for this current user.
-        if ($this->onTrial()) {
-            $this->ends_at = $this->trial_ends_at;
-        } else {
-            $this->ends_at = Carbon::createFromTimestamp(
-                $subscription->current_period_end
-            );
-        }
-
-        $this->save();
-
-        return $this;
+        $gateway->cancelSubscription($this->uid);
+        
+        $this->sync($gateway);
+    }
+    
+    /**
+     * Resume the cancelled subscription.
+     *
+     * @return $this
+     *
+     * @throws \LogicException
+     */
+    public function resume($gateway)
+    {
+        $gateway->resumeSubscription($this->uid);
+        
+        $this->sync($gateway);
     }
 
     /**
@@ -322,15 +339,23 @@ class Subscription extends Model
      *
      * @return $this
      */
-    public function cancelNow()
-    {
-        $subscription = $this->asStripeSubscription();
+    public function cancelNow($gateway)
+    {   
+        $gateway->cancelNowSubscription($this->uid);
 
-        $subscription->cancel();
+        $this->sync($gateway);
+    }
+    
+    /**
+     * Cancel the subscription immediately.
+     *
+     * @return $this
+     */
+    public function swap($plan, $gateway)
+    {   
+        $gateway->swapSubscriptionPlan($this->uid, $plan);
 
-        $this->markAsCancelled();
-
-        return $this;
+        $this->sync($gateway);
     }
 
     /**
@@ -343,43 +368,7 @@ class Subscription extends Model
         $this->fill(['ends_at' => Carbon::now()])->save();
     }
 
-    /**
-     * Resume the cancelled subscription.
-     *
-     * @return $this
-     *
-     * @throws \LogicException
-     */
-    public function resume()
-    {
-        if (! $this->onGracePeriod()) {
-            throw new LogicException('Unable to resume subscription that is not within grace period.');
-        }
-
-        $subscription = $this->asStripeSubscription();
-
-        $subscription->cancel_at_period_end = false;
-
-        // To resume the subscription we need to set the plan parameter on the Stripe
-        // subscription object. This will force Stripe to resume this subscription
-        // where we left off. Then, we'll set the proper trial ending timestamp.
-        $subscription->plan = $this->stripe_plan;
-
-        if ($this->onTrial()) {
-            $subscription->trial_end = $this->trial_ends_at->getTimestamp();
-        } else {
-            $subscription->trial_end = 'now';
-        }
-
-        $subscription->save();
-
-        // Finally, we will remove the ending timestamp from the user's record in the
-        // local database to indicate that the subscription is active again and is
-        // no longer "cancelled". Then we will save this record in the database.
-        $this->fill(['ends_at' => null])->save();
-
-        return $this;
-    }
+    
 
     /**
      * Sync the tax percentage of the user to the subscription.
