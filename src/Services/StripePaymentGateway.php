@@ -23,19 +23,30 @@ class StripePaymentGateway implements PaymentGatewayInterface
     }
     
     /**
+     * Check if support recurring.
+     *
+     * @param  string    $userId
+     * @return Boolean
+     */
+    public function isSupportRecurring()
+    {
+        return true;
+    }
+    
+    /**
      * Create a new subscriptionParam.
      *
      * @param  mixed              $token
      * @param  SubscriptionParam  $param
      * @return void
      */
-    public function createSubscription($user, $plan, $subscription)
+    public function charge($subscription)
     {
         // get or create plan
-        $stripePlan = $this->getStripePlan($plan);        
+        $stripePlan = $this->getStripePlan($subscription->plan);        
         
         // get or create plan
-        $stripeCustomer = $this->getStripeCustomer($user);
+        $stripeCustomer = $this->getStripeCustomer($subscription->user);
         
         // create subscription
         $stripeSubscription = \Stripe\Subscription::create([
@@ -190,12 +201,13 @@ class StripePaymentGateway implements PaymentGatewayInterface
             }
             
             // ended
-            if ($stripeSubscription->ended_at) {
-                $subscriptionParam->endsAt = $stripeSubscription->ended_at;
-            }
+            $subscriptionParam->endsAt = $stripeSubscription->ended_at;
             
             // update plan
-            $subscriptionParam->planId = $stripeSubscription->plan->metadata->local_plan_id;            
+            $subscriptionParam->planId = $stripeSubscription->plan->metadata->local_plan_id;
+            
+            // update plan
+            $subscriptionParam->isPending = false;
         }
         
         return $subscriptionParam;
@@ -262,110 +274,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $stripeSubscription->cancel_at_period_end = false;
         
         $stripeSubscription->save();
-    }
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    /**
-     * Create a Stripe customer for the given Stripe model.
-     *
-     * @param  string  $token
-     * @param  array  $options
-     * @return \Stripe\Customer
-     */
-    public function createAsStripeCustomer($token)
-    {
-        $options = ['email' => $this->subscriptionParam->ownerEmail];
-
-        // Here we will create the customer instance on Stripe and store the ID of the
-        // user from Stripe. This ID will correspond with the Stripe user instances
-        // and allow us to retrieve users from Stripe later when we need to work.
-        $this->owner = StripeCustomer::create(
-            $options, $this->secretKey
-        );
-
-        // Next we will add the credit card to the user's account on Stripe using this
-        // token that was provided to this method. This will allow us to bill users
-        // when they subscribe to plans or we need to do one-off charges on them.
-        if (! is_null($token)) {
-            $this->updateCard($token);
-        }
-    }
-    
-    /**
-     * Get the Stripe customer for the Stripe model.
-     *
-     * @return \Stripe\Customer
-     */
-    public function asStripeCustomer($ownerId)
-    {
-        $this->owner = StripeCustomer::retrieve($ownerId, $this->secretKey);
-    }
-    
-    /**
-     * Update customer's credit card.
-     *
-     * @param  string  $token
-     * @return void
-     */
-    public function updateCard($token)
-    {
-        $token = StripeToken::retrieve($token, ['api_key' => $this->secretKey]);
-
-        // If the given token already has the card as their default source, we can just
-        // bail out of the method now. We don't need to keep adding the same card to
-        // a model's account every time we go through this particular method call.
-        if ($token[$token->type]->id === $this->owner->default_source) {
-            return;
-        }
-
-        $card = $this->owner->sources->create(['source' => $token]);
-
-        $this->owner->default_source = $card->id;
-
-        $this->owner->save();
-
-        // Next we will get the default source for this model so we can update the last
-        // four digits and the card brand on the record in the database. This allows
-        // us to display the information on the front-end when updating the cards.
-        $source = $this->owner->default_source
-                    ? $this->owner->sources->retrieve($this->owner->default_source)
-                    : null;
-
-        $this->fillCardDetails($source);
-    }
-    
-    /**
-     * Fills the model's properties with the source from Stripe.
-     *
-     * @param  \Stripe\Card|\Stripe\BankAccount|null  $card
-     * @return $this
-     */
-    protected function fillCardDetails($card)
-    {
-        if ($card instanceof StripeCard) {
-            $this->subscriptionParam->cardBrand = $card->brand;
-            $this->subscriptionParam->cardLastFour = $card->last4;
-        } elseif ($card instanceof StripeBankAccount) {
-            $this->subscriptionParam->cardBrand = 'Bank Account';
-            $this->subscriptionParam->cardLastFour = $card->last4;
-        }
-    }
-    
-    
-    
-    
+    }    
     
     /**
      * Create a new subscriptionParam.

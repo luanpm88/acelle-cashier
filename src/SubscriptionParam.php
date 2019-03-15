@@ -21,6 +21,7 @@ class SubscriptionParam
     // Subscription attributes
     public $currentPeriodEnd;
     public $endsAt;
+    public $isPending;
     
     
     /**

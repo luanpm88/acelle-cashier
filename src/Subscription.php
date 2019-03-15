@@ -101,6 +101,19 @@ class Subscription extends Model
 
         return $this->belongsTo($class, (new $class)->getForeignKey());
     }
+    
+    /**
+     * Chagre subscription.
+     *
+     * @param  string  $subscription
+     * @param  string  $plan
+     * @return \Laravel\Cashier\SubscriptionBuilder
+     */
+    public function charge($gateway)
+    {
+        // Gateway add subscription
+        $gateway->charge($this);
+    }
 
     /**
      * Determine if the subscription is active, on trial, or within its grace period.
@@ -119,7 +132,17 @@ class Subscription extends Model
      */
     public function active()
     {
-        return is_null($this->ends_at) || $this->onGracePeriod();
+        return (is_null($this->ends_at) || $this->onGracePeriod()) && !$this->isPending();
+    }
+    
+    /**
+     * Determine if the subscription is active.
+     *
+     * @return bool
+     */
+    public function isPending()
+    {
+        return $this->pending;
     }
 
     /**
@@ -256,7 +279,10 @@ class Subscription extends Model
      */
     public function retrieve($gateway)
     {
-        return $gateway->retrieveSubscription($this->uid);
+        $subscriptionParam = $gateway->retrieveSubscription($this->uid);
+        $this->updateInfo($subscriptionParam, $gateway);
+        
+        return $subscriptionParam;
     }
 
     /**
@@ -297,13 +323,30 @@ class Subscription extends Model
      */
     public function sync($gateway)
     {
-        $subscriptionParam = $gateway->retrieveSubscription($this->uid);
-        
+        $this->retrieve($gateway);
+    }
+    
+    /**
+     * Update/Sync local subscription.
+     *
+     * @return $this
+     */
+    public function updateInfo($subscriptionParam, $gateway)
+    {
         // update ends at
-        $this->ends_at = $subscriptionParam->endsAt;
+        if ($gateway->isSupportRecurring()) {
+            $this->ends_at = $subscriptionParam->endsAt;
+        }
         
         // update plan if if changed
-        $this->plan_id = $subscriptionParam->planId;
+        if ($subscriptionParam->planId) {
+            $this->plan_id = $subscriptionParam->planId;
+        }
+        
+        // update plan if if changed
+        if (isset($subscriptionParam->isPending)) {
+            $this->pending = $subscriptionParam->isPending;
+        }
         
         $this->save();
     }
@@ -340,7 +383,10 @@ class Subscription extends Model
      * @return $this
      */
     public function cancelNow($gateway)
-    {   
+    {
+        // Set ends at to today
+        $this->ends_at = \Carbon\Carbon::now()->startOfDay();
+        
         $gateway->cancelNowSubscription($this->uid);
 
         $this->sync($gateway);
@@ -352,7 +398,7 @@ class Subscription extends Model
      * @return $this
      */
     public function swap($plan, $gateway)
-    {   
+    {
         $gateway->swapSubscriptionPlan($this->uid, $plan);
 
         $this->sync($gateway);
