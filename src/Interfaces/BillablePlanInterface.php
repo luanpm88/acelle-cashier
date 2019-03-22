@@ -11,6 +11,4 @@ interface BillablePlanInterface
     public function getBillableIntervalCount();
     public function getBillableCurrency();
     public function getBillableAmount();
-    
-    public function getPaymentGatewayService();
 }

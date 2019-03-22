@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class Subscription extends Model
 {
+    const STATUS_NEW = 'new';
+    const STATUS_PENDING = 'pending';
+    const STATUS_DONE = 'done';
+    
     /**
      * The attributes that are not mass assignable.
      *
@@ -113,6 +117,9 @@ class Subscription extends Model
     {
         // Gateway add subscription
         $gateway->charge($this);
+        
+        // sync
+        $this->sync($gateway);
     }
 
     /**
@@ -132,7 +139,17 @@ class Subscription extends Model
      */
     public function active()
     {
-        return (is_null($this->ends_at) || $this->onGracePeriod()) && !$this->isPending();
+        return (is_null($this->ends_at) || $this->onGracePeriod()) && !$this->isPending() && !$this->isNew();
+    }
+    
+    /**
+     * Determine if the subscription is active.
+     *
+     * @return bool
+     */
+    public function isNew()
+    {
+        return $this->status == self::STATUS_NEW;
     }
     
     /**
@@ -142,7 +159,17 @@ class Subscription extends Model
      */
     public function isPending()
     {
-        return $this->pending;
+        return $this->status == self::STATUS_PENDING;
+    }
+    
+    /**
+     * Determine if the subscription is active.
+     *
+     * @return bool
+     */
+    public function isDone()
+    {
+        return $this->status == self::STATUS_DONE;
     }
 
     /**
@@ -282,6 +309,14 @@ class Subscription extends Model
         $subscriptionParam = $gateway->retrieveSubscription($this->uid);
         $this->updateInfo($subscriptionParam, $gateway);
         
+        if (!isset($subscriptionParam->endsAt)) {
+            $subscriptionParam->endsAt = $this->ends_at;
+        }
+        
+        if (isset($this->ends_at)) {
+            $subscriptionParam->currentPeriodEnd = $this->ends_at->timestamp;
+        }
+        
         return $subscriptionParam;
     }
 
@@ -344,8 +379,8 @@ class Subscription extends Model
         }
         
         // update plan if if changed
-        if (isset($subscriptionParam->isPending)) {
-            $this->pending = $subscriptionParam->isPending;
+        if ($subscriptionParam->status) {
+            $this->status = $subscriptionParam->status;
         }
         
         $this->save();
@@ -446,5 +481,16 @@ class Subscription extends Model
         }
 
         return $subscriptions->retrieve($this->stripe_id);
+    }
+    
+    /**
+     * Get invoice.
+     *
+     *
+     * @throws \LogicException
+     */
+    public function getInvoices($gateway)
+    {
+        return $gateway->getInvoices($this->uid);
     }
 }

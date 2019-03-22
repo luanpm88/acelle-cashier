@@ -7,6 +7,7 @@ use Stripe\Token as StripeToken;
 use Stripe\Customer as StripeCustomer;
 use Stripe\Subscription as StripeSubscription;
 use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
+use Acelle\Cashier\Subscription;
 use Acelle\Cashier\SubscriptionParam;
 use Carbon\Carbon;
 
@@ -20,6 +21,41 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function __construct($secret_key)
     {
         \Stripe\Stripe::setApiKey($secret_key);
+    }
+    
+    /**
+     * Check if service is valid.
+     *
+     * @return void
+     */
+    public function validate()
+    {
+        try {
+            // Use Stripe's library to make requests...
+            $ch = \Stripe\Charge::retrieve(
+                "ch_1EFe6rCMj8fc6a7IsF1uWqBW"
+            );
+            
+            $ch->capture(); // Uses the same API Key.
+        } catch(\Stripe\Error\Card $e) {
+            // Since it's a decline, \Stripe\Error\Card will be caught
+        } catch (\Stripe\Error\RateLimit $e) {
+            // Too many requests made to the API too quickly
+        } catch (\Stripe\Error\InvalidRequest $e) {
+            // Invalid parameters were supplied to Stripe's API
+        } catch (\Stripe\Error\Authentication $e) {
+            // Authentication with Stripe's API failed
+            // (maybe you changed API keys recently)
+            throw new \Stripe\Error\Authentication($e->getMessage());
+        } catch (\Stripe\Error\ApiConnection $e) {
+            // Network communication with Stripe failed
+        } catch (\Stripe\Error\Base $e) {
+            // Display a very generic error to the user, and maybe send
+            // yourself an email
+        } catch (Exception $e) {
+            // Something else happened, completely unrelated to Stripe
+        }
+
     }
     
     /**
@@ -201,13 +237,17 @@ class StripePaymentGateway implements PaymentGatewayInterface
             }
             
             // ended
-            $subscriptionParam->endsAt = $stripeSubscription->ended_at;
+            if ($stripeSubscription->ended_at) {
+                $subscriptionParam->endsAt = $stripeSubscription->ended_at;
+            }
             
             // update plan
             $subscriptionParam->planId = $stripeSubscription->plan->metadata->local_plan_id;
             
             // update plan
-            $subscriptionParam->isPending = false;
+            $subscriptionParam->status = Subscription::STATUS_DONE;
+        } else {
+            throw new \Exception('Stripe subscription can not be found');
         }
         
         return $subscriptionParam;
@@ -263,9 +303,11 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  Subscription  $subscription
      * @return date
      */
-    public function swapSubscriptionPlan($subscriptionId, $plan)
+    public function changeSubscriptionPlan($user, $plan)
     {
-        $stripeSubscription = $this->getStripeSubscription($subscriptionId);    
+        $subscription = $user->subscription();
+        
+        $stripeSubscription = $this->getStripeSubscription($subscription->uid);    
 
         $stripePlan = $this->getStripePlan($plan);
         
@@ -274,6 +316,8 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $stripeSubscription->cancel_at_period_end = false;
         
         $stripeSubscription->save();
+        
+        return $subscription;
     }    
     
     /**
@@ -307,6 +351,29 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return $price * $rate;
     }
     
-    
+    /**
+     * Get subscription invoices.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function getInvoices($subscriptionId)
+    {
+        $invoices = [];
+        //foreach($transactions["result"] as $transaction) {
+        //    $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
+        //    $id = $result["checkout"]["item_number"];
+        //    if ($subscriptionId == $id) {
+        //        $invoices[] = new InvoiceParam([
+        //            'time' => $result['time_created'],
+        //            'amount' => $result['amount'] . " " . $result['coin'],
+        //            'description' => $result['status_text'],
+        //            'status' => $result['status']
+        //        ]);
+        //    }
+        //}
+        
+        return $invoices;
+    }
     
 }

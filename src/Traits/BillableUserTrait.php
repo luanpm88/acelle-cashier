@@ -45,7 +45,9 @@ trait BillableUserTrait
         $subscription = new Subscription();
         $subscription->user_id = $this->getBillableId();
         $subscription->plan_id = $plan->getBillableId();
+        $subscription->status = Subscription::STATUS_NEW;
         
+        // Always set ends at if gateway dose not support recurring
         if (!$gateway->isSupportRecurring()) {
             $subscription->ends_at = \Carbon\Carbon::now()->addMonth(1)->timestamp;
         }
@@ -76,60 +78,15 @@ trait BillableUserTrait
     }
     
     /**
-     * Resume subscription now.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function resumeSubscription($gateway)
-    {
-        $subscription = $this->subscription();
-        $subscription->resume($gateway);
-    }
-    
-    /**
-     * Cancel subscription at the end of current period.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function cancelSubscription($gateway)
-    {
-        $subscription = $this->subscription();
-        $subscription->cancel($gateway);
-    }
-    
-    /**
-     * Cancel subscription now.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function cancelNowSubscription($gateway)
-    {
-        $subscription = $this->subscription();
-        $subscription->cancelNow($gateway);
-    }
-    
-    /**
      * user want to change plan.
      *
      * @return bollean
      */
     public function changePlan($plan, $gateway)
     {
-        // get current subscription
-        $subscription = $this->subscription();
+        $subscription = $gateway->changeSubscriptionPlan($this, $plan);
         
-        if ($gateway->isSupportRecurring()) {
-            $subscription->swap($plan, $gateway);
-        } else {
-            $subscription->markAsCancelled();            
-            $this->createSubscription($plan, $gateway);
-        }
+        $subscription->sync($gateway);
     }
     
     /**

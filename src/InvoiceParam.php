@@ -4,28 +4,16 @@ namespace Acelle\Cashier;
 
 use Carbon\Carbon;
 
-class SubscriptionParam
+class InvoiceParam
 {
-    // Owner attributes
-    public $ownerId;
-    public $ownerEmail;
-    // Plan attributes
-    public $planId;
-    public $planName;
-    public $interval;
-    public $intervalCount;
+    public $time;
     public $amount;
-    public $currency;
-    public $cardBrand;
-    public $cardLastFour;
-    // Subscription attributes
-    public $currentPeriodEnd;
-    public $endsAt;
+    public $description;
     public $status;
     
     
     /**
-     * Create a new Subscription param item instance.
+     * Create a new Invoice param item instance.
      *
      * @param  Array  $options
      * @return void
