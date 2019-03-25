@@ -303,7 +303,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  Subscription  $subscription
      * @return date
      */
-    public function changeSubscriptionPlan($user, $plan)
+    public function changePlan($user, $plan)
     {
         $subscription = $user->subscription();
         

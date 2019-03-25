@@ -16,7 +16,7 @@ interface PaymentGatewayInterface
     public function cancelSubscription($subscriptionId);    
     public function resumeSubscription($subscriptionId);
     public function cancelNowSubscription($subscriptionId);
-    public function changeSubscriptionPlan($subscriptionId, $plan);
+    public function changePlan($subscriptionId, $plan);
     
     public function isSupportRecurring();
     public function validate();

@@ -73,6 +73,47 @@ class Subscription extends Model
     }
     
     /**
+     * Get metadata.
+     *
+     * @var object | collect
+     */
+    public function getMetadata()
+    {
+        if (!$this->metadata) {
+            return json_decode('{}');
+        }
+        
+        return json_decode($this->metadata);
+    }
+    
+    /**
+     * Get metadata.
+     *
+     * @var object | collect
+     */
+    public function updateMetadata($data)
+    {
+        $metadata = (object) array_merge((array) $this->getMetadata(), $data);        
+        $this->metadata = json_encode($metadata);
+        
+        $this->save();
+    }
+    
+    /**
+     * Set metadata.
+     *
+     * @var object | collect
+     */
+    public function setMetadata($options=[])
+    {
+        if (!$this->metadata) {
+            return json_decode('{}');
+        }
+        
+        return json_decode($this->metadata);
+    }
+    
+    /**
      * Associations.
      *
      * @var object | collect

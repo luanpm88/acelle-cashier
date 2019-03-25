@@ -27,6 +27,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface
             subscription_id           VARCHAR(255)    NOT NULL,
             price                     REAL            NOT NULL,
             status                    CHAR(50)        NOT NULL,
+            description           TEXT    NOT NULL,
             created_at                INTEGER         NOT NULL);
 EOF;
         $act = $this->db->exec($sql);
@@ -71,6 +72,7 @@ EOF;
     {
         $created_at = \Carbon\Carbon::now()->timestamp;
         $status = Subscription::STATUS_PENDING;
+        $description = 'Transaction was created. Waiting for payment...';
         $amount = $subscription->plan->price;
         
         // custom amount
@@ -80,8 +82,8 @@ EOF;
         
         // Create new transaction for payment
         $sql =<<<EOF
-            INSERT INTO transactions (subscription_id, price, status, created_at)  
-            VALUES ('{$subscription->uid}', {$amount}, '{$status}', {$created_at});
+            INSERT INTO transactions (subscription_id, price, status, description, created_at)  
+            VALUES ('{$subscription->uid}', {$amount}, '{$status}', '{$description}', {$created_at});
 EOF;
         $act = $this->db->exec($sql);
         if(!$act){
@@ -177,7 +179,7 @@ EOF;
      * @param  Subscription  $subscription
      * @return date
      */
-    public function changeSubscriptionPlan($user, $plan)
+    public function changePlan($user, $plan)
     {
         $currentSubscription = $user->subscription();
         $currentSubscriptionParam = $currentSubscription->retrieve($this);
@@ -230,24 +232,10 @@ EOF;
             $invoices[] = new InvoiceParam([
                 'time' => $row['created_at'],
                 'amount' => $row['price'],
-                'description' => $row['status'],
+                'description' => $row['description'],
                 'status' => $row['status']
             ]);
-        }
-        
-        //foreach($transactions["result"] as $transaction) {
-        //    $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
-        //    $id = $result["checkout"]["item_number"];
-        //    if ($subscriptionId == $id) {
-        //        $invoices[] = new InvoiceParam([
-        //            'time' => $result['time_created'],
-        //            'amount' => $result['amount'] . " " . $result['coin'],
-        //            'description' => $result['status_text'],
-        //            'status' => $result['status']
-        //        ]);
-        //    }
-        //}
-        
+        }        
         return $invoices;
     }
 }

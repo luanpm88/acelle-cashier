@@ -25,7 +25,11 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function validate()
     {
-        return true;
+        $info = $this->coinPaymentsAPI->getBasicInfo();
+        
+        if (isset($info["error"]) && $info["error"] != "ok") {
+            throw new \Exception($info["error"]);
+        }
     }
     
     /**
@@ -79,14 +83,23 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function retrieveSubscription($subscriptionId)
     {
-        $transactions = $this->coinPaymentsAPI->GetTxIds(["limit" => 100]);
+        $subscription = Subscription::findByUid($subscriptionId);
+        if ($subscription->plan->getBillableAmount() == 0) {
+            return new SubscriptionParam([
+                'status' => Subscription::STATUS_DONE,
+                'createdAt' => $subscription->created_at,
+            ]);
+        }
         
+        $transactions = $this->coinPaymentsAPI->GetTxIds(["limit" => 100]);
         $found = null;
+        $transactionId = null;
         foreach($transactions["result"] as $transaction) {
             $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
             $id = $result["checkout"]["item_number"];
             if ($subscriptionId == $id) {
                 $found = $result;
+                $transactionId = $transaction;
                 break;
             }
         }
@@ -95,16 +108,16 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             throw new \Exception('Subscription can not be found');
         }
         
+        // Update subscription id
+        $subscription->updateMetadata(['transaction_id' => $transactionId]);
+        
         $subscriptionParam = new SubscriptionParam([
-            'currentPeriodEnd' => \Carbon\Carbon::createFromTimestamp($found["time_created"])->addMonth(1)->timestamp,
             'createdAt' => $found["time_created"],
         ]);
         
         if ($found["status"] == 0) {
             $subscriptionParam->status = Subscription::STATUS_PENDING;
         }
-        
-        var_dump($found);
         
         if ($found["status"] > 0) {
             $subscriptionParam->status = Subscription::STATUS_DONE;
@@ -155,7 +168,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      * @param  Subscription  $subscription
      * @return date
      */
-    public function changeSubscriptionPlan($subscriptionId, $plan)
+    public function changePlan($subscriptionId, $plan)
     {
         $currentSubscription = $user->subscription();
         $currentSubscription->markAsCancelled();
@@ -176,6 +189,16 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     {
         $transactions = $this->coinPaymentsAPI->GetTxIds(["limit" => 100]);
         
+        $statuses = [
+            -2 => 'Refund / Reversal',
+            -1 => 'Cancelled / Timed Out',
+            0 => 'Waiting',
+            1 => 'Coin Confirmed',
+            2 => 'Queued',
+            3 => 'PayPal Pending',
+            100 => 'Complete',
+        ];
+        
         $invoices = [];
         foreach($transactions["result"] as $transaction) {
             $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
@@ -185,7 +208,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                     'time' => $result['time_created'],
                     'amount' => $result['amount'] . " " . $result['coin'],
                     'description' => $result['status_text'],
-                    'status' => $result['status']
+                    'status' => $statuses[$result['status']]
                 ]);
             }
         }

@@ -49,7 +49,26 @@ trait BillableUserTrait
         
         // Always set ends at if gateway dose not support recurring
         if (!$gateway->isSupportRecurring()) {
-            $subscription->ends_at = \Carbon\Carbon::now()->addMonth(1)->timestamp;
+            $interval = $plan->getBillableInterval();
+            $intervalCount = $plan->getBillableIntervalCount();
+            
+            switch ($interval) {
+                case 'month':
+                    $endsAt = \Carbon\Carbon::now()->addMonth($intervalCount)->timestamp;
+                    break;
+                case 'day':
+                    $endsAt = \Carbon\Carbon::now()->addDay($intervalCount)->timestamp;
+                case 'week':
+                    $endsAt = \Carbon\Carbon::now()->addWeek($intervalCount)->timestamp;
+                    break;
+                case 'year':
+                    $endsAt = \Carbon\Carbon::now()->addYear($intervalCount)->timestamp;
+                    break;
+                default:
+                    $endsAt = null;
+            }
+            
+            $subscription->ends_at = $endsAt;
         }
         
         $subscription->save();
@@ -84,7 +103,7 @@ trait BillableUserTrait
      */
     public function changePlan($plan, $gateway)
     {
-        $subscription = $gateway->changeSubscriptionPlan($this, $plan);
+        $subscription = $gateway->changePlan($this, $plan);
         
         $subscription->sync($gateway);
     }
