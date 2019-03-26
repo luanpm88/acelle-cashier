@@ -22,4 +22,6 @@ interface PaymentGatewayInterface
     public function validate();
     
     public function getInvoices($subscriptionId);
+    
+    public function topUp($subscription);
 }

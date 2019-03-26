@@ -9,6 +9,7 @@ use Stripe\Subscription as StripeSubscription;
 use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
 use Acelle\Cashier\Subscription;
 use Acelle\Cashier\SubscriptionParam;
+use Acelle\Cashier\InvoiceParam;
 use Carbon\Carbon;
 
 class StripePaymentGateway implements PaymentGatewayInterface
@@ -317,19 +318,25 @@ class StripePaymentGateway implements PaymentGatewayInterface
         
         $stripeSubscription->save();
         
+        // invoice at once
+        \Stripe\Invoice::create([
+            "customer" => $stripeSubscription->customer,
+            "subscription" => $stripeSubscription->id,
+        ]);
+        
         return $subscription;
-    }    
+    }
     
     /**
-     * Create a new subscriptionParam.
+     * Current rate for convert/revert Stripe price.
      *
      * @param  mixed    $price
      * @param  string    $currency
      * @return integer
      */
-    public function convertPrice($price, $currency)
+    public function currencyRates()
     {
-        $currencyRates = [
+        return [
             'CLP' => 1,
             'DJF' => 1,
             'JPY' => 1,
@@ -346,9 +353,38 @@ class StripePaymentGateway implements PaymentGatewayInterface
             'VND' => 1,
             'XPF' => 1,
         ];
+    }
+    
+    /**
+     * Convert price to Stripe price.
+     *
+     * @param  mixed    $price
+     * @param  string    $currency
+     * @return integer
+     */
+    public function convertPrice($price, $currency)
+    {
+        $currencyRates = $this->currencyRates();
+        
         $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
 
         return $price * $rate;
+    }
+    
+    /**
+     * Revert price from Stripe price.
+     *
+     * @param  mixed    $price
+     * @param  string    $currency
+     * @return integer
+     */
+    public function revertPrice($price, $currency)
+    {
+        $currencyRates = $this->currencyRates();
+        
+        $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
+
+        return $price / $rate;
     }
     
     /**
@@ -359,21 +395,32 @@ class StripePaymentGateway implements PaymentGatewayInterface
      */
     public function getInvoices($subscriptionId)
     {
-        $invoices = [];
-        //foreach($transactions["result"] as $transaction) {
-        //    $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
-        //    $id = $result["checkout"]["item_number"];
-        //    if ($subscriptionId == $id) {
-        //        $invoices[] = new InvoiceParam([
-        //            'time' => $result['time_created'],
-        //            'amount' => $result['amount'] . " " . $result['coin'],
-        //            'description' => $result['status_text'],
-        //            'status' => $result['status']
-        //        ]);
-        //    }
-        //}
+        $result = [];
         
-        return $invoices;
+        $stripeSubscription = $this->getStripeSubscription($subscriptionId);        
+        $invoices = \Stripe\Invoice::all(["subscription" => $stripeSubscription->id]);
+        
+        foreach($invoices["data"] as $invoice) {
+            $result[] = new InvoiceParam([
+                'time' => $invoice->created,
+                'amount' => $this->revertPrice($invoice->amount_paid, strtoupper($invoice->currency)) . " (" .$invoice->currency. ")",
+                'description' => $invoice->billing_reason,
+                'status' => $invoice->object
+            ]);
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Top-up subscription.
+     *
+     * @param  Subscription    $subscription
+     * @return Boolean
+     */
+    public function topUp($subscription)
+    {
+        return false;
     }
     
 }

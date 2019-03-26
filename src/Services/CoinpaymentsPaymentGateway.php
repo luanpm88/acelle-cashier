@@ -84,6 +84,8 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     public function retrieveSubscription($subscriptionId)
     {
         $subscription = Subscription::findByUid($subscriptionId);
+        
+        // Check if plan is free
         if ($subscription->plan->getBillableAmount() == 0) {
             return new SubscriptionParam([
                 'status' => Subscription::STATUS_DONE,
@@ -91,16 +93,22 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             ]);
         }
         
-        $transactions = $this->coinPaymentsAPI->GetTxIds(["limit" => 100]);
-        $found = null;
-        $transactionId = null;
-        foreach($transactions["result"] as $transaction) {
-            $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
-            $id = $result["checkout"]["item_number"];
-            if ($subscriptionId == $id) {
-                $found = $result;
-                $transactionId = $transaction;
-                break;
+        $metadata = $subscription->getMetadata();
+        if (isset($metadata->transaction_id)) {
+            $found = $this->coinPaymentsAPI->GetTxInfoSingle($metadata->transaction_id)['result'];
+            $transactionId = $metadata->transaction_id;
+        } else {        
+            $transactions = $this->coinPaymentsAPI->GetTxIds(["limit" => 100]);
+            $found = null;
+            $transactionId = null;
+            foreach($transactions["result"] as $transaction) {
+                $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
+                $id = $result["checkout"]["item_number"];
+                if ($subscriptionId == $id) {
+                    $found = $result;
+                    $transactionId = $transaction;
+                    break;
+                }
             }
         }
         
@@ -214,5 +222,16 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         }
         
         return $invoices;
+    }
+    
+    /**
+     * Top-up subscription.
+     *
+     * @param  Subscription    $subscription
+     * @return Boolean
+     */
+    public function topUp($subscription)
+    {
+        return false;
     }
 }
