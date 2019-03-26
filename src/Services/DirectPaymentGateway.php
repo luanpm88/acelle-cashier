@@ -26,6 +26,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface
             (ID INTEGER PRIMARY KEY AUTOINCREMENT,
             subscription_id           VARCHAR(255)    NOT NULL,
             price                     REAL            NOT NULL,
+            currency                  VARCHAR(255)    NOT NULL,
             status                    CHAR(50)        NOT NULL,
             description           TEXT    NOT NULL,
             created_at                INTEGER         NOT NULL);
@@ -73,7 +74,8 @@ EOF;
         $created_at = \Carbon\Carbon::now()->timestamp;
         $status = Subscription::STATUS_PENDING;
         $description = 'Transaction was created. Waiting for payment...';
-        $amount = $subscription->plan->price;
+        $amount = $subscription->plan->getBillableAmount();
+        $currency = $subscription->plan->getBillableCurrency();
         
         // custom amount
         if (isset($options['amount'])) {
@@ -82,8 +84,8 @@ EOF;
         
         // Create new transaction for payment
         $sql =<<<EOF
-            INSERT INTO transactions (subscription_id, price, status, description, created_at)  
-            VALUES ('{$subscription->uid}', {$amount}, '{$status}', '{$description}', {$created_at});
+            INSERT INTO transactions (subscription_id, price, currency, status, description, created_at)  
+            VALUES ('{$subscription->uid}', {$amount}, '{$currency}', '{$status}', '{$description}', {$created_at});
 EOF;
         $act = $this->db->exec($sql);
         if(!$act){
@@ -146,6 +148,7 @@ EOF;
             'status' => $row['status'],
             'amount' => $row['price'],
         ]);
+        
         
         return $subscriptionParam;
     }
@@ -241,7 +244,7 @@ EOF;
         while($row = $ret->fetchArray(SQLITE3_ASSOC) ) {
             $invoices[] = new InvoiceParam([
                 'time' => $row['created_at'],
-                'amount' => $row['price'],
+                'amount' => $row['price'] . " (" .$row['currency']. ")",
                 'description' => $row['description'],
                 'status' => $row['status']
             ]);
