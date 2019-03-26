@@ -121,6 +121,16 @@ EOF;
      */
     public function retrieveSubscription($subscriptionId)
     {
+        $subscription = Subscription::findByUid($subscriptionId);
+        
+        // Check if plan is free
+        if ($subscription->plan->getBillableAmount() == 0) {
+            return new SubscriptionParam([
+                'status' => Subscription::STATUS_DONE,
+                'createdAt' => $subscription->created_at,
+            ]);
+        }
+        
         $sql =<<<EOF
             SELECT * from transactions WHERE subscription_id='{$subscriptionId}' ORDER BY created_at DESC;
 EOF;
@@ -237,5 +247,16 @@ EOF;
             ]);
         }        
         return $invoices;
+    }
+    
+    /**
+     * Top-up subscription.
+     *
+     * @param  Subscription    $subscription
+     * @return Boolean
+     */
+    public function topUp($subscription)
+    {
+        return false;
     }
 }
