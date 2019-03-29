@@ -171,6 +171,17 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     }
     
     /**
+     * Renew subscription.
+     *
+     * @param  Subscription  $subscription
+     * @return date
+     */
+    public function renewSubscription($subscription)
+    {
+        
+    }
+    
+    /**
      * Change subscription plan.
      *
      * @param  Subscription  $subscription
@@ -219,18 +230,20 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         $transactions = $this->coinPaymentsAPI->GetTxIds(["limit" => 100]);
         
         $invoices = [];
-        foreach($transactions["result"] as $transaction) {
-            $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
-            $id = $result["checkout"]["item_number"];            
-            if ($subscriptionId == $id) {
-                $data = json_decode($result["checkout"]["item_desc"], true);
-                $invoices[] = new InvoiceParam([
-                    'createdAt' => $data['createdAt'],
-                    'periodEndsAt' => $data['periodEndsAt'],
-                    'amount' => $data['amount'],
-                    'description' => $result["checkout"]["item_name"],
-                    'status' => $this->getTransactionStatus($result['status'])
-                ]);
+        if (isset($transactions["result"])) {
+            foreach($transactions["result"] as $transaction) {
+                $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
+                $id = $result["checkout"]["item_number"];            
+                if ($subscriptionId == $id) {
+                    $data = json_decode($result["checkout"]["item_desc"], true);
+                    $invoices[] = new InvoiceParam([
+                        'createdAt' => $data['createdAt'],
+                        'periodEndsAt' => $data['periodEndsAt'],
+                        'amount' => $data['amount'],
+                        'description' => $result["checkout"]["item_name"],
+                        'status' => $this->getTransactionStatus($result['status'])
+                    ]);
+                }
             }
         }
         
@@ -248,11 +261,13 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         $transactions = $this->coinPaymentsAPI->GetTxIds(["limit" => 100]);
         
         $invoices = [];
-        foreach($transactions["result"] as $transaction) {
-            $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
-            $id = $result["checkout"]["item_number"];            
-            if ($subscriptionId == $id) {
-                $invoices[] = $result;
+        if (isset($transactions["result"])) {
+            foreach($transactions["result"] as $transaction) {
+                $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
+                $id = $result["checkout"]["item_number"];            
+                if ($subscriptionId == $id) {
+                    $invoices[] = $result;
+                }
             }
         }
         
@@ -310,5 +325,27 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         }
         
         return false;
+    }
+    
+    /**
+     * Allow admin update payment status without service without payment.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function setDone($subscription)
+    {
+        throw new \Exception('The Payment service dose not support this feature!');
+    }
+    
+    /**
+     * Approve future invoice
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function approvePendingInvoice($subscription)
+    {
+        throw new \Exception('The Payment service dose not support this feature!');
     }
 }

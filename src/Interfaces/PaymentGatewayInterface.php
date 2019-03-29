@@ -17,6 +17,7 @@ interface PaymentGatewayInterface
     public function resumeSubscription($subscriptionId);
     public function cancelNowSubscription($subscriptionId);
     public function changePlan($subscriptionId, $plan);
+    public function renewSubscription($subscription);
     
     public function isSupportRecurring();
     public function validate();
@@ -25,4 +26,7 @@ interface PaymentGatewayInterface
     public function getRawInvoices($subscriptionId);
     
     public function checkPendingPaymentForFuture($subscription);
+    public function setDone($subscription);
+    
+    public function approvePendingInvoice($subscription);
 }

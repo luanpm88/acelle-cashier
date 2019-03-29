@@ -442,6 +442,20 @@ class Subscription extends Model
         
         $this->sync($gateway);
     }
+    
+    /**
+     * Resume the cancelled subscription.
+     *
+     * @return $this
+     *
+     * @throws \LogicException
+     */
+    public function renew($gateway)
+    {
+        $gateway->renewSubscription($this);
+        
+        $this->sync($gateway);
+    }
 
     /**
      * Cancel the subscription immediately.
@@ -544,6 +558,9 @@ class Subscription extends Model
      */
     public function goingToExpire($days)
     {
+        if (!$this->ends_at) {
+            return false;
+        }
         return $this->ends_at->subDay($days)->lessThanOrEqualTo(\Carbon\Carbon::now());
     }
     
@@ -641,5 +658,30 @@ class Subscription extends Model
     public function getRawInvoices($gateway)
     {
         return $gateway->getRawInvoices($this->uid);
+    }
+    
+    /**
+     * Set done for subscription.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function setDone($gateway)
+    {
+        $gateway->setDone($this);
+        
+        $this->status = Subscription::STATUS_DONE;
+        $this->save();
+    }
+    
+    /**
+     * Set done for subscription.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function approvePendingInvoice($gateway)
+    {
+        $gateway->approvePendingInvoice($this);
     }
 }

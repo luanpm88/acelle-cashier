@@ -299,6 +299,17 @@ class StripePaymentGateway implements PaymentGatewayInterface
     }
     
     /**
+     * Renew subscription.
+     *
+     * @param  Subscription  $subscription
+     * @return date
+     */
+    public function renewSubscription($subscription)
+    {
+        
+    }
+    
+    /**
      * Swap subscription plan.
      *
      * @param  Subscription  $subscription
@@ -431,7 +442,43 @@ class StripePaymentGateway implements PaymentGatewayInterface
      */
     public function getRawInvoices($subscriptionId)
     {
+        $result = [];
         
+        $stripeSubscription = $this->getStripeSubscription($subscriptionId);        
+        $invoices = \Stripe\Invoice::all(["subscription" => $stripeSubscription->id]);
+        
+        return $invoices["data"];
     }
     
+    /**
+     * Allow admin update payment status without service without payment.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function setDone($subscription)
+    {
+        throw new \Exception('The Payment service dose not support this feature!');
+    }
+    
+    /**
+     * Approve future invoice
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function approvePendingInvoice($subscription)
+    {
+        throw new \Exception('The Payment service dose not support this feature!');
+    }
+    
+    /**
+     * Check if subscription has future payment pending.
+     *
+     * @param  Subscription    $subscription
+     * @return Boolean
+     */
+    public function checkPendingPaymentForFuture($subscription)
+    {
+    }
 }

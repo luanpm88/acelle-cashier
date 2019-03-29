@@ -116,13 +116,17 @@ trait BillableUserTrait
     public function calcChangePlan($plan)
     {
         $currentSubscription = $this->subscription();
-        $currentAmount = $plan->price;
+        $remainDays = $currentSubscription->ends_at->diffInDays(\Carbon\Carbon::now());
+        
+        // amout per day of current plan
+        $currentAmount = $currentSubscription->plan->price;
         $periodDays = $currentSubscription->ends_at->diffInDays($currentSubscription->periodStartAt());
         $remainDays = $currentSubscription->ends_at->diffInDays(\Carbon\Carbon::now());
-        $remainAmount = ($currentAmount/$periodDays)*$remainDays;
+        $currentPerDayAmount = ($currentAmount/$periodDays);
+        $newAmount = ($plan->price/$periodDays)*$remainDays;
+        $remainAmount = $currentPerDayAmount*$remainDays;
         
-        $newAmount = $plan->price;
-        $amount = ($newAmount/$periodDays)*$remainDays;
+        $amount = $newAmount - $remainAmount;
         
         return [
             'amount' => $amount,
