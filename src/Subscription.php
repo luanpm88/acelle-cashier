@@ -100,20 +100,6 @@ class Subscription extends Model
     }
     
     /**
-     * Set metadata.
-     *
-     * @var object | collect
-     */
-    public function setMetadata($options=[])
-    {
-        if (!$this->metadata) {
-            return json_decode('{}');
-        }
-        
-        return json_decode($this->metadata);
-    }
-    
-    /**
      * Associations.
      *
      * @var object | collect
@@ -160,7 +146,7 @@ class Subscription extends Model
         $gateway->charge($this);
         
         // sync
-        $this->sync($gateway);
+        $this->sync($gateway);        
     }
 
     /**
@@ -399,7 +385,11 @@ class Subscription extends Model
      */
     public function sync($gateway)
     {
+        // retrive and update info
         $this->retrieve($gateway);
+        
+        // check renew 
+        $this->checkPendingPaymentForFuture($gateway);
     }
     
     /**
@@ -533,5 +523,123 @@ class Subscription extends Model
     public function getInvoices($gateway)
     {
         return $gateway->getInvoices($this->uid);
+    }
+    
+    /**
+     * Get next invoice status.
+     *
+     * @param  Subscription    $subscription
+     * @return Boolean
+     */
+    public function nextInvoice($gateway)
+    {
+        return $gateway->nextInvoice($this);
+    }
+    
+    /**
+     * Check if subscription is going to expire.
+     *
+     * @param  Subscription    $subscription
+     * @return Boolean
+     */
+    public function goingToExpire($days)
+    {
+        return $this->ends_at->subDay($days)->lessThanOrEqualTo(\Carbon\Carbon::now());
+    }
+    
+    /**
+     * Check if subscription has future payment pending.
+     *
+     * @param  Gateway    $gateway
+     * @return Boolean
+     */
+    public function checkPendingPaymentForFuture($gateway)
+    {
+        return $gateway->checkPendingPaymentForFuture($this);
+    }
+    
+    /**
+     * Next one period to subscription.
+     *
+     * @param  Gateway    $gateway
+     * @return Boolean
+     */
+    public function nextPeriod()
+    {
+        $endsAt = $this->ends_at;
+        $interval = $this->plan->getBillableInterval();
+        $intervalCount = $this->plan->getBillableIntervalCount();
+        
+        switch ($interval) {
+            case 'month':
+                $endsAt = $this->ends_at->addMonth($intervalCount);
+                break;
+            case 'day':
+                $endsAt = $this->ends_at->addDay($intervalCount);
+            case 'week':
+                $endsAt = $this->ends_at->addWeek($intervalCount);
+                break;
+            case 'year':
+                $endsAt = $this->ends_at->addYear($intervalCount);
+                break;
+            default:
+                $endsAt = null;
+        }
+        
+        return $endsAt;
+    }
+    
+    /**
+     * Next one period to subscription.
+     *
+     * @param  Gateway    $gateway
+     * @return Boolean
+     */
+    public function periodStartAt()
+    {
+        $startAt = $this->ends_at;
+        $interval = $this->plan->getBillableInterval();
+        $intervalCount = $this->plan->getBillableIntervalCount();
+        
+        switch ($interval) {
+            case 'month':
+                $startAt = $this->ends_at->subMonth($intervalCount);
+                break;
+            case 'day':
+                $startAt = $this->ends_at->subDay($intervalCount);
+            case 'week':
+                $startAt = $this->ends_at->subWeek($intervalCount);
+                break;
+            case 'year':
+                $startAt = $this->ends_at->subYear($intervalCount);
+                break;
+            default:
+                $startAt = null;
+        }
+        
+        return $startAt;
+    }
+    
+    /**
+     * Add one period to subscription.
+     *
+     * @param  Gateway    $gateway
+     * @return Boolean
+     */
+    public function addPeriod()
+    {
+        $this->ends_at = $this->nextPeriod();
+        $this->save();
+    }
+    
+    /**
+     * Get subscription raw invoices.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function getRawInvoices($gateway)
+    {
+        return $gateway->getRawInvoices($this->uid);
     }
 }

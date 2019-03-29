@@ -423,4 +423,15 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return false;
     }
     
+    /**
+     * Get subscription raw invoices.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function getRawInvoices($subscriptionId)
+    {
+        
+    }
+    
 }

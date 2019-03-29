@@ -22,6 +22,7 @@ interface PaymentGatewayInterface
     public function validate();
     
     public function getInvoices($subscriptionId);
+    public function getRawInvoices($subscriptionId);
     
-    public function topUp($subscription);
+    public function checkPendingPaymentForFuture($subscription);
 }

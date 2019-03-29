@@ -109,6 +109,27 @@ trait BillableUserTrait
     }
     
     /**
+     * user want to change plan.
+     *
+     * @return bollean
+     */
+    public function calcChangePlan($plan)
+    {
+        $currentSubscription = $this->subscription();
+        $currentAmount = $plan->price;
+        $periodDays = $currentSubscription->ends_at->diffInDays($currentSubscription->periodStartAt());
+        $remainDays = $currentSubscription->ends_at->diffInDays(\Carbon\Carbon::now());
+        $remainAmount = ($currentAmount/$periodDays)*$remainDays;
+        
+        $newAmount = $plan->price;
+        $amount = ($newAmount/$periodDays)*$remainDays;
+        
+        return [
+            'amount' => $amount,
+        ];
+    }
+    
+    /**
      * Retrive subscription from remote.
      *
      * @return $this

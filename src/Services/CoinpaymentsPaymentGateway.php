@@ -123,11 +123,11 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             'createdAt' => $found["time_created"],
         ]);
         
-        if ($found["status"] == 0) {
+        if ($found["status"] >= 0) {
             $subscriptionParam->status = Subscription::STATUS_PENDING;
         }
         
-        if ($found["status"] > 0) {
+        if ($found["status"] == 100) {
             $subscriptionParam->status = Subscription::STATUS_DONE;
         }
         
@@ -188,15 +188,13 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     }
     
     /**
-     * Get subscription invoices.
+     * Convert transaction status integer to string.
      *
      * @param  Int  $subscriptionId
      * @return date
      */
-    public function getInvoices($subscriptionId)
+    public function getTransactionStatus($number)
     {
-        $transactions = $this->coinPaymentsAPI->GetTxIds(["limit" => 100]);
-        
         $statuses = [
             -2 => 'Refund / Reversal',
             -1 => 'Cancelled / Timed Out',
@@ -207,16 +205,31 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             100 => 'Complete',
         ];
         
+        return $statuses[$number];
+    }
+    
+    /**
+     * Get subscription invoices.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function getInvoices($subscriptionId)
+    {
+        $transactions = $this->coinPaymentsAPI->GetTxIds(["limit" => 100]);
+        
         $invoices = [];
         foreach($transactions["result"] as $transaction) {
             $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
-            $id = $result["checkout"]["item_number"];
+            $id = $result["checkout"]["item_number"];            
             if ($subscriptionId == $id) {
+                $data = json_decode($result["checkout"]["item_desc"], true);
                 $invoices[] = new InvoiceParam([
-                    'time' => $result['time_created'],
-                    'amount' => $result['amount'] . " " . $result['coin'],
-                    'description' => $result['status_text'],
-                    'status' => $statuses[$result['status']]
+                    'createdAt' => $data['createdAt'],
+                    'periodEndsAt' => $data['periodEndsAt'],
+                    'amount' => $data['amount'],
+                    'description' => $result["checkout"]["item_name"],
+                    'status' => $this->getTransactionStatus($result['status'])
                 ]);
             }
         }
@@ -225,13 +238,77 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     }
     
     /**
-     * Top-up subscription.
+     * Get subscription raw invoices.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function getRawInvoices($subscriptionId)
+    {
+        $transactions = $this->coinPaymentsAPI->GetTxIds(["limit" => 100]);
+        
+        $invoices = [];
+        foreach($transactions["result"] as $transaction) {
+            $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
+            $id = $result["checkout"]["item_number"];            
+            if ($subscriptionId == $id) {
+                $invoices[] = $result;
+            }
+        }
+        
+        return $invoices;
+    }
+    
+    /**
+     * Check if subscription has future payment pending.
      *
      * @param  Subscription    $subscription
      * @return Boolean
      */
-    public function topUp($subscription)
+    public function checkPendingPaymentForFuture($subscription)
     {
+        // Check if has current transaction is current subscription
+        $metadata = $subscription->getMetadata();
+        if (!isset($metadata->transaction_id)) {
+            return null;
+        }
+        
+        // Find newest transaction that maybe topup transaction
+        $transactions = $this->coinPaymentsAPI->GetTxIds(["limit" => 100]);        
+        $found = null;
+        $transactionId = null;
+        foreach($transactions["result"] as $transaction) {
+            $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];            
+            $id = $result["checkout"]["item_number"];
+            if ($subscription->uid == $id) {
+                $found = $result;
+                $transactionId = $transaction;
+                break;
+            }
+        }
+        
+        // found
+        if (isset($found) && $transactionId != $metadata->transaction_id) {
+            if ($found['status'] == 100) {
+                $data = json_decode($found["checkout"]["item_desc"], true);
+                
+                $subscription->updateMetadata(['transaction_id' => $transactionId]);
+                if (isset($data['periodEndsAt'])) {
+                    $subscription->ends_at = \Carbon\Carbon::createFromTimestamp($data['periodEndsAt']);
+                }
+                
+                if (isset($data['planId'])) {
+                    $subscription->plan_id = $data['planId'];
+                }
+                
+                $subscription->save();
+            }
+            
+            if ($found['status'] != 100 && $found['status'] >= 0) {
+                return true;
+            }
+        }
+        
         return false;
     }
 }

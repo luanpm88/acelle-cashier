@@ -6,7 +6,8 @@ use Carbon\Carbon;
 
 class InvoiceParam
 {
-    public $time;
+    public $periodEndsAt;
+    public $createdAt;
     public $amount;
     public $description;
     public $status;
