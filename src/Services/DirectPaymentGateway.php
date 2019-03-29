@@ -370,7 +370,9 @@ EOF;
         // Check if has current transaction is current subscription
         $metadata = $subscription->getMetadata();
         if (!isset($metadata->transaction_id)) {
-            return null;
+            $metadataTid = 'empty';
+        } else {
+            $metadataTid = $metadata->transaction_id;
         }
         
         // Find newest transaction that maybe topup transaction
@@ -385,7 +387,7 @@ EOF;
         }
         
         // found
-        if ($row && $row['ID'] != $metadata->transaction_id) {
+        if ($row && $row['ID'] != $metadataTid) {
             if ($row['status'] == Subscription::STATUS_DONE) {
                 $data = json_decode($row["data"], true);
                 

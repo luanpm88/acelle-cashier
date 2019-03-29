@@ -285,7 +285,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         // Check if has current transaction is current subscription
         $metadata = $subscription->getMetadata();
         if (!isset($metadata->transaction_id)) {
-            return null;
+            $metadataTid = 'empty';
+        } else {
+            $metadataTid = $metadata->transaction_id;
         }
         
         // Find newest transaction that maybe topup transaction
@@ -303,7 +305,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         }
         
         // found
-        if (isset($found) && $transactionId != $metadata->transaction_id) {
+        if (isset($found) && $transactionId != $metadataTid) {
             if ($found['status'] == 100) {
                 $data = json_decode($found["checkout"]["item_desc"], true);
                 
