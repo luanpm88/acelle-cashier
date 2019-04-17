@@ -73,6 +73,8 @@ trait BillableUserTrait
         
         $subscription->save();
         
+        $gateway->createSubscription($subscription);
+        
         return $subscription;
     }
     

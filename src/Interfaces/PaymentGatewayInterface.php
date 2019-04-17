@@ -7,6 +7,7 @@ use Acelle\Cashier\Models\Subscription;
 
 interface PaymentGatewayInterface
 {
+    public function createSubscription($subscription);
     public function charge($subscription);
     public function retrieveSubscription($subscriptionId);
     

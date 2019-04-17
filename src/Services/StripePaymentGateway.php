@@ -71,6 +71,17 @@ class StripePaymentGateway implements PaymentGatewayInterface
     }
     
     /**
+     * Create a new subscription.
+     *
+     * @param  mixed                $token
+     * @param  Subscription         $subscription
+     * @return void
+     */
+    public function createSubscription($subscription)
+    {
+    }
+    
+    /**
      * Create a new subscriptionParam.
      *
      * @param  mixed              $token

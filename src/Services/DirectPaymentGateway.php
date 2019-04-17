@@ -15,10 +15,12 @@ use Carbon\Carbon;
 class DirectPaymentGateway implements PaymentGatewayInterface
 {
     public $db;
+    public $notice;
     
-    public function __construct($database_path)
+    public function __construct($notice)
     {
-        $this->db = new \SQLite3(storage_path($database_path));
+        $this->db = new \SQLite3(storage_path('app/direct_payment.sqlite3'));
+        $this->notice = $notice;
         
         // Create transaction table if not exist
         $sql =<<<EOF
@@ -73,6 +75,17 @@ EOF;
     public function format_price($price, $format = '{PRICE}')
     {
         return str_replace('{PRICE}', self::format_number($price), $format);
+    }
+    
+    /**
+     * Create a new subscription.
+     *
+     * @param  mixed                $token
+     * @param  Subscription         $subscription
+     * @return void
+     */
+    public function createSubscription($subscription)
+    {
     }
     
     /**

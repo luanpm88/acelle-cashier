@@ -44,6 +44,30 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     }
     
     /**
+     * Create a new subscription.
+     *
+     * @param  mixed                $token
+     * @param  Subscription         $subscription
+     * @return void
+     */
+    public function createSubscription($subscription)
+    {
+        $metadata = $subscription->getMetadata();
+        $transactions = isset($metadata->transactions) ? $metadata->transactions : [];
+        
+        $tid = 'Transaction ID: ' . uniqid();
+        
+        $transactions[] = [
+            'id' => $tid,
+            'createdAt' => $subscription->created_at->timestamp,
+			'periodEndsAt' => $subscription->ends_at->timestamp,
+			'amount' => \Acelle\Library\Tool::format_price($subscription->plan->price, $subscription->plan->currency->format),
+        ];
+        
+        $subscription->updateMetadata(['transactions' => $transactions]);
+    }
+    
+    /**
      * Create a new subscriptionParam.
      *
      * @param  mixed              $token
@@ -227,6 +251,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function getInvoices($subscriptionId)
     {
+        $subscription = Subscription::findByUid($subscriptionId);
         $transactions = $this->coinPaymentsAPI->GetTxIds(["limit" => 100]);
         
         $invoices = [];
@@ -235,11 +260,20 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                 $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
                 $id = $result["checkout"]["item_number"];            
                 if ($subscriptionId == $id) {
-                    $data = json_decode($result["checkout"]["item_desc"], true);
+                    // $data = json_decode($result["checkout"]["item_desc"], true);
+                    $tid = $result["checkout"]["item_desc"];
+                    $data = $neededObject = array_filter(
+                        $subscription->getMetadata()->transactions,
+                        function ($e) use (&$tid) {
+                            return $e->id == $tid;
+                        }
+                    );
+                    $data = reset($data);
+                    
                     $invoices[] = new InvoiceParam([
-                        'createdAt' => $data['createdAt'],
-                        'periodEndsAt' => $data['periodEndsAt'],
-                        'amount' => $data['amount'],
+                        'createdAt' => $data->createdAt,
+                        'periodEndsAt' => $data->periodEndsAt,
+                        'amount' => $data->amount,
                         'description' => $result["checkout"]["item_name"],
                         'status' => $this->getTransactionStatus($result['status'])
                     ]);
