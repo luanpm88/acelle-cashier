@@ -17,7 +17,10 @@ trait BillableUserTrait
     {
         // @todo how to know customer has uid
         return $this->hasMany('Acelle\Cashier\Subscription', 'user_id', 'uid')
-            ->whereNull('ends_at')->orWhere('ends_at', '>=', \Carbon\Carbon::now())
+            ->where(function($query){
+                $query->whereNull('ends_at')
+                      ->orWhere('ends_at', '>=', \Carbon\Carbon::now());
+            })
             ->orderBy('created_at', 'desc');
     }
     
