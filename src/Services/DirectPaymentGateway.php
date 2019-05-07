@@ -316,6 +316,10 @@ EOF;
             throw new \Exception($this->db->lastErrorMsg());
         }
         
+        // mark the payment is not claimed
+        $subscription->payment_claimed = false;
+        $subscription->save();
+        
         return $subscription;
     }
     
@@ -367,7 +371,25 @@ EOF;
      */
     public function getRawInvoices($subscriptionId)
     {
+        $invoices = [];
         
+        $sql =<<<EOF
+            SELECT * from transactions WHERE subscription_id='{$subscriptionId}' ORDER BY created_at DESC;
+EOF;
+
+        $ret = $this->db->query($sql);
+        
+        while($row = $ret->fetchArray(SQLITE3_ASSOC) ) {
+            $data = json_decode($row['data'], true);
+            $invoices[] = new InvoiceParam([
+                'createdAt' => $data['createdAt'],
+                'periodEndsAt' => $data['periodEndsAt'],
+                'amount' => $data['amount'],
+                'description' => $data['description'],
+                'status' => $row['status'],
+            ]);
+        }        
+        return $invoices;
     }
     
     /**

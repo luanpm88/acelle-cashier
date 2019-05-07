@@ -684,4 +684,27 @@ class Subscription extends Model
     {
         $gateway->approvePendingInvoice($this);
     }
+    
+    /**
+     * Check if payment is claimed.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function isPaymentClaimed()
+    {
+        return $this->payment_claimed;
+    }
+    
+    /**
+     * Claim payment.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function claimPayment()
+    {
+        $this->payment_claimed = true;
+        $this->save();
+    }
 }
