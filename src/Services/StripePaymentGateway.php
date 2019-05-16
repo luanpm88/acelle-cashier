@@ -18,12 +18,12 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public $owner;
     public $plan;
     public $cardToken;
-    
+
     public function __construct($secret_key)
     {
         \Stripe\Stripe::setApiKey($secret_key);
     }
-    
+
     /**
      * Check if service is valid.
      *
@@ -36,7 +36,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
             $ch = \Stripe\Charge::retrieve(
                 "ch_1EFe6rCMj8fc6a7IsF1uWqBW"
             );
-            
+
             $ch->capture(); // Uses the same API Key.
         } catch(\Stripe\Error\Card $e) {
             // Since it's a decline, \Stripe\Error\Card will be caught
@@ -58,7 +58,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
         }
 
     }
-    
+
     /**
      * Check if support recurring.
      *
@@ -69,7 +69,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
     {
         return true;
     }
-    
+
     /**
      * Create a new subscription.
      *
@@ -80,7 +80,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function createSubscription($subscription)
     {
     }
-    
+
     /**
      * Create a new subscriptionParam.
      *
@@ -91,11 +91,11 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function charge($subscription)
     {
         // get or create plan
-        $stripePlan = $this->getStripePlan($subscription->plan);        
-        
+        $stripePlan = $this->getStripePlan($subscription->plan);
+
         // get or create plan
         $stripeCustomer = $this->getStripeCustomer($subscription->user);
-        
+
         // create subscription
         $stripeSubscription = \Stripe\Subscription::create([
             "customer" => $stripeCustomer->id,
@@ -109,7 +109,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
             ],
         ]);
     }
-    
+
     /**
      * Get the Stripe plan instance for the current user and token.
      *
@@ -125,10 +125,9 @@ class StripePaymentGateway implements PaymentGatewayInterface
                 return $stripePlan;
             }
         }
-        
+
         // if plan dosen't exist
         $stripePlan = \Stripe\Plan::create([
-            'name' => $plan->getBillableName(),
             'interval' => $plan->getBillableInterval(),
             'interval_count' => $plan->getBillableIntervalCount(),
             'currency' => $plan->getBillableCurrency(),
@@ -137,10 +136,10 @@ class StripePaymentGateway implements PaymentGatewayInterface
                 'local_plan_id' => $plan->getBillableId(),
             ],
         ]);
-        
+
         return $stripePlan;
     }
-    
+
     /**
      * Get the Stripe customer instance for the current user and token.
      *
@@ -156,17 +155,17 @@ class StripePaymentGateway implements PaymentGatewayInterface
                 return $stripeCustomer;
             }
         }
-        
+
         // create if not exist
         $stripeCustomer = \Stripe\Customer::create([
             'metadata' => [
                 'local_user_id' => $user->getBillableId(),
             ],
         ]);
-        
+
         return $stripeCustomer;
     }
-    
+
     /**
      * Check if customer has valid card.
      *
@@ -176,11 +175,11 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function billableUserHasCard($user)
     {
         $stripeCustomer = $this->getStripeCustomer($user);
-        
+
         // get card from customer
         return isset($stripeCustomer->default_source);
     }
-    
+
     /**
      * Update user card.
      *
@@ -190,12 +189,12 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function billableUserUpdateCard($user, $params)
     {
         $stripeCustomer = $this->getStripeCustomer($user);
-        
+
         $card = $stripeCustomer->sources->create(['source' => $params['stripeToken']]);
         $stripeCustomer->default_source = $card->id;
         $stripeCustomer->save();
     }
-    
+
     /**
      * Get Stripe Subscription.
      *
@@ -211,7 +210,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
                 return $stripeSubscription;
             }
         }
-        
+
         // Find cancelled subscription
         $stripeSubscriptions = \Stripe\Subscription::all(["status" => "canceled"]);
         foreach ($stripeSubscriptions as $stripeSubscription) {
@@ -219,10 +218,10 @@ class StripePaymentGateway implements PaymentGatewayInterface
                 return $stripeSubscription;
             }
         }
-        
+
         return NULL;
     }
-    
+
     /**
      * Retrieve subscription param.
      *
@@ -232,39 +231,39 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function retrieveSubscription($subscriptionId)
     {
         $subscriptionParam = NULL;
-        
+
         // get stripe subscription
         $stripeSubscription = $this->getStripeSubscription($subscriptionId);
-            
+
         if ($stripeSubscription != NULL) {
-            
+
             $subscriptionParam = new SubscriptionParam([
                 'currentPeriodEnd' => $stripeSubscription->current_period_end,
                 'createdAt' => $stripeSubscription->created,
             ]);
-            
+
             // ends at
             if ($stripeSubscription->cancel_at && $stripeSubscription->current_period_end) {
                 $subscriptionParam->endsAt = $stripeSubscription->current_period_end;
             }
-            
+
             // ended
             if ($stripeSubscription->ended_at) {
                 $subscriptionParam->endsAt = $stripeSubscription->ended_at;
             }
-            
+
             // update plan
             $subscriptionParam->planId = $stripeSubscription->plan->metadata->local_plan_id;
-            
+
             // update plan
             $subscriptionParam->status = Subscription::STATUS_DONE;
         } else {
             throw new \Exception('Stripe subscription can not be found');
         }
-        
+
         return $subscriptionParam;
     }
-    
+
     /**
      * Cancel subscription.
      *
@@ -273,11 +272,11 @@ class StripePaymentGateway implements PaymentGatewayInterface
      */
     public function cancelSubscription($subscriptionId)
     {
-        $stripeSubscription = $this->getStripeSubscription($subscriptionId);        
+        $stripeSubscription = $this->getStripeSubscription($subscriptionId);
         $stripeSubscription->cancel_at_period_end = true;
         $stripeSubscription->save();
     }
-    
+
     /**
      * Resume subscription.
      *
@@ -286,7 +285,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
      */
     public function resumeSubscription($subscriptionId)
     {
-        $stripeSubscription = $this->getStripeSubscription($subscriptionId);        
+        $stripeSubscription = $this->getStripeSubscription($subscriptionId);
         $stripeSubscription->cancel_at_period_end = false;
 
         // To resume the subscription we need to set the plan parameter on the Stripe
@@ -296,7 +295,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
         $stripeSubscription->save();
     }
-    
+
     /**
      * Resume subscription.
      *
@@ -305,10 +304,10 @@ class StripePaymentGateway implements PaymentGatewayInterface
      */
     public function cancelNowSubscription($subscriptionId)
     {
-        $stripeSubscription = $this->getStripeSubscription($subscriptionId);        
+        $stripeSubscription = $this->getStripeSubscription($subscriptionId);
         $stripeSubscription->cancel();
     }
-    
+
     /**
      * Renew subscription.
      *
@@ -317,9 +316,9 @@ class StripePaymentGateway implements PaymentGatewayInterface
      */
     public function renewSubscription($subscription)
     {
-        
+
     }
-    
+
     /**
      * Swap subscription plan.
      *
@@ -329,26 +328,26 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function changePlan($user, $plan)
     {
         $subscription = $user->subscription();
-        
-        $stripeSubscription = $this->getStripeSubscription($subscription->uid);    
+
+        $stripeSubscription = $this->getStripeSubscription($subscription->uid);
 
         $stripePlan = $this->getStripePlan($plan);
-        
+
         $stripeSubscription->plan = $stripePlan;
-        
+
         $stripeSubscription->cancel_at_period_end = false;
-        
+
         $stripeSubscription->save();
-        
+
         // invoice at once
         \Stripe\Invoice::create([
             "customer" => $stripeSubscription->customer,
             "subscription" => $stripeSubscription->id,
         ]);
-        
+
         return $subscription;
     }
-    
+
     /**
      * Current rate for convert/revert Stripe price.
      *
@@ -376,7 +375,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
             'XPF' => 1,
         ];
     }
-    
+
     /**
      * Convert price to Stripe price.
      *
@@ -387,12 +386,12 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function convertPrice($price, $currency)
     {
         $currencyRates = $this->currencyRates();
-        
+
         $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
 
         return $price * $rate;
     }
-    
+
     /**
      * Revert price from Stripe price.
      *
@@ -403,12 +402,12 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function revertPrice($price, $currency)
     {
         $currencyRates = $this->currencyRates();
-        
+
         $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
 
         return $price / $rate;
     }
-    
+
     /**
      * Get subscription invoices.
      *
@@ -418,10 +417,10 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function getInvoices($subscriptionId)
     {
         $result = [];
-        
-        $stripeSubscription = $this->getStripeSubscription($subscriptionId);        
+
+        $stripeSubscription = $this->getStripeSubscription($subscriptionId);
         $invoices = \Stripe\Invoice::all(["subscription" => $stripeSubscription->id]);
-        
+
         foreach($invoices["data"] as $invoice) {
             $result[] = new InvoiceParam([
                 'time' => $invoice->created,
@@ -430,10 +429,10 @@ class StripePaymentGateway implements PaymentGatewayInterface
                 'status' => $invoice->object
             ]);
         }
-        
+
         return $result;
     }
-    
+
     /**
      * Top-up subscription.
      *
@@ -444,7 +443,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
     {
         return false;
     }
-    
+
     /**
      * Get subscription raw invoices.
      *
@@ -454,13 +453,13 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function getRawInvoices($subscriptionId)
     {
         $result = [];
-        
-        $stripeSubscription = $this->getStripeSubscription($subscriptionId);        
+
+        $stripeSubscription = $this->getStripeSubscription($subscriptionId);
         $invoices = \Stripe\Invoice::all(["subscription" => $stripeSubscription->id]);
-        
+
         return $invoices["data"];
     }
-    
+
     /**
      * Allow admin update payment status without service without payment.
      *
@@ -471,7 +470,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
     {
         throw new \Exception('The Payment service dose not support this feature!');
     }
-    
+
     /**
      * Approve future invoice
      *
@@ -482,7 +481,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
     {
         throw new \Exception('The Payment service dose not support this feature!');
     }
-    
+
     /**
      * Check if subscription has future payment pending.
      *
