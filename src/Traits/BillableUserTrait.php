@@ -23,18 +23,18 @@ trait BillableUserTrait
             })
             ->orderBy('created_at', 'desc');
     }
-    
+
     public function subscription()
     {
         return $this->subscriptions()->first();
     }
-    
+
     public function subscriptionValid()
     {
         $subscription = $this->subscription();
         return is_object($subscription) && $subscription->valid();
     }
-    
+
     /**
      * Begin creating a new subscription.
      *
@@ -49,12 +49,12 @@ trait BillableUserTrait
         $subscription->user_id = $this->getBillableId();
         $subscription->plan_id = $plan->getBillableId();
         $subscription->status = Subscription::STATUS_NEW;
-        
+
         // Always set ends at if gateway dose not support recurring
         if (!$gateway->isSupportRecurring()) {
             $interval = $plan->getBillableInterval();
             $intervalCount = $plan->getBillableIntervalCount();
-            
+
             switch ($interval) {
                 case 'month':
                     $endsAt = \Carbon\Carbon::now()->addMonth($intervalCount)->timestamp;
@@ -70,17 +70,17 @@ trait BillableUserTrait
                 default:
                     $endsAt = null;
             }
-            
+
             $subscription->ends_at = $endsAt;
         }
-        
+
         $subscription->save();
-        
+
         $gateway->createSubscription($subscription);
-        
+
         return $subscription;
     }
-    
+
     /**
      * Check if user has card and payable.
      *
@@ -90,7 +90,7 @@ trait BillableUserTrait
     {
         return $gateway->billableUserHasCard($this);
     }
-    
+
     /**
      * update user card information.
      *
@@ -100,7 +100,7 @@ trait BillableUserTrait
     {
         return $gateway->billableUserUpdateCard($this, $params);
     }
-    
+
     /**
      * user want to change plan.
      *
@@ -109,10 +109,10 @@ trait BillableUserTrait
     public function changePlan($plan, $gateway)
     {
         $subscription = $gateway->changePlan($this, $plan);
-        
+
         $subscription->sync($gateway);
     }
-    
+
     /**
      * user want to change plan.
      *
@@ -122,7 +122,7 @@ trait BillableUserTrait
     {
         $currentSubscription = $this->subscription();
         $remainDays = $currentSubscription->ends_at->diffInDays(\Carbon\Carbon::now());
-        
+
         // amout per day of current plan
         $currentAmount = $currentSubscription->plan->price;
         $periodDays = $currentSubscription->ends_at->diffInDays($currentSubscription->periodStartAt());
@@ -130,14 +130,14 @@ trait BillableUserTrait
         $currentPerDayAmount = ($currentAmount/$periodDays);
         $newAmount = ($plan->price/$periodDays)*$remainDays;
         $remainAmount = $currentPerDayAmount*$remainDays;
-        
+
         $amount = $newAmount - $remainAmount;
-        
+
         return [
             'amount' => $amount,
         ];
     }
-    
+
     /**
      * Retrive subscription from remote.
      *
@@ -147,8 +147,7 @@ trait BillableUserTrait
     {
         // get current subscription
         $subscription = $this->subscription();
-        
+
         return $subscription->retrieve($gateway);
     }
-
 }

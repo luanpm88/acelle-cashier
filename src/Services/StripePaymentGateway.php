@@ -492,4 +492,22 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function checkPendingPaymentForFuture($subscription)
     {
     }
+
+    /**
+     * Check if subscription has future payment pending.
+     *
+     * @param  Subscription    $subscription
+     * @return Boolean
+     */
+    public function getCardInformation($user)
+    {
+        // get or create plan
+        $stripeCustomer = $this->getStripeCustomer($user);
+
+        $cards = $stripeCustomer->sources->all(
+            ['object' => 'card']
+        );
+
+        return empty($cards->data) ? NULL : $cards->data["0"];
+    }
 }
