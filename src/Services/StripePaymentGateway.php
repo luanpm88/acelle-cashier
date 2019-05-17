@@ -22,7 +22,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function __construct($secret_key)
     {
         \Stripe\Stripe::setApiKey($secret_key);
-        \Stripe\Stripe::setApiVersion("2019-03-14");
+        \Stripe\Stripe::setApiVersion("2017-04-06");
     }
 
     /**
@@ -129,6 +129,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
         // if plan dosen't exist
         $stripePlan = \Stripe\Plan::create([
+            'name' => $plan->getBillableName(),
             'interval' => $plan->getBillableInterval(),
             'interval_count' => $plan->getBillableIntervalCount(),
             'currency' => $plan->getBillableCurrency(),
