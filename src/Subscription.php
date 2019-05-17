@@ -464,6 +464,9 @@ class Subscription extends Model
      */
     public function cancelNow($gateway)
     {
+        // Set ends at to today
+        $this->ends_at = \Carbon\Carbon::now()->startOfDay();
+
         if ($this->isNew()) {
             $this->markAsCancelled();
             return;
