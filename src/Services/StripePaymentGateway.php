@@ -14,13 +14,19 @@ use Carbon\Carbon;
 
 class StripePaymentGateway implements PaymentGatewayInterface
 {
+    public $name = 'stripe';
     public $subscriptionParam;
     public $owner;
     public $plan;
     public $cardToken;
+    public $secretKey;
+    public $publishableKey;
 
-    public function __construct($secret_key)
+    public function __construct($secret_key, $publishable_key)
     {
+        $this->secretKey = $secret_key;
+        $this->publishableKey = $publishable_key;
+        
         \Stripe\Stripe::setApiKey($secret_key);
         \Stripe\Stripe::setApiVersion("2017-04-06");
     }
@@ -78,8 +84,16 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  Subscription         $subscription
      * @return void
      */
-    public function createSubscription($subscription)
+    public function createSubscription($customer, $plan)
     {
+        // update subscription model
+        $subscription = new Subscription();
+        $subscription->user_id = $customer->getBillableId();
+        $subscription->plan_id = $plan->getBillableId();
+        $subscription->status = Subscription::STATUS_NEW;
+        $subscription->save();
+        
+        return $subscription;
     }
 
     /**
@@ -230,40 +244,39 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  Subscription  $subscription
      * @return SubscriptionParam
      */
-    public function retrieveSubscription($subscriptionId)
+    public function sync($subscription)
     {
-        $subscriptionParam = NULL;
-
         // get stripe subscription
-        $stripeSubscription = $this->getStripeSubscription($subscriptionId);
-
-        if ($stripeSubscription != NULL) {
-
-            $subscriptionParam = new SubscriptionParam([
-                'currentPeriodEnd' => $stripeSubscription->current_period_end,
-                'createdAt' => $stripeSubscription->created,
-            ]);
-
-            // ends at
-            if ($stripeSubscription->cancel_at && $stripeSubscription->current_period_end) {
-                $subscriptionParam->endsAt = $stripeSubscription->current_period_end;
-            }
-
-            // ended
-            if ($stripeSubscription->ended_at) {
-                $subscriptionParam->endsAt = $stripeSubscription->ended_at;
-            }
-
-            // update plan
-            $subscriptionParam->planId = $stripeSubscription->plan->metadata->local_plan_id;
-
-            // update plan
-            $subscriptionParam->status = Subscription::STATUS_DONE;
-        } else {
+        $stripeSubscription = $this->getStripeSubscription($subscription->uid);
+        
+        // Can not find strip subscription
+        if ($stripeSubscription == NULL) {
             throw new \Exception('Stripe subscription can not be found');
         }
+        
+        // Current period ends at
+        if ($stripeSubscription->current_period_end) {
+            $subscription->current_period_ends_at = Carbon::createFromTimestamp($stripeSubscription->current_period_end);
+        }
+        
+        // ends at
+        if ($stripeSubscription->cancel_at && $stripeSubscription->current_period_end) {
+            $subscription->ends_at = Carbon::createFromTimestamp($stripeSubscription->current_period_end);
+        }
 
-        return $subscriptionParam;
+        // ended
+        if ($stripeSubscription->ended_at) {
+            $subscription->ends_at = Carbon::createFromTimestamp($stripeSubscription->ended_at);
+        }
+
+        // update plan
+        $subscription->plan_id = $stripeSubscription->plan->metadata->local_plan_id;
+
+        // update plan
+        $subscription->status = Subscription::STATUS_ACTIVE;
+        
+        $subscription->save();        
+        return $subscription;
     }
 
     /**
@@ -272,11 +285,14 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  Subscription  $subscription
      * @return [$currentPeriodEnd]
      */
-    public function cancelSubscription($subscriptionId)
+    public function cancelSubscription($subscription)
     {
-        $stripeSubscription = $this->getStripeSubscription($subscriptionId);
+        $stripeSubscription = $this->getStripeSubscription($subscription->uid);
         $stripeSubscription->cancel_at_period_end = true;
         $stripeSubscription->save();
+        
+        // sync
+        $this->sync($subscription);
     }
 
     /**
@@ -285,17 +301,19 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  Subscription  $subscription
      * @return date
      */
-    public function resumeSubscription($subscriptionId)
+    public function resumeSubscription($subscription)
     {
-        $stripeSubscription = $this->getStripeSubscription($subscriptionId);
+        $stripeSubscription = $this->getStripeSubscription($subscription->uid);
         $stripeSubscription->cancel_at_period_end = false;
 
         // To resume the subscription we need to set the plan parameter on the Stripe
         // subscription object. This will force Stripe to resume this subscription
         // where we left off. Then, we'll set the proper trial ending timestamp.
         $stripeSubscription->plan = $stripeSubscription->plan->id;
-
         $stripeSubscription->save();
+        
+        // sync
+        $this->sync($subscription);
     }
 
     /**
@@ -308,6 +326,9 @@ class StripePaymentGateway implements PaymentGatewayInterface
     {
         $stripeSubscription = $this->getStripeSubscription($subscriptionId);
         $stripeSubscription->cancel();
+        
+        // sync
+        $this->sync($subscription);
     }
 
     /**

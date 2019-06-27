@@ -18,6 +18,15 @@ class CashierServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/../resources/views' => $this->app->basePath('resources/views/vendor/cashier'),
         ]);
+        
+        // lang
+        $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'cashier');
+        
+        // routes
+        $this->loadRoutesFrom(__DIR__.'/../routes.php');
+        
+        // view
+        $this->loadViewsFrom(__DIR__.'/../resources/views', 'cashier');
     }
 
     /**

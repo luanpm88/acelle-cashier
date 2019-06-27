@@ -11,7 +11,7 @@ class Subscription extends Model
 {
     const STATUS_NEW = 'new';
     const STATUS_PENDING = 'pending';
-    const STATUS_DONE = 'done';
+    const STATUS_ACTIVE = 'active';
 
     /**
      * The attributes that are not mass assignable.
@@ -26,7 +26,7 @@ class Subscription extends Model
      * @var array
      */
     protected $dates = [
-        'trial_ends_at', 'ends_at',
+        'trial_ends_at', 'ends_at', 'current_period_ends_at',
         'created_at', 'updated_at',
     ];
 
@@ -120,6 +120,16 @@ class Subscription extends Model
         // @todo how to know user has uid
         return $this->belongsTo('Acelle\Model\Customer', 'user_id', 'uid');
     }
+    
+    /**
+     * Determine if the subscription is recurring and not on trial.
+     *
+     * @return bool
+     */
+    public function isRecurring()
+    {
+        return ! $this->onTrial() && ! $this->cancelled();
+    }
 
     /**
      * Get the model related to the subscription.
@@ -168,6 +178,16 @@ class Subscription extends Model
     {
         return (is_null($this->ends_at) || $this->onGracePeriod()) && !$this->isPending() && !$this->isNew();
     }
+    
+    /**
+     * Determine if the subscription is active.
+     *
+     * @return bool
+     */
+    public function isActive()
+    {
+        return $this->status == self::STATUS_ACTIVE;
+    }
 
     /**
      * Determine if the subscription is active.
@@ -208,6 +228,8 @@ class Subscription extends Model
     {
         return ! $this->onTrial() && ! $this->cancelled();
     }
+    
+    
 
     /**
      * Determine if the subscription is no longer active.
@@ -334,7 +356,7 @@ class Subscription extends Model
     public function retrieve($gateway)
     {
         $subscriptionParam = $gateway->retrieveSubscription($this->uid);
-        $this->updateInfo($subscriptionParam, $gateway);
+        $this->updateInfo($subscriptionParam);
 
         if (!isset($subscriptionParam->endsAt)) {
             $subscriptionParam->endsAt = $this->ends_at;
@@ -397,7 +419,7 @@ class Subscription extends Model
      *
      * @return $this
      */
-    public function updateInfo($subscriptionParam, $gateway)
+    public function updateInfo($subscriptionParam)
     {
         // update ends at
         if ($gateway->isSupportRecurring()) {
@@ -663,20 +685,6 @@ class Subscription extends Model
     public function getRawInvoices($gateway)
     {
         return $gateway->getRawInvoices($this->uid);
-    }
-
-    /**
-     * Set done for subscription.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function setDone($gateway)
-    {
-        $gateway->setDone($this);
-
-        $this->status = Subscription::STATUS_DONE;
-        $this->save();
     }
 
     /**

@@ -84,8 +84,37 @@ EOF;
      * @param  Subscription         $subscription
      * @return void
      */
-    public function createSubscription($subscription)
+    public function createSubscription($customer, $plan)
     {
+        // update subscription model
+        $subscription = new Subscription();
+        $subscription->user_id = $customer->getBillableId();
+        $subscription->plan_id = $plan->getBillableId();
+        $subscription->status = Subscription::STATUS_NEW;
+        
+        // dose not support recurring, update ends at column
+        $interval = $plan->getBillableInterval();
+        $intervalCount = $plan->getBillableIntervalCount();
+
+        switch ($interval) {
+            case 'month':
+                $endsAt = \Carbon\Carbon::now()->addMonth($intervalCount)->timestamp;
+                break;
+            case 'day':
+                $endsAt = \Carbon\Carbon::now()->addDay($intervalCount)->timestamp;
+            case 'week':
+                $endsAt = \Carbon\Carbon::now()->addWeek($intervalCount)->timestamp;
+                break;
+            case 'year':
+                $endsAt = \Carbon\Carbon::now()->addYear($intervalCount)->timestamp;
+                break;
+            default:
+                $endsAt = null;
+        }
+        $subscription->ends_at = $endsAt;        
+        
+        $subscription->save();        
+        return $subscription;
     }
     
     /**
