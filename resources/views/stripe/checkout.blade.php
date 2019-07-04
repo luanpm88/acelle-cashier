@@ -14,6 +14,47 @@
             .mt-40 {
                 margin-top: 40px;
             }
+            
+            ul.dotted-list {
+                list-style: none;
+                padding-left: 0;
+            }
+            .dotted-list > li {
+                line-height: 24px;
+                padding: 12px 0 11px;
+                border-bottom: 1px dotted #e0e0e0;
+                display: list-item;
+            }
+            .dotted-list>li>div {
+                padding: 0;
+                display: block;
+            }
+            .topborder>li:first-child {
+                border-top: 1px dotted #e0e0e0;
+            }
+            .size1of2 {
+                width: 50%;
+                float: left;
+            }
+            .size1of3 {
+                width: 33.3%;
+                float: left;
+            }
+            .size2of3 {
+                width: 66.6%;
+                float: left;
+            }
+            .lastUnit, .lastGroup {
+                float: none;
+                width: auto;
+            }
+            .lastUnit, .unit {
+                padding-left: 15px;
+                padding-right: 15px;
+            }
+            .sub-section {
+                margin-bottom: 60px;
+            }
         </style>
     </head>
     
@@ -28,14 +69,14 @@
         
                 @if ($gatewayService->getCardInformation($subscription->user) !== NULL)
                     <div class="sub-section">
-                        <h3 class="text-semibold">{!! trans('cashier::messages.stripe.card_list') !!}</h3>
+                        <h4 class="text-semibold">{!! trans('cashier::messages.stripe.card_list') !!}</h4>
                         <ul class="dotted-list topborder section mb-20">
                             <li>
                                 <div class="unit size1of2">
                                     <strong>{{ trans('messages.card.holder') }}</strong>
                                 </div>
                                 <div class="lastUnit size1of2">
-                                    <mc:flag><strong>{{ $gatewayService->getCardInformation($subscription->user)->name }}</strong></mc:flag>
+                                    <mc:flag>{{ $gatewayService->getCardInformation($subscription->user)->name }}</mc:flag>
                                 </div>
                             </li>
                             <li>
@@ -43,15 +84,15 @@
                                     <strong>{{ trans('messages.card.last4') }}</strong>
                                 </div>
                                 <div class="lastUnit size1of2">
-                                    <mc:flag><strong>{{ $gatewayService->getCardInformation($subscription->user)->last4 }}</strong></mc:flag>
+                                    <mc:flag>{{ $gatewayService->getCardInformation($subscription->user)->last4 }}</mc:flag>
                                 </div>
                             </li>
                         </ul>
                 
                         <a href="{{ action('\Acelle\Cashier\Controllers\StripeController@charge', [
                             'subscription_id' => $subscription->uid,
-                        ]) }}" class="btn btn-mc_primary mr-10">{{ trans('messages.subscription.pay_with_this_card') }}</a>
-                        <a href="javascript:;" class="btn btn-mc_default" onclick="$('#stripe_button button').click()">{{ trans('messages.subscription.pay_with_new_card') }}</a>
+                        ]) }}" class="btn btn-primary">{{ trans('messages.subscription.pay_with_this_card') }}</a>
+                        <a href="javascript:;" class="btn btn-secondary" onclick="$('#stripe_button button').click()">{{ trans('messages.subscription.pay_with_new_card') }}</a>
                     </div>
                 @else
                     <p>{{ trans('cashier::messages.stripe.click_bellow_to_pay') }}</p>

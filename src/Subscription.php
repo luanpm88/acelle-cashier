@@ -12,6 +12,7 @@ class Subscription extends Model
     const STATUS_NEW = 'new';
     const STATUS_PENDING = 'pending';
     const STATUS_ACTIVE = 'active';
+    const STATUS_ENDED = 'ended';
 
     /**
      * The attributes that are not mass assignable.

@@ -13,11 +13,11 @@ interface PaymentGatewayInterface
     
     
     
-    public function cancelSubscription($subscriptionId);    
-    public function resumeSubscription($subscriptionId);
-    public function cancelNowSubscription($subscriptionId);
-    public function changePlan($subscriptionId, $plan);
-    public function renewSubscription($subscription);
+    //public function cancelSubscription($subscriptionId);    
+    //public function resumeSubscription($subscriptionId);
+    //public function cancelNowSubscription($subscriptionId);
+    //public function changePlan($subscriptionId, $plan);
+    //public function renewSubscription($subscription);
     
     public function isSupportRecurring();
     public function validate();
