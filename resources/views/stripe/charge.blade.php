@@ -30,7 +30,9 @@
                         
                             <p class="text-muted">{!! trans('messages.subscription.checkout.processing_payment.intro') !!}</p>
                             
-                            <form id="pay_now" method="POST" action="{{ action('\Acelle\Cashier\Controllers\StripeController@charge', ['subscription_id' => $subscription->uid]) }}">
+                            <form id="pay_now" method="POST" action="{{ action('\Acelle\Cashier\Controllers\StripeController@charge', [
+                                'subscription_id' => $subscription->uid,
+                            ]) }}">
                                 {{ csrf_field() }}
                             </form>
                             

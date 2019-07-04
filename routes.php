@@ -11,7 +11,7 @@
 |
 */
 
-Route::group(['namespace' => 'Acelle\Cashier\Controllers'], function() {
+Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controllers'], function() {
     Route::match(['get', 'post'], '/cashier/stripe/{subscription_id}/charge', 'StripeController@charge');
     Route::post('/cashier/stripe/{subscription_id}/update-card', 'StripeController@updateCard');
     Route::get('/cashier/stripe/{subscription_id}/checkout', 'StripeController@checkout');

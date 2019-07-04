@@ -27,6 +27,11 @@ class CashierServiceProvider extends ServiceProvider
         
         // view
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'cashier');
+        
+        // assets
+        $this->publishes([
+            __DIR__.'/../assets' => public_path('vendor/acelle-cashier'),
+        ], 'public');
     }
 
     /**
