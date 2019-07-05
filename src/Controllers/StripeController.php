@@ -6,9 +6,15 @@ use Acelle\Http\Controllers\Controller;
 use Acelle\Cashier\Subscription;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
+use Acelle\Cashier\Cashier;
 
 class StripeController extends Controller
 {
+    public function getPaymentService()
+    {
+        return Cashier::getPaymentGateway('stripe');
+    }
+    
     /**
      * Subscription checkout page.
      *
@@ -19,13 +25,11 @@ class StripeController extends Controller
     public function checkout(Request $request, $subscription_id)
     {
         $subscription = Subscription::findByUid($subscription_id);
-        $gatewayService = \App::make('Acelle\Cashier\PaymentGateway');
         
         $request->session()->put('checkout_return_url', $request->return_url);
-        // var_dump($request->session()->get('return_url', 'ddd'));
         
         return view('cashier::stripe.checkout', [
-            'gatewayService' => $gatewayService,
+            'gatewayService' => $this->getPaymentService(),
             'subscription' => $subscription,
         ]);
     }
@@ -41,7 +45,7 @@ class StripeController extends Controller
     {
         // subscription and service
         $subscription = Subscription::findByUid($subscription_id);
-        $gatewayService = \App::make('Acelle\Cashier\PaymentGateway');
+        $gatewayService = $this->getPaymentService();
         
         // update card
         $gatewayService->billableUserUpdateCard($subscription->user, $request->all());
@@ -62,7 +66,7 @@ class StripeController extends Controller
     {
         // subscription and service
         $subscription = Subscription::findByUid($subscription_id);
-        $gatewayService = \App::make('Acelle\Cashier\PaymentGateway');
+        $gatewayService = $this->getPaymentService();
         $return_url = $request->session()->get('checkout_return_url', url('/'));
 
         if ($request->isMethod('post')) {

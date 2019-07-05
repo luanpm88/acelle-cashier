@@ -14,7 +14,6 @@ use Carbon\Carbon;
 
 class StripePaymentGateway implements PaymentGatewayInterface
 {
-    public $name = 'stripe';
     public $subscriptionParam;
     public $owner;
     public $plan;
@@ -84,7 +83,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  Subscription         $subscription
      * @return void
      */
-    public function createSubscription($customer, $plan)
+    public function create($customer, $plan)
     {
         // update subscription model
         $subscription = new Subscription();

@@ -7,7 +7,7 @@ use Acelle\Cashier\Models\Subscription;
 
 interface PaymentGatewayInterface
 {
-    public function createSubscription($customer, $plan);
+    public function create($customer, $plan);
     public function charge($subscription);
     public function sync($subscription);
     

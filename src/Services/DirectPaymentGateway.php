@@ -84,7 +84,7 @@ EOF;
      * @param  Subscription         $subscription
      * @return void
      */
-    public function createSubscription($customer, $plan)
+    public function create($customer, $plan)
     {
         // update subscription model
         $subscription = new Subscription();
@@ -189,7 +189,7 @@ EOF;
      * @param  Subscription  $subscription
      * @return SubscriptionParam
      */
-    public function retrieveSubscription($subscriptionId)
+    public function sync($subscriptionId)
     {
         $subscription = Subscription::findByUid($subscriptionId);
         
