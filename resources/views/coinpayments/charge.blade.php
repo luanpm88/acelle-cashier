@@ -1,6 +1,6 @@
 <html lang="en">
     <head>
-        <title>{{ trans('cashier::messages.stripe.checkout.page_title') }}</title>
+        <title>{{ trans('cashier::messages.coinpayments.checkout.page_title') }}</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
             
@@ -22,16 +22,16 @@
                 <div class="mb-40">
                     <img src="{{ url('images/loading.gif') }}" />
                 </div>
-                <h1 class="text-semibold mb-10">{!! trans('cashier::messages.stripe.checkout.processing_payment') !!}</h1>
+                <h1 class="text-semibold mb-10">{!! trans('cashier::messages.coinpayments.checkout.processing_payment') !!}</h1>
         
                 <div class="sub-section">
                     <div class="row">
                         <div class="col-md-12">
                             
                         
-                            <p class="text-muted">{!! trans('cashier::messages.stripe.checkout.processing_payment.intro') !!}</p>
+                            <p class="text-muted">{!! trans('cashier::messages.coinpayments.checkout.processing_payment.intro') !!}</p>
                             
-                            <form id="pay_now" method="POST" action="{{ action('\Acelle\Cashier\Controllers\StripeController@charge', [
+                            <form id="pay_now" method="POST" action="{{ action('\Acelle\Cashier\Controllers\CoinpaymentsController@charge', [
                                 'subscription_id' => $subscription->uid,
                             ]) }}">
                                 {{ csrf_field() }}

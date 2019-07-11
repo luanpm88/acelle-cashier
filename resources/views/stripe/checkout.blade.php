@@ -1,5 +1,6 @@
 <html lang="en">
     <head>
+        <title>{{ trans('cashier::messages.stripe.checkout.page_title') }}</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
             
@@ -10,7 +11,9 @@
             .mb-40 {
                 margin-bottom: 40px;
             }
-            
+            .mb-20 {
+                margin-bottom: 20px;
+            }
             .mt-40 {
                 margin-top: 40px;
             }
@@ -95,7 +98,10 @@
                         <a href="javascript:;" class="btn btn-secondary" onclick="$('#stripe_button button').click()">{{ trans('messages.subscription.pay_with_new_card') }}</a>
                     </div>
                 @else
-                    <p>{{ trans('cashier::messages.stripe.click_bellow_to_pay') }}</p>
+                    <p>{!! trans('cashier::messages.stripe.click_bellow_to_pay', [
+                        'plan' => $subscription->plan->getBillableName(),
+                        'price' => $subscription->plan->getBillableFormattedPrice(),
+                    ]) !!}</p>
                     <a href="javascript:;" class="btn btn-secondary" onclick="$('#stripe_button button').click()">{{ trans('messages.subscription.pay_with_stripe') }}</a>
                 @endif
                 

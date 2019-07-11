@@ -241,6 +241,16 @@ class Subscription extends Model
     {
         return ! is_null($this->ends_at);
     }
+    
+    /**
+     * Determine if the subscription is ended.
+     *
+     * @return bool
+     */
+    public function isEnded()
+    {
+        return $this->status == self::STATUS_ENDED;
+    }
 
     /**
      * Determine if the subscription has ended and the grace period has expired.

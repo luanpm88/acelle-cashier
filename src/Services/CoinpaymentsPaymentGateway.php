@@ -5,7 +5,7 @@ use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
 use Acelle\Cashier\SubscriptionParam;
 use Acelle\Cashier\Subscription;
 use Carbon\Carbon;
-use Acelle\Library\CoinPayment\CoinpaymentsAPI;
+use Acelle\Cashier\Library\CoinPayment\CoinpaymentsAPI;
 use Acelle\Cashier\InvoiceParam;
 
 class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
@@ -33,6 +33,48 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     }
     
     /**
+     * create new transaction
+     *
+     * @return void
+     */
+    public function charge($subscription)
+    {
+        $options = [
+            'currency1' => $subscription->plan->getBillableCurrency(),
+            'currency2' => config('cashier.gateways.coinpayments.fields.receive_currency'),
+            'amount' => $subscription->plan->getBillableAmount(),
+            'item_name' => trans('cashier::messages.coinpayments.subscribe_to_plan', [
+                'plan' => $subscription->plan->getBillableName(),
+            ]),
+            'item_number' => $subscription->uid,
+            'buyer_email' => $subscription->user->getBillableEmail(),
+            'custom' => json_encode([
+                'createdAt' => $subscription->created_at->timestamp,
+                'periodEndsAt' => $subscription->current_period_ends_at->timestamp,
+                'amount' => $subscription->plan->getBillableFormattedPrice(),
+            ]),
+        ];
+        
+        $res = $this->coinPaymentsAPI->CreateSimpleTransaction($options);
+        
+        if ($res["error"] !== 'ok') {
+            throw new \Exception($transaction["error"]);
+        }
+        
+        $transaction = $res["result"];
+        
+        // update subscription txn_id
+        $subscription->updateMetadata([
+            'txn_id' => $transaction["txn_id"],
+            'checkout_url' => $transaction["checkout_url"],
+            'status_url' => $transaction["status_url"],
+            'qrcode_url' => $transaction["qrcode_url"],
+        ]);
+        
+        return $transaction;
+    }
+    
+    /**
      * Check if support recurring.
      *
      * @param  string    $userId
@@ -50,7 +92,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      * @param  Subscription         $subscription
      * @return void
      */
-    public function createSubscription($customer, $plan)
+    public function create($customer, $plan)
     {
         // update subscription model
         $subscription = new Subscription();
@@ -78,32 +120,15 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                 $endsAt = null;
         }
         $subscription->ends_at = $endsAt;
+        
+        // Free plan
+        if ($plan->getBillableAmount() == 0) {
+            $subscription->status = Subscription::STATUS_ACTIVE;
+        }
+        
         $subscription->save();
         
-        // Save some transaction info to subscription metadata
-        $metadata = $subscription->getMetadata();
-        $transactions = isset($metadata->transactions) ? $metadata->transactions : [];        
-        $tid = 'Transaction ID: ' . uniqid();        
-        $transactions[] = [
-            'id' => $tid,
-            'createdAt' => $subscription->created_at->timestamp,
-			'periodEndsAt' => $subscription->ends_at->timestamp,
-			'amount' => \Acelle\Library\Tool::format_price($subscription->plan->price, $subscription->plan->currency->format),
-        ];        
-        $subscription->updateMetadata(['transactions' => $transactions]);
-             
         return $subscription;
-    }
-    
-    /**
-     * Create a new subscriptionParam.
-     *
-     * @param  mixed              $token
-     * @param  SubscriptionParam  $param
-     * @return void
-     */
-    public function charge($subscription)
-    {
     }
     
     /**
@@ -127,68 +152,61 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     {
     }
     
+     /**
+     * Get remote transaction.
+     *
+     * @return Boolean
+     */
+    public function getTransaction($subscription)
+    {
+        $metadata = $subscription->getMetadata();
+        
+        if (!property_exists($metadata, 'txn_id')) {
+            return null;
+        }
+        
+        // get transaction id exists
+        $res = $this->coinPaymentsAPI->GetTxInfoSingle($metadata->txn_id, 1);
+        
+        if ($res["error"] !== 'ok') {
+            return null;
+        } else {
+            return $res["result"];
+        }
+    }
+    
     /**
      * Retrieve subscription param.
      *
      * @param  Subscription  $subscription
      * @return SubscriptionParam
      */
-    public function retrieveSubscription($subscriptionId)
+    public function sync($subscription)
     {
-        $subscription = Subscription::findByUid($subscriptionId);
-        
-        // Check if plan is free
-        if ($subscription->plan->getBillableAmount() == 0) {
-            return new SubscriptionParam([
-                'status' => Subscription::STATUS_DONE,
-                'createdAt' => $subscription->created_at,
-            ]);
-        }
-        
-        $metadata = $subscription->getMetadata();
-        if (isset($metadata->transaction_id)) {
-            $found = $this->coinPaymentsAPI->GetTxInfoSingle($metadata->transaction_id)['result'];
-            $transactionId = $metadata->transaction_id;
-        } else {        
-            $transactions = $this->coinPaymentsAPI->GetTxIds(["limit" => 100]);
-            $found = null;
-            $transactionId = null;
-            foreach($transactions["result"] as $transaction) {
-                $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
-                $id = $result["checkout"]["item_number"];
-                if ($subscriptionId == $id) {
-                    $found = $result;
-                    $transactionId = $transaction;
-                    break;
-                }
+        if (!$subscription->isEnded() && !$subscription->isActive()) {
+            $transaction = $this->getTransaction($subscription);
+            
+            if ($transaction["status"] >= 0) {
+                $subscription->status = Subscription::STATUS_PENDING;
+            }
+            
+            if ($transaction["status"] == 100) {
+                $subscription->status = Subscription::STATUS_ACTIVE;
+            }
+            
+            // end subscription if transaction is failed
+            if ($transaction["status"] < 0) {
+                $subscription->status = Subscription::STATUS_ENDED;
+                $subscription->ends_at = $found["time_expires"];
             }
         }
         
-        if (!isset($found)) {
-            throw new \Exception('Subscription can not be found');
-        }
+        // current_period_ends_at is always ends_at
+        $subscription->current_period_ends_at = $subscription->ends_at;
         
-        // Update subscription id
-        $subscription->updateMetadata(['transaction_id' => $transactionId]);
+        $subscription->save();
         
-        $subscriptionParam = new SubscriptionParam([
-            'createdAt' => $found["time_created"],
-        ]);
-        
-        if ($found["status"] >= 0) {
-            $subscriptionParam->status = Subscription::STATUS_PENDING;
-        }
-        
-        if ($found["status"] == 100) {
-            $subscriptionParam->status = Subscription::STATUS_DONE;
-        }
-        
-        // end subscription if transaction is failed
-        if ($found["status"] < 0) {
-            $subscriptionParam->endsAt = $found["time_expires"];
-        }
-        
-        return $subscriptionParam;
+        return $transaction;
     }
     
     /**
@@ -218,8 +236,12 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      * @param  Subscription  $subscription
      * @return date
      */
-    public function cancelNowSubscription($subscriptionId)
+    public function cancelNow($subscription)
     {
+        $subscription->ends_at = \Carbon\Carbon::now();
+        $subscription->status = Subscription::STATUS_ENDED;
+        
+        $this->sync($subscription);
     }
     
     /**
@@ -277,36 +299,25 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      * @param  Int  $subscriptionId
      * @return date
      */
-    public function getInvoices($subscriptionId)
+    public function getInvoices($subscription)
     {
-        $subscription = Subscription::findByUid($subscriptionId);
-        $transactions = $this->coinPaymentsAPI->GetTxIds(["limit" => 100]);
+        $transactions = [];
+        
+        $transaction = $this->getTransaction($subscription);
+        if ($transaction) {
+            $transactions[] = $transaction;
+        }
         
         $invoices = [];
-        if (isset($transactions["result"])) {
-            foreach($transactions["result"] as $transaction) {
-                $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
-                $id = $result["checkout"]["item_number"];            
-                if ($subscriptionId == $id) {
-                    // $data = json_decode($result["checkout"]["item_desc"], true);
-                    $tid = $result["checkout"]["item_desc"];
-                    $data = $neededObject = array_filter(
-                        $subscription->getMetadata()->transactions,
-                        function ($e) use (&$tid) {
-                            return $e->id == $tid;
-                        }
-                    );
-                    $data = reset($data);
-                    
-                    $invoices[] = new InvoiceParam([
-                        'createdAt' => $data->createdAt,
-                        'periodEndsAt' => $data->periodEndsAt,
-                        'amount' => $data->amount,
-                        'description' => $result["checkout"]["item_name"],
-                        'status' => $this->getTransactionStatus($result['status'])
-                    ]);
-                }
-            }
+        foreach($transactions as $transaction) {
+            $custom = json_decode($transaction['checkout']['custom']);
+            $invoices[] = new InvoiceParam([
+                'createdAt' => $transaction['time_created'],
+                'periodEndsAt' => $custom->periodEndsAt,
+                'amount' => $custom->amount,
+                'description' => $transaction['checkout']['item_name'],
+                'status' => ($subscription->isActive() ? 'approved' : $this->getTransactionStatus($transaction['status']))
+            ]);
         }
         
         return $invoices;
@@ -318,19 +329,18 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      * @param  Int  $subscriptionId
      * @return date
      */
-    public function getRawInvoices($subscriptionId)
+    public function getRawInvoices($subscription)
     {
-        $transactions = $this->coinPaymentsAPI->GetTxIds(["limit" => 100]);
+        $transactions = [];
+        
+        $transaction = $this->getTransaction($subscription);
+        if ($transaction) {
+            $transactions[] = $transaction;
+        }
         
         $invoices = [];
-        if (isset($transactions["result"])) {
-            foreach($transactions["result"] as $transaction) {
-                $result = $this->coinPaymentsAPI->GetTxInfoSingle($transaction, 1)["result"];
-                $id = $result["checkout"]["item_number"];            
-                if ($subscriptionId == $id) {
-                    $invoices[] = $result;
-                }
-            }
+        foreach($transactions as $transaction) {
+            $invoices[] = $transaction;
         }
         
         return $invoices;
@@ -411,5 +421,29 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     public function approvePendingInvoice($subscription)
     {
         throw new \Exception('The Payment service dose not support this feature!');
+    }
+    
+    /**
+     * Get all coins
+     *
+     * @return date
+     */
+    public function getRates()
+    {
+        return $this->coinPaymentsAPI->getRates();
+    }
+    
+    /**
+     * Force check subscription is active.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function setActive($subscription)
+    {
+        $subscription->status = Subscription::STATUS_ACTIVE;
+        
+        // sync
+        $this->sync($subscription);
     }
 }

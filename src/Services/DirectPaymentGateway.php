@@ -31,6 +31,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface
             currency                  VARCHAR(255)    NOT NULL,
             status                    CHAR(50)        NOT NULL,
             description               TEXT            NOT NULL,
+            payment_claimed           BOOLEAN         NOT NULL,
             data                      TEXT            NOT NULL,
             created_at                INTEGER         NOT NULL);
 EOF;
@@ -38,6 +39,153 @@ EOF;
         if(!$act){
             throw new \Exception($this->db->lastErrorMsg());
         }
+    }
+    
+    /**
+     * Get transaction by subscription id.
+     *
+     * @return void
+     */
+    public function getTransaction($subscription)
+    {
+        $transaction = $this->findTransactionBySubscription($subscription);
+        
+        if (!$transaction) {
+            $transaction = $this->createTransaction($subscription);
+        }
+        
+        return $transaction;
+    }
+    
+    /**
+     * Get transaction by subscription id.
+     *
+     * @return void
+     */
+    public function findTransactionBySubscription($subscription)
+    {
+        $sql =<<<EOF
+                SELECT * from transactions WHERE subscription_id='{$subscription->uid}' ORDER BY created_at DESC;
+EOF;
+
+        $ret = $this->db->query($sql);
+        $row = $ret->fetchArray(SQLITE3_ASSOC);
+        
+        return $row;
+    }
+    
+    /**
+     * Get transaction by subscription id.
+     *
+     * @return void
+     */
+    public function createTransaction($subscription)
+    {
+        $created_at = \Carbon\Carbon::now()->timestamp;
+        $status = 'pending';
+        $description = 'Transaction was created. Waiting for payment...';
+        $amount = $subscription->plan->getBillableAmount();
+        $currency = $subscription->plan->getBillableCurrency();
+        
+        //if ($amount == 0) {
+        //    $status = 'done';
+        //}
+        
+        $data = json_encode([
+            'createdAt' => $subscription->created_at->timestamp,
+            'periodEndsAt' => $subscription->ends_at->timestamp,
+            'amount' => $subscription->plan->getBillableFormattedPrice(),
+            'description' => trans('cashier::messages.direct.subscribed_to_plan', [
+                'plan' => $subscription->plan->getBillableName(),
+            ]),
+        ]);
+        
+        // custom amount
+        if (isset($options['amount'])) {
+            $amount = $options['amount'];
+        }
+        
+        // Create new transaction for payment
+        $sql =<<<EOF
+            INSERT INTO transactions (subscription_id, price, currency, status, description, created_at, data, payment_claimed)  
+            VALUES ('{$subscription->uid}', {$amount}, '{$currency}', '{$status}', '{$description}', {$created_at}, '{$data}', FALSE);
+EOF;
+        $act = $this->db->exec($sql);
+        if(!$act){
+            throw new \Exception($this->db->lastErrorMsg());
+        }
+        
+        $transaction = $this->findTransactionBySubscription($subscription);
+        
+        // sync
+        $this->sync($subscription);
+        
+        return $transaction;
+    }
+    
+    /**
+     * Claim payment.
+     *
+     * @return void
+     */
+    public function claim($subscription)
+    {
+        $claimed = true;
+        // Create new transaction for payment
+        $sql =<<<EOF
+            UPDATE transactions SET payment_claimed='{$claimed}'  
+            WHERE subscription_id='{$subscription->uid}';
+EOF;
+        $act = $this->db->exec($sql);
+        if(!$act){
+            throw new \Exception($this->db->lastErrorMsg());
+        }
+        
+        $this->sync($subscription);
+    }
+    
+    /**
+     * Unclaim payment.
+     *
+     * @return void
+     */
+    public function unclaim($subscription)
+    {
+        $claimed = false;
+        // Create new transaction for payment
+        $sql =<<<EOF
+            UPDATE transactions SET payment_claimed='{$claimed}'  
+            WHERE subscription_id='{$subscription->uid}';
+EOF;
+        $act = $this->db->exec($sql);
+        if(!$act){
+            throw new \Exception($this->db->lastErrorMsg());
+        }
+        
+        $this->sync($subscription);
+    }
+    
+    /**
+     * Allow admin approve pending subscription.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function setActive($subscription)
+    {
+        $status = Subscription::STATUS_ACTIVE;
+        
+        // Create new transaction for payment
+        $sql =<<<EOF
+            UPDATE transactions SET status='{$status}'  
+            WHERE subscription_id='{$subscription->uid}';
+EOF;
+        $act = $this->db->exec($sql);
+        if(!$act){
+            throw new \Exception($this->db->lastErrorMsg());
+        }
+        
+        $this->sync($subscription);
     }
     
     /**
@@ -55,6 +203,118 @@ EOF;
     }
     
     /**
+     * Check pending transaction.
+     *
+     * @return void
+     */
+    public function checkPendingPayment()
+    {
+        if(!$this->db) {
+            throw new \Exception($this->db->lastErrorMsg());
+        } else {
+            return true;
+        }
+    }
+    
+    /**
+     * Retrieve subscription param.
+     *
+     * @param  Subscription  $subscription
+     * @return SubscriptionParam
+     */
+    public function sync($subscription)
+    {
+        if (!$subscription->isEnded() && !$subscription->isActive()) {            
+            $transaction = $this->getTransaction($subscription);
+            
+            if ($transaction['status'] == 'pending') {
+                $subscription->status = Subscription::STATUS_PENDING;
+            }
+            
+            if ($transaction['status'] == 'active') {
+                $subscription->status = Subscription::STATUS_ACTIVE;
+            }
+            
+            if ($transaction['status'] == 'ended') {
+                $subscription->status = Subscription::STATUS_ENDED;
+            }
+        }
+        
+        // current_period_ends_at is always ends_at
+        $subscription->current_period_ends_at = $subscription->ends_at;
+        
+        $subscription->save();
+        
+//        $subscription = Subscription::findByUid($subscriptionId);
+//        
+//        // Check if plan is free
+//        if ($subscription->plan->getBillableAmount() == 0) {
+//            return new SubscriptionParam([
+//                'status' => Subscription::STATUS_DONE,
+//                'createdAt' => $subscription->created_at,
+//            ]);
+//        }
+//        
+//        $metadata = $subscription->getMetadata();
+//        if (isset($metadata->transaction_id)) {
+//            $tid = $metadata->transaction_id;
+//            $sql =<<<EOF
+//                SELECT * from transactions WHERE ID='{$tid}' ORDER BY created_at DESC;
+//EOF;
+//        } else {
+//            $sql =<<<EOF
+//                SELECT * from transactions WHERE subscription_id='{$subscriptionId}' ORDER BY created_at DESC;
+//EOF;
+//        }
+//
+//        $ret = $this->db->query($sql);
+//        $row = $ret->fetchArray(SQLITE3_ASSOC);
+//        
+//        if(!$row) {
+//            throw new \Exception("Can not find the subscription with id = $subscriptionId");
+//        }
+//        
+//        $subscriptionParam = new SubscriptionParam([
+//            'status' => $row['status'],
+//            'amount' => $row['price'],
+//        ]);
+//        
+//        // Update subscription id
+//        $subscription->updateMetadata(['transaction_id' => $row['ID']]);
+//        
+//        return $subscriptionParam;
+    }
+    
+    /**
+     * Resume subscription.
+     *
+     * @param  Subscription  $subscription
+     * @return date
+     */
+    public function cancelNow($subscription)
+    {
+        $status = Subscription::STATUS_ENDED;
+        
+        // Create new transaction for payment
+        $sql =<<<EOF
+            UPDATE transactions SET status='{$status}'  
+            WHERE subscription_id='{$subscription->uid}';
+EOF;
+        $act = $this->db->exec($sql);
+        if(!$act){
+            throw new \Exception($this->db->lastErrorMsg());
+        }
+        
+        $subscription->status = Subscription::STATUS_ENDED;
+        $subscription->ends_at = \Carbon\Carbon::now();
+        
+        $this->sync($subscription);
+    }
+    
+    
+    
+    
+    /**
      * Check if support recurring.
      *
      * @param  string    $userId
@@ -63,6 +323,16 @@ EOF;
     public function isSupportRecurring()
     {
         return false;
+    }
+    
+    /**
+     * Get payment guiline message.
+     *
+     * @return Boolean
+     */
+    public function getPaymentGuide()
+    {
+        return config('cashier.gateways.direct.fields.notice');
     }
     
     /**
@@ -111,7 +381,12 @@ EOF;
             default:
                 $endsAt = null;
         }
-        $subscription->ends_at = $endsAt;        
+        $subscription->ends_at = $endsAt;
+        
+        // Free plan
+        if ($plan->getBillableAmount() == 0) {
+            $subscription->status = Subscription::STATUS_ACTIVE;
+        }
         
         $subscription->save();        
         return $subscription;
@@ -140,7 +415,7 @@ EOF;
             'createdAt' => $subscription->created_at->timestamp,
             'periodEndsAt' => $subscription->ends_at->timestamp,
             'amount' => \Acelle\Library\Tool::format_price($subscription->plan->price, $subscription->plan->currency->format),
-            'description' => trans('messages.invoice.subscribe_to_plan', [
+            'description' => trans('cashier::messages.direct.subscribe_to_plan', [
                 'plan' => $subscription->plan->name,
             ]),
         ]);
@@ -183,53 +458,7 @@ EOF;
         
     }
     
-    /**
-     * Retrieve subscription param.
-     *
-     * @param  Subscription  $subscription
-     * @return SubscriptionParam
-     */
-    public function sync($subscriptionId)
-    {
-        $subscription = Subscription::findByUid($subscriptionId);
-        
-        // Check if plan is free
-        if ($subscription->plan->getBillableAmount() == 0) {
-            return new SubscriptionParam([
-                'status' => Subscription::STATUS_DONE,
-                'createdAt' => $subscription->created_at,
-            ]);
-        }
-        
-        $metadata = $subscription->getMetadata();
-        if (isset($metadata->transaction_id)) {
-            $tid = $metadata->transaction_id;
-            $sql =<<<EOF
-                SELECT * from transactions WHERE ID='{$tid}' ORDER BY created_at DESC;
-EOF;
-        } else {
-            $sql =<<<EOF
-                SELECT * from transactions WHERE subscription_id='{$subscriptionId}' ORDER BY created_at DESC;
-EOF;
-        }
-
-        $ret = $this->db->query($sql);
-        $row = $ret->fetchArray(SQLITE3_ASSOC);
-        
-        if(!$row) {
-            throw new \Exception("Can not find the subscription with id = $subscriptionId");
-        }
-        
-        $subscriptionParam = new SubscriptionParam([
-            'status' => $row['status'],
-            'amount' => $row['price'],
-        ]);
-        
-        // Update subscription id
-        $subscription->updateMetadata(['transaction_id' => $row['ID']]);
-        
-        return $subscriptionParam;
-    }
+    
     
     /**
      * Cancel subscription.
@@ -358,12 +587,12 @@ EOF;
      * @param  Int  $subscriptionId
      * @return date
      */
-    public function getInvoices($subscriptionId)
+    public function getInvoices($subscription)
     {
         $invoices = [];
         
         $sql =<<<EOF
-            SELECT * from transactions WHERE subscription_id='{$subscriptionId}' ORDER BY created_at DESC;
+            SELECT * from transactions WHERE subscription_id='{$subscription->uid}' ORDER BY created_at DESC;
 EOF;
 
         $ret = $this->db->query($sql);
@@ -398,12 +627,12 @@ EOF;
      * @param  Int  $subscriptionId
      * @return date
      */
-    public function getRawInvoices($subscriptionId)
+    public function getRawInvoices($subscription)
     {
         $invoices = [];
         
         $sql =<<<EOF
-            SELECT * from transactions WHERE subscription_id='{$subscriptionId}' ORDER BY created_at DESC;
+            SELECT * from transactions WHERE subscription_id='{$subscription->uid}' ORDER BY created_at DESC;
 EOF;
 
         $ret = $this->db->query($sql);
@@ -452,7 +681,7 @@ EOF;
         
         // found
         if ($row && $row['ID'] != $metadataTid) {
-            if ($row['status'] == Subscription::STATUS_DONE) {
+            if ($row['status'] == Subscription::STATUS_ACTIVE) {
                 $data = json_decode($row["data"], true);
                 
                 $subscription->updateMetadata(['transaction_id' => $row['ID']]);
@@ -473,27 +702,6 @@ EOF;
         }
         
         return false;
-    }
-    
-    /**
-     * Allow admin update payment status without service without payment.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function setDone($subscription)
-    {
-        $status = Subscription::STATUS_DONE;
-        
-        // Create new transaction for payment
-        $sql =<<<EOF
-            UPDATE transactions SET status='{$status}'  
-            WHERE subscription_id='{$subscription->uid}';
-EOF;
-        $act = $this->db->exec($sql);
-        if(!$act){
-            throw new \Exception($this->db->lastErrorMsg());
-        }
     }
     
     /**

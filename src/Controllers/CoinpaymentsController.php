@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 
-class DirectController extends Controller
+class CoinpaymentsController extends Controller
 {
     /**
      * Get current payment service.
@@ -17,7 +17,7 @@ class DirectController extends Controller
      **/
     public function getPaymentService()
     {
-        return Cashier::getPaymentGateway('direct');
+        return Cashier::getPaymentGateway('coinpayments');
     }
     
     /**
@@ -33,59 +33,53 @@ class DirectController extends Controller
         $subscription = Subscription::findByUid($subscription_id);
         
         // Save return url
-        $request->session()->put('checkout_return_url', $request->return_url);
+        if ($request->return_url) {
+            $request->session()->put('checkout_return_url', $request->return_url);
+        }
         
         // if subscription is active
         if ($subscription->isActive()) {
             return redirect()->away($request->session()->get('checkout_return_url'));
         }
         
-        $transaction = $service->getTransaction($subscription);
+        $transaction = $service->sync($subscription);
         
-        return view('cashier::direct.checkout', [
+        return view('cashier::coinpayments.checkout', [
             'gatewayService' => $service,
             'subscription' => $subscription,
             'transaction' => $transaction,
+            'return_url' => $request->session()->get('checkout_return_url'),
         ]);
     }
     
     /**
-     * Claim payment.
+     * Subscription charge.
      *
      * @param \Illuminate\Http\Request $request
      *
      * @return \Illuminate\Http\Response
      **/
-    public function claim(Request $request, $subscription_id)
+    public function charge(Request $request, $subscription_id)
     {
         // subscription and service
         $subscription = Subscription::findByUid($subscription_id);
         $gatewayService = $this->getPaymentService();
-        
-        $gatewayService->claim($subscription);
-        
-        return redirect()->action('\Acelle\Cashier\Controllers\DirectController@checkout', [
-            'subscription_id' => $subscription->uid,
-        ]);
-    }
-    
-    /**
-     * Unclaim payment.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function unclaim(Request $request, $subscription_id)
-    {
-        // subscription and service
-        $subscription = Subscription::findByUid($subscription_id);
-        $gatewayService = $this->getPaymentService();
-        
-        $gatewayService->unclaim($subscription);
-        
-        return redirect()->action('\Acelle\Cashier\Controllers\DirectController@checkout', [
-            'subscription_id' => $subscription->uid,
+        $return_url = $request->session()->get('checkout_return_url', url('/'));
+
+        if ($request->isMethod('post')) {
+            $transaction = $gatewayService->charge($subscription);
+
+            // Redirect to checkout page
+            //return redirect()->action('\Acelle\Cashier\Controllers\CoinpaymentsController@checkout', [
+            //    'subscription_id' => $subscription->uid,
+            //]);
+            
+            return redirect()->away($transaction['checkout_url']);
+        }
+
+        return view('cashier::coinpayments.charge', [
+            'subscription' => $subscription,
+            'gatewayService' => $gatewayService,
         ]);
     }
 }

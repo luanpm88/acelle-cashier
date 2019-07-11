@@ -90,6 +90,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $subscription->user_id = $customer->getBillableId();
         $subscription->plan_id = $plan->getBillableId();
         $subscription->status = Subscription::STATUS_NEW;
+        
         $subscription->save();
         
         return $subscription;
@@ -122,6 +123,8 @@ class StripePaymentGateway implements PaymentGatewayInterface
                 'local_subscription_id' => $subscription->uid,
             ],
         ]);
+        
+        $this->sync($subscription);
     }
 
     /**
@@ -349,10 +352,8 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  Subscription  $subscription
      * @return date
      */
-    public function changePlan($user, $plan)
+    public function changePlan($subscription, $plan)
     {
-        $subscription = $user->subscription();
-
         $stripeSubscription = $this->getStripeSubscription($subscription->uid);
 
         $stripePlan = $this->getStripePlan($plan);
@@ -474,11 +475,11 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  Int  $subscriptionId
      * @return date
      */
-    public function getRawInvoices($subscriptionId)
+    public function getRawInvoices($subscription)
     {
         $result = [];
 
-        $stripeSubscription = $this->getStripeSubscription($subscriptionId);
+        $stripeSubscription = $this->getStripeSubscription($subscription->uid);
         $invoices = \Stripe\Invoice::all(["subscription" => $stripeSubscription->id]);
 
         return $invoices["data"];
@@ -490,7 +491,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  Int  $subscriptionId
      * @return date
      */
-    public function setDone($subscription)
+    public function setActive($subscription)
     {
         throw new \Exception('The Payment service dose not support this feature!');
     }

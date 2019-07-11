@@ -10,6 +10,11 @@ use Acelle\Cashier\Cashier;
 
 class StripeController extends Controller
 {
+    /**
+     * Get current payment service.
+     *
+     * @return \Illuminate\Http\Response
+     **/
     public function getPaymentService()
     {
         return Cashier::getPaymentGateway('stripe');
@@ -55,7 +60,7 @@ class StripeController extends Controller
         ]);
     }
     
-        /**
+    /**
      * Subscription charge.
      *
      * @param \Illuminate\Http\Request $request

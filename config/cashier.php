@@ -23,6 +23,7 @@ return [
                 'public_key' => null,
                 'private_key' => null,
                 'ipn_secret' => null,
+                'receive_currency' => 'BTC',
             ],
         ],
     ],
