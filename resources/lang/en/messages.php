@@ -15,6 +15,8 @@
     'direct.claim_payment' => 'I paid already!',
     'direct.unclaim_payment' => 'Sorry! I claimed by mistake. Click to undo.',
     'direct.subscribed_to_plan' => 'Subscribe to plan <strong>:plan</strong>',
+    'direct.renew_plan.intro' => 'You are about to renew :plan plan. Please check the renew information below before proceeding.',
+    'coinpayments.renew_plan.intro' => 'You are about to renew :plan plan. Please check the renew information below before proceeding.',
     'coinpayments.checkout.page_title' => 'Checkout',
     'coinpayments.title' => 'Checkout',
     'coinpayments.checkout.intro' => 'You are checking out <strong>:plan</strong> with <strong>:price</strong>.
@@ -46,6 +48,9 @@
     'direct.description' => 'Description',
     'direct.amount' => 'Amount',
     'direct.pending.intro' => 'There is a pending transaction. Please follow the guide below to finish your payment',
+    'coinpayments.plan' => 'Plan',
+    'coinpayments.next_period_day' => 'Next period end day',
+    'coinpayments.amount' => 'Amount',
     'direct.next_period_day' => 'Next period end day',
     'direct.pending.claimed.intro' => 'You claimed that you paid for the below transaction.
         Please wait for the payment confirmation.',
@@ -55,4 +60,16 @@
     'coinpayments.pending_transaction' => 'Transaction',
     'coinpayments.pending.intro' => 'There is a pending transaction. Please follow the guide below to finish your payment.',
     'coinpayments.change_plan_to' => 'Change from <strong>:current_plan</strong> to <strong>:new_plan</strong> plan',
+    'direct.renew_subscription' => 'Renew subscription',
+    'direct.renew_proceed' => 'Proceed',
+    'coinpayments.renew_subscription' => 'Renew subscription',
+    'coinpayments.renew_proceed' => 'Proceed',
+    'direct.change_plan.intro' => 'You are about to change <strong>:plan</strong> plan to <strong>:new_plan</strong> plan.
+        Please check the information below before proceeding.',
+    'direct.new_plan' => 'New plan',
+    'direct.change_plan' => 'Change plan',
+    'coinpayments.change_plan.intro' => 'You are about to change <strong>:plan</strong> plan to <strong>:new_plan</strong> plan.
+        Please check the information below before proceeding.',
+    'coinpayments.new_plan' => 'New plan',
+    'coinpayments.change_plan' => 'Change plan',
 ) ?>

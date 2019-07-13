@@ -108,7 +108,7 @@ class Subscription extends Model
     public function plan()
     {
         // @todo how to know plan has uid
-        return $this->belongsTo('Acelle\Model\Plan', 'plan_id', 'uid');
+        return $this->belongsTo(config('cashier.plan.class_name'), 'plan_id', config('cashier.plan.id_column'));
     }
 
     /**
@@ -119,7 +119,12 @@ class Subscription extends Model
     public function user()
     {
         // @todo how to know user has uid
-        return $this->belongsTo('Acelle\Model\Customer', 'user_id', 'uid');
+        return $this->belongsTo(config('cashier.user.class_name'), 'user_id', config('cashier.user.id_column'));
+    }
+    
+    public static function findUser($id)
+    {
+        
     }
     
     /**
