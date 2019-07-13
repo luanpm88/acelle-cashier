@@ -42,7 +42,8 @@ class CoinpaymentsController extends Controller
             return redirect()->away($request->session()->get('checkout_return_url'));
         }
         
-        $transaction = $service->sync($subscription);
+        $service->sync($subscription);
+        $transaction = $service->getInitTransaction($subscription);
         
         return view('cashier::coinpayments.checkout', [
             'gatewayService' => $service,
@@ -63,8 +64,7 @@ class CoinpaymentsController extends Controller
     {
         // subscription and service
         $subscription = Subscription::findByUid($subscription_id);
-        $gatewayService = $this->getPaymentService();
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $gatewayService = $this->getPaymentService();        
 
         if ($request->isMethod('post')) {
             $transaction = $gatewayService->charge($subscription);
@@ -80,6 +80,36 @@ class CoinpaymentsController extends Controller
         return view('cashier::coinpayments.charge', [
             'subscription' => $subscription,
             'gatewayService' => $gatewayService,
+        ]);
+    }
+    
+    /**
+     * Subscription pending page.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     **/
+    public function pending(Request $request, $subscription_id)
+    {
+        $service = $this->getPaymentService();
+        $subscription = Subscription::findByUid($subscription_id);
+        $transaction = $service->getTransaction($subscription);
+        
+        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        if (!$return_url) {
+            $return_url = url('/');
+        }
+        
+        if (!$service->hasPending($subscription)) {
+            return redirect()->away($return_url);
+        }
+        
+        return view('cashier::coinpayments.pending', [
+            'gatewayService' => $service,
+            'subscription' => $subscription,
+            'transaction' => $transaction,
+            'return_url' => $return_url,
         ]);
     }
 }

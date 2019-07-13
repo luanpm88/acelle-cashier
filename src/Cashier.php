@@ -48,4 +48,77 @@ class Cashier
                 return false;
         }
     }
+    
+    /**
+     * user want to change plan.
+     *
+     * @return bollean
+     */
+    public static function calcChangePlan($subscription, $plan)
+    {
+        $newEndsAt = $subscription->ends_at;
+        
+        $remainDays = $subscription->ends_at->diffInDays(\Carbon\Carbon::now());
+
+        // amout per day of current plan
+        $currentAmount = $subscription->plan->getBillableAmount();
+        $periodDays = $subscription->ends_at->diffInDays($subscription->periodStartAt());
+        $remainDays = $subscription->ends_at->diffInDays(\Carbon\Carbon::now());
+        $currentPerDayAmount = ($currentAmount/$periodDays);
+        $newAmount = ($plan->price/$periodDays)*$remainDays;
+        $remainAmount = $currentPerDayAmount*$remainDays;
+
+        $amount = $newAmount - $remainAmount;
+        
+        // if amount < 0
+        if ($amount < 0) {
+            $days = (int) ceil(-($amount/$currentPerDayAmount));
+            $amount = 0;
+            $newEndsAt->addDays($days);
+        }
+
+        return [
+            'amount' => $amount,
+            'endsAt' => $newEndsAt,
+        ];
+    }
+    
+    /**
+     * Get renew url.
+     *
+     * @return bollean
+     */
+    public static function getRenewUrl($subscription, $returnUrl='/')
+    {
+        return action("\Acelle\Cashier\Controllers\\" . ucfirst(config('cashier.gateway')) . "Controller@renew", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
+    
+    /**
+     * Get renew url.
+     *
+     * @return bollean
+     */
+    public static function getChangePlanUrl($subscription, $returnUrl='/')
+    {
+        return action("\Acelle\Cashier\Controllers\\" . ucfirst(config('cashier.gateway')) . "Controller@changePlan", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
+    
+    /**
+     * Get renew url.
+     *
+     * @return bollean
+     */
+    public static function getPendingUrl($subscription, $returnUrl='/')
+    {
+        return action("\Acelle\Cashier\Controllers\\" . ucfirst(config('cashier.gateway')) . "Controller@pending", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
 }

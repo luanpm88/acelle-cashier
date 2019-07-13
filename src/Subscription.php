@@ -81,10 +81,10 @@ class Subscription extends Model
     public function getMetadata()
     {
         if (!$this->metadata) {
-            return json_decode('{}');
+            return json_decode('{}', true);
         }
 
-        return json_decode($this->metadata);
+        return json_decode($this->metadata, true);
     }
 
     /**

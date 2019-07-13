@@ -12,9 +12,14 @@
 */
 
 Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controllers'], function() {
+    Route::get('/cashier/coinpayments/{subscription_id}/pending', 'CoinpaymentsController@pending');
     Route::match(['get', 'post'], '/cashier/coinpayments/{subscription_id}/charge', 'CoinpaymentsController@charge');
     Route::get('/cashier/coinpayments/{subscription_id}/checkout', 'CoinpaymentsController@checkout');
     
+    Route::post('/cashier/direct/{subscription_id}/renew', 'DirectController@renew');
+    Route::post('/cashier/direct/{subscription_id}/pending-unclaim', 'DirectController@pendingUnclaim');
+    Route::post('/cashier/direct/{subscription_id}/pending-claim', 'DirectController@pendingClaim');
+    Route::get('/cashier/direct/{subscription_id}/pending', 'DirectController@pending');
     Route::post('/cashier/direct/{subscription_id}/unclaim', 'DirectController@unclaim');
     Route::post('/cashier/direct/{subscription_id}/claim', 'DirectController@claim');
     Route::get('/cashier/direct/{subscription_id}/checkout', 'DirectController@checkout');

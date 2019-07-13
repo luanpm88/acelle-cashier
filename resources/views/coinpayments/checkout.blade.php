@@ -78,7 +78,7 @@
                 </div>
             </div>
             <div class="col-md-5 mt-40">
-                <h1 class="text-semibold mb-20 mt-0">{{ trans('cashier::messages.coinpayments.thank_you') }}</h1>
+                <h1 class="text-semibold mb-20 mt-0">{{ trans('cashier::messages.coinpayments.checkout.page_title') }}</h1>
                 
                 @if (!$transaction)
                     <p>{!! trans('cashier::messages.coinpayments.checkout.intro', [
@@ -108,11 +108,11 @@
                             ]) !!}
                         <hr>
                         <p>{!! trans('cashier::messages.coinpayments.checkout_link', [
-                            'url' => $subscription->getMetadata()->checkout_url,
+                            'url' => $subscription->getMetadata()['checkout_url'],
                         ]) !!}</p>
                         <hr>
                         <p>{!! trans('cashier::messages.coinpayments.status_link', [
-                            'url' => $subscription->getMetadata()->status_url,
+                            'url' => $subscription->getMetadata()['status_url'],
                         ]) !!}</p>
                     @endif
                     
