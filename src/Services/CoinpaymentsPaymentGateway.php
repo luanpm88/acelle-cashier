@@ -221,7 +221,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         
         $transaction = end($transactions);
         
-        $transaction['remote'] = $this->getTransactionRemoteInfo($transaction['txn_id']);
+        if (isset($transaction['txn_id'])) {
+            $transaction['remote'] = $this->getTransactionRemoteInfo($transaction['txn_id']);
+        }
         
         return $transaction;
     }
@@ -253,31 +255,20 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         } else if ($subscription->isActive()) {
             // get lastest transaction
             $transaction = $this->getTransaction($subscription);
-            
-            $active = $transaction['remote']['status'] == 100;            
+                       
             if (isset($transaction['force_status']) && $transaction['force_status'] == 'active') {
                 $active = true;
+            } else {
+                $active = $transaction['remote']['status'] == 100; 
             }
         
             if ($active) {
-                $data = json_decode($transaction["remote"]["checkout"]["custom"], true);
-                
-                $subscription->ends_at = \Carbon\Carbon::createFromTimestamp($data['periodEndsAt']);
+                $subscription->ends_at = \Carbon\Carbon::createFromTimestamp($transaction['periodEndsAt']);
                 
                 if (isset($transaction["new_plan_id"])) {
                     $subscription->plan_id = $transaction["new_plan_id"];
                 }
             }
-            
-            //if ($transaction['status'] == 'active') {
-            //    $data = json_decode($transaction['data'], true);
-            //    
-            //    $subscription->ends_at = \Carbon\Carbon::createFromTimestamp($data['periodEndsAt']);
-            //    
-            //    if (isset($data["new_plan_id"])) {
-            //        $subscription->plan_id = $data["new_plan_id"];
-            //    }
-            //}
         }
         
         // current_period_ends_at is always ends_at
@@ -298,6 +289,8 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         $status = Subscription::STATUS_PENDING;
         $description = 'Transaction was created. Waiting for payment...';        
         $currency = $subscription->plan->getBillableCurrency();
+        $metadata = $subscription->getMetadata();
+        $transactions = isset($metadata['transactions']) ? $metadata['transactions'] : [];
         
         
         // calc result
@@ -321,6 +314,15 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             ]),
         ];
         
+        // if amount == 0
+        if ($amount <= 0) {
+            $options['periodEndsAt'] = $subscription->current_period_ends_at->timestamp;
+            $options['force_status'] = 'active';
+            $transactions[] = $options;        
+            $subscription->updateMetadata(['transactions' => $transactions]);
+            return;
+        }
+        
         $res = $this->coinPaymentsAPI->CreateSimpleTransaction($options);
         
         if ($res["error"] !== 'ok') {
@@ -330,9 +332,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         $transaction = $res["result"];
         
         // save transactio
-        $metadata = $subscription->getMetadata();
-        $transactions = isset($metadata['transactions']) ? $metadata['transactions'] : [];
         
+        
+        $options['periodEndsAt'] = $subscription->current_period_ends_at->timestamp;
         $options['txn_id'] = $transaction["txn_id"];
         $options['checkout_url'] = $transaction["checkout_url"];
         $options['status_url'] = $transaction["status_url"];
@@ -355,7 +357,8 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         $status = Subscription::STATUS_PENDING;
         $description = 'Transaction was created. Waiting for payment...';        
         $currency = $subscription->plan->getBillableCurrency();
-        
+        $metadata = $subscription->getMetadata();
+        $transactions = isset($metadata['transactions']) ? $metadata['transactions'] : [];
         
         // calc result
         $result = Cashier::calcChangePlan($subscription, $newPlan);
@@ -363,10 +366,6 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         $endsAt = $result["endsAt"];
         
         $newPlan->price = $amount;
-        
-        if ($amount <= 0) {
-            throw new \Exception(trans('cashier::messages.direct.can_not_change_to_lower_plan'));
-        }
         
         $options = [
             'currency1' => $newPlan->getBillableCurrency(),
@@ -386,6 +385,15 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             ]),
         ];
         
+        if ($amount <= 0) {
+            $options['periodEndsAt'] = $endsAt->timestamp;
+            $options['new_plan_id'] = $newPlan->getBillableId();
+            $options['force_status'] = 'active';
+            $transactions[] = $options;        
+            $subscription->updateMetadata(['transactions' => $transactions]);
+            return;
+        }        
+        
         $res = $this->coinPaymentsAPI->CreateSimpleTransaction($options);
         
         if ($res["error"] !== 'ok') {
@@ -395,9 +403,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         $transaction = $res["result"];
         
         // save transactio
-        $metadata = $subscription->getMetadata();
-        $transactions = isset($metadata['transactions']) ? $metadata['transactions'] : [];
-        
+        $options['periodEndsAt'] = $endsAt->timestamp;
         $options['new_plan_id'] = $newPlan->getBillableId();
         $options['txn_id'] = $transaction["txn_id"];
         $options['checkout_url'] = $transaction["checkout_url"];
@@ -506,11 +512,15 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         // other transactions
         $transactions = $this->getTransactions($subscription);
         foreach($transactions as $tran) {
-            $transaction = $this->getTransactionRemoteInfo($tran['txn_id']);
+            $transaction = [];
             
-            $custom = json_decode($transaction['checkout']['custom']);
+            if (isset($tran['txn_id'])) {
+                $transaction = $this->getTransactionRemoteInfo($tran['txn_id']);
+            }
+            
+            $custom = json_decode($tran['custom']);
             $invoices[] = new InvoiceParam([
-                'createdAt' => $transaction['time_created'],
+                'createdAt' => $custom->createdAt,
                 'periodEndsAt' => $custom->periodEndsAt,
                 'amount' => $custom->amount,
                 'description' => $tran['item_name'],
@@ -538,17 +548,18 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         
         $invoices = [];
         foreach($transactions as $transaction) {
-            $custom = json_decode($transaction['checkout']['custom']);
             $invoices[] = $transaction;
         }
         
         // other transactions
         $transactions = $this->getTransactions($subscription);
         foreach($transactions as $tran) {
-            $transaction = $this->getTransactionRemoteInfo($tran['txn_id']);
-            
-            $custom = json_decode($transaction['checkout']['custom']);
-            $invoices[] = $transaction;
+            if (isset($tran['txn_id'])) {
+                $transaction = $this->getTransactionRemoteInfo($tran['txn_id']);
+                $invoices[] = $transaction;
+            } else {
+                $invoices[] = $tran;
+            }
         }
         
         return $invoices;
@@ -671,15 +682,15 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     public function hasPending($subscription)
     {
         $transaction = $this->getTransaction($subscription);
-        $data = json_decode($transaction['remote']['checkout']['custom'], true);
-        
-        $active = $transaction['remote']['status'] == 100;
         
         if (isset($transaction['force_status']) && $transaction['force_status'] == 'active') {
             $active = true;
+        } else {
+            $data = json_decode($transaction['remote']['checkout']['custom'], true);
+            $active = $transaction['remote']['status'] == 100;
         }
         
-        return isset($transaction) && !$active && !$data["first_transaction"];
+        return isset($transaction) && !$active;
     }
     
     /**

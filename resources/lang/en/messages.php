@@ -72,4 +72,5 @@
         Please check the information below before proceeding.',
     'coinpayments.new_plan' => 'New plan',
     'coinpayments.change_plan' => 'Change plan',
+    'can_not_change_to_diff_currency_period_plan' => 'Can not change to plan which have different currency/period time!',
 ) ?>

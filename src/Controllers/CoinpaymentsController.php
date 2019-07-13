@@ -193,7 +193,12 @@ class CoinpaymentsController extends Controller
         }
         
         // calc plan before change
-        $result = Cashier::calcChangePlan($subscription, $plan);
+        try {
+            $result = Cashier::calcChangePlan($subscription, $plan);
+        } catch (\Exception $e) {
+            $request->session()->flash('alert-error', 'Can not change plan: ' . $e->getMessage());
+            return redirect()->away($request->return_url);
+        }
         $plan->price = $result['amount'];
         
         return view('cashier::coinpayments.change_plan', [

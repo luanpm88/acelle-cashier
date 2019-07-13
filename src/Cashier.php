@@ -56,6 +56,13 @@ class Cashier
      */
     public static function calcChangePlan($subscription, $plan)
     {
+        if (($subscription->plan->getBillableInterval() != $plan->getBillableInterval()) ||
+            ($subscription->plan->getBillableIntervalCount() != $plan->getBillableIntervalCount()) ||
+            ($subscription->plan->getBillableCurrency() != $plan->getBillableCurrency())
+        ) {
+            throw new \Exception(trans('cashier::messages.can_not_change_to_diff_currency_period_plan'));
+        }
+        
         $newEndsAt = $subscription->ends_at;
         
         $remainDays = $subscription->ends_at->diffInDays(\Carbon\Carbon::now());
@@ -75,6 +82,11 @@ class Cashier
             $days = (int) ceil(-($amount/$currentPerDayAmount));
             $amount = 0;
             $newEndsAt->addDays($days);
+            
+            // if free plan
+            if ($plan->getBillableAmount() == 0) {
+                $newEndsAt = $subscription->ends_at;
+            }
         }
 
         return [
