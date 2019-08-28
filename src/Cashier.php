@@ -94,32 +94,4 @@ class Cashier
             'endsAt' => $newEndsAt,
         ];
     }
-    
-    /**
-     * Find plan.
-     *
-     * @return bollean
-     */
-    public static function findPlan($id)
-    {
-        $class_name = config('cashier.plan.class_name');
-        $id_column = config('cashier.plan.id_column');
-        eval("\$plan = $class_name::where('$id_column', '=', '$id')->first();");
-        
-        return $plan;
-    }
-    
-    /**
-     * Find user.
-     *
-     * @return bollean
-     */
-    public static function findUser($id)
-    {
-        $class_name = config('cashier.user.class_name');
-        $id_column = config('cashier.user.id_column');
-        eval("\$user = $class_name::where('$id_column', '=', $id);");
-        
-        return $user;
-    }
 }

@@ -222,8 +222,10 @@ class DirectController extends Controller
     {
         // Get current customer
         $subscription = Subscription::findByUid($subscription_id);
-        $service = $this->getPaymentService();        
-        $plan = Cashier::findPlan($request->plan_id);        
+        $service = $this->getPaymentService();
+        
+        // @todo dependency injection 
+        $plan = \Acelle\Model\Plan::findByUid($request->plan_id);        
         
         // Save return url
         if ($request->return_url) {

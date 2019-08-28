@@ -27,12 +27,4 @@ return [
             ],
         ],
     ],
-    'plan' => [
-        'class_name' => '\Acelle\Model\Plan',
-        'id_column' => 'uid',
-    ],
-    'user' => [
-        'class_name' => '\Acelle\Model\Customer',
-        'id_column' => 'uid',
-    ],
 ];
