@@ -944,4 +944,43 @@ EOF;
             ]),
         ]);
     }
+    
+    /**
+     * Get renew url.
+     *
+     * @return string
+     */
+    public function getRenewUrl($subscription, $returnUrl='/')
+    {
+        return action("\Acelle\Cashier\Controllers\\DirectController@renew", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
+    
+    /**
+     * Get renew url.
+     *
+     * @return string
+     */
+    public function getChangePlanUrl($subscription, $returnUrl='/')
+    {
+        return action("\Acelle\Cashier\Controllers\\DirectController@changePlan", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
+    
+    /**
+     * Get renew url.
+     *
+     * @return string
+     */
+    public function getPendingUrl($subscription, $returnUrl='/')
+    {
+        return action("\Acelle\Cashier\Controllers\\DirectController@pending", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
 }

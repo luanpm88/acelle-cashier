@@ -96,45 +96,6 @@ class Cashier
     }
     
     /**
-     * Get renew url.
-     *
-     * @return bollean
-     */
-    public static function getRenewUrl($subscription, $returnUrl='/')
-    {
-        return action("\Acelle\Cashier\Controllers\\" . ucfirst(config('cashier.gateway')) . "Controller@renew", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-        ]);
-    }
-    
-    /**
-     * Get renew url.
-     *
-     * @return bollean
-     */
-    public static function getChangePlanUrl($subscription, $returnUrl='/')
-    {
-        return action("\Acelle\Cashier\Controllers\\" . ucfirst(config('cashier.gateway')) . "Controller@changePlan", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-        ]);
-    }
-    
-    /**
-     * Get renew url.
-     *
-     * @return bollean
-     */
-    public static function getPendingUrl($subscription, $returnUrl='/')
-    {
-        return action("\Acelle\Cashier\Controllers\\" . ucfirst(config('cashier.gateway')) . "Controller@pending", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-        ]);
-    }
-    
-    /**
      * Find plan.
      *
      * @return bollean

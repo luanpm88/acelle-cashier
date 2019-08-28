@@ -534,4 +534,43 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
         return empty($cards->data) ? NULL : $cards->data["0"];
     }
+    
+    /**
+     * Get renew url.
+     *
+     * @return string
+     */
+    public function getRenewUrl($subscription, $returnUrl='/')
+    {
+        return action("\Acelle\Cashier\Controllers\\StripeController@renew", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
+    
+    /**
+     * Get renew url.
+     *
+     * @return string
+     */
+    public function getChangePlanUrl($subscription, $returnUrl='/')
+    {
+        return action("\Acelle\Cashier\Controllers\\StripeController@changePlan", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
+    
+    /**
+     * Get renew url.
+     *
+     * @return string
+     */
+    public function getPendingUrl($subscription, $returnUrl='/')
+    {
+        return action("\Acelle\Cashier\Controllers\\StripeController@pending", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
 }
