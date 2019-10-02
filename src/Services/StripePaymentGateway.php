@@ -573,4 +573,15 @@ class StripePaymentGateway implements PaymentGatewayInterface
             'return_url' => $returnUrl,
         ]);
     }
+    
+    /**
+     * Check for notice.
+     *
+     * @param  Subscription  $subscription
+     * @return date
+     */
+    public function hasPending($subscription)
+    {
+        return false;
+    }
 }

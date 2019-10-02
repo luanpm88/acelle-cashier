@@ -17,6 +17,12 @@
             .mt-40 {
                 margin-top: 40px;
             }
+            .pd-30 {
+                padding: 30px;
+            }
+            .pd-60 {
+                padding: 60px;
+            }
             
             ul.dotted-list {
                 list-style: none;
@@ -58,17 +64,38 @@
             .sub-section {
                 margin-bottom: 60px;
             }
+            body {
+                background: #f9f9f9;
+            }
+            body:before {
+                height: 100%;
+                width: 50%;
+                position: fixed;
+                content: " ";
+                top: 0;
+                right: 0;
+                background: #fff;
+                -webkit-animation: enter-background-shadow .6s;
+                animation: enter-background-shadow .6s;
+                -webkit-animation-fill-mode: both;
+                animation-fill-mode: both;
+                -webkit-transform-origin: right;
+                -ms-transform-origin: right;
+                transform-origin: right;
+            }
         </style>
     </head>
     
     <body>
-        <div class="row mt-40">
+        <div class="main-container row mt-40">
             <div class="col-md-2"></div>
-            <div class="col-md-3 text-center mt-40">
+            <div class="col-md-4 text-center mt-40 pd-60">
                 <img width="100%" src="{{ url('/vendor/acelle-cashier/image/stripe.png') }}" />
             </div>
-            <div class="col-md-5 mt-40">
+            <div class="col-md-4 mt-40 pd-60">
                 <h1 class="text-semibold mb-20 mt-0">{{ trans('cashier::messages.stripe.checkout_with_stripe') }}</h1>
+                <label>{{ $subscription->plan->getBillableName() }}</label>  
+                <h2 class="mb-40">{{ $subscription->plan->getBillableFormattedPrice() }}</h2>
         
                 @if ($gatewayService->getCardInformation($subscription->user) !== NULL)
                     <div class="sub-section">
@@ -91,7 +118,7 @@
                                 </div>
                             </li>
                         </ul>
-                
+                        <hr />
                         <a href="{{ action('\Acelle\Cashier\Controllers\StripeController@charge', [
                             'subscription_id' => $subscription->uid,
                         ]) }}" class="btn btn-primary">{{ trans('messages.subscription.pay_with_this_card') }}</a>
@@ -102,6 +129,7 @@
                         'plan' => $subscription->plan->getBillableName(),
                         'price' => $subscription->plan->getBillableFormattedPrice(),
                     ]) !!}</p>
+                    <hr />
                     <a href="javascript:;" class="btn btn-secondary" onclick="$('#stripe_button button').click()">{{ trans('messages.subscription.pay_with_stripe') }}</a>
                 @endif
                 
