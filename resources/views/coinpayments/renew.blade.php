@@ -5,23 +5,39 @@
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
             
         <style>
+            body {
+                background: #f9f9f9;
+            }
+            body:before {
+                height: 100%;
+                width: 50%;
+                position: fixed;
+                content: " ";
+                top: 0;
+                right: 0;
+                background: #fff;
+                -webkit-animation: enter-background-shadow .6s;
+                animation: enter-background-shadow .6s;
+                -webkit-animation-fill-mode: both;
+                animation-fill-mode: both;
+                -webkit-transform-origin: right;
+                -ms-transform-origin: right;
+                transform-origin: right;
+            }            
             .mb-10 {
                 margin-bottom: 10px;
-            }
-            .mb-20 {
-                margin-bottom: 20px;
             }
             .mb-40 {
                 margin-bottom: 40px;
             }
-            .mr-10 {
-                margin-right: 10px;
-            }
-            .pl-20 {
-                padding-left: 20px;
+            .mb-20 {
+                margin-bottom: 20px;
             }
             .mt-40 {
                 margin-top: 40px;
+            }
+            .pd-60 {
+                padding: 60px;
             }
             
             ul.dotted-list {
@@ -80,37 +96,53 @@
     <body>
         <div class="row mt-40">
             <div class="col-md-2"></div>
-            <div class="col-md-3 text-center mt-40">
+            <div class="col-md-4 mt-40 pl-20 pd-60">
+                <label class="text-semibold text-muted mb-20 mt-0">
+                    <strong>
+                        {{ trans('cashier::messages.coinpayments.renew_subscription') }}
+                    </strong>
+                </label>
                 <img width="100%" src="{{ url('/vendor/acelle-cashier/image/coinpayments.png') }}" />
             </div>
-            <div class="col-md-5 mt-40">
-                <h1 class="text-semibold mb-20 mt-0">{{ trans('cashier::messages.coinpayments.renew_subscription') }}</h1>
+            <div class="col-md-4 mt-40 pd-60">
+                <label>{{ $subscription->plan->getBillableName() }}</label>  
+                <h2 class="mb-40">{{ $subscription->plan->getBillableFormattedPrice() }}</h2>
     
                 <p>{!! trans('cashier::messages.coinpayments.renew_plan.intro', [
                     'plan' => $subscription->plan->getBillableName(),
                 ]) !!}</p>                    
-                <hr>
-                <ul>
+                <ul class="dotted-list topborder section mb-4">
                     <li>
-                        <label>{{ trans('cashier::messages.coinpayments.next_period_day') }}</label>
-                        <span>{!! $subscription->nextPeriod() !!}</span>
+                        <div class="unit size1of2">
+                            {{ trans('cashier::messages.direct.next_period_day') }}
+                        </div>
+                        <div class="lastUnit size1of2">
+                            <mc:flag>{!! $subscription->nextPeriod() !!}</mc:flag>
+                        </div>
                     </li>
                     <li>
-                        <label>{{ trans('cashier::messages.coinpayments.plan') }}</label>
-                        <span>{{ $subscription->plan->getBillableName() }}</span>
+                        <div class="unit size1of2">
+                            {{ trans('cashier::messages.direct.plan') }}
+                        </div>
+                        <div class="lastUnit size1of2">
+                            <mc:flag>{{ $subscription->plan->getBillableName() }}</mc:flag>
+                        </div>
                     </li>
                     <li>
-                        <label>{{ trans('cashier::messages.coinpayments.amount') }}</label>
-                        <span><strong>{{ $subscription->plan->getBillableFormattedPrice() }}</strong></span>
+                        <div class="unit size1of2">
+                            {{ trans('cashier::messages.direct.amount') }}
+                        </div>
+                        <div class="lastUnit size1of2">
+                            <mc:flag>{{ $subscription->plan->getBillableFormattedPrice() }}</mc:flag>
+                        </div>
                     </li>
                 </ul>
-                <hr>
                 
                 <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\CoinpaymentsController@renew', ['subscription_id' => $subscription->uid]) }}">
                     {{ csrf_field() }}
                     
                     <button
-                        class="btn btn-primary mr-10"
+                        class="btn btn-primary mr-10 mr-2"
                     >{{ trans('cashier::messages.coinpayments.renew_proceed') }}</button>
                         
                     <a

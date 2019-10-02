@@ -3,12 +3,14 @@
     'stripe.checkout_with_stripe' => 'Checkout with Stripe',
     'stripe.card_list' => 'Your card information',
     'stripe.click_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with Stripe with <strong>:price</strong>.
-        Please click the button bellow to proceed with the payment information.',        
+        Please click the button bellow to proceed with the payment information.',
+    'stripe.click_or_choose_card_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with Stripe with <strong>:price</strong>.
+        Please choose to pay with exist card or pay with new card.',        
     'stripe.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
         <br> Your browser will redirect to next page shortly.',
     'stripe.checkout.processing_payment' => 'Processing your payment... please wait!',
     'direct.checkout.page_title' => 'Checkout',
-    'direct.title' => 'Checkout',
+    'direct.title' => 'Manual Checkout',
     'direct.checkout.intro' => 'You are checking out <strong>:plan</strong> with <strong>:price</strong>.
         Please follow the guide below to finish your payment before using plan:',
     'direct.claimed.intro' => 'You claimed that you paid for <strong>:plan</strong>, the amount is <strong>:price</strong>. Please wait for the payment confirmation.',

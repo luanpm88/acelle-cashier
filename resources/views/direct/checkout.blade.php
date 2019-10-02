@@ -5,6 +5,25 @@
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
             
         <style>
+            body {
+                background: #f9f9f9;
+            }
+            body:before {
+                height: 100%;
+                width: 50%;
+                position: fixed;
+                content: " ";
+                top: 0;
+                right: 0;
+                background: #fff;
+                -webkit-animation: enter-background-shadow .6s;
+                animation: enter-background-shadow .6s;
+                -webkit-animation-fill-mode: both;
+                animation-fill-mode: both;
+                -webkit-transform-origin: right;
+                -ms-transform-origin: right;
+                transform-origin: right;
+            }            
             .mb-10 {
                 margin-bottom: 10px;
             }
@@ -16,6 +35,9 @@
             }
             .mt-40 {
                 margin-top: 40px;
+            }
+            .pd-60 {
+                padding: 60px;
             }
             
             ul.dotted-list {
@@ -31,6 +53,7 @@
             .dotted-list>li>div {
                 padding: 0;
                 display: block;
+                margin-bottom: 1px;
             }
             .topborder>li:first-child {
                 border-top: 1px dotted #e0e0e0;
@@ -64,22 +87,27 @@
     <body>
         <div class="row mt-40">
             <div class="col-md-2"></div>
-            <div class="col-md-3 text-center mt-40">
+            <div class="col-md-4 mt-40 pd-60">
+                <label class="text-semibold text-muted mb-20 mt-0">
+                    <strong>
+                        {{ trans('cashier::messages.direct.title') }}
+                    </strong>
+                </label>
                 <img width="100%" src="{{ url('/vendor/acelle-cashier/image/direct.png') }}" />
             </div>
-            <div class="col-md-5 mt-40">
-                <h1 class="text-semibold mb-20 mt-0">{{ trans('cashier::messages.direct.title') }}</h1>
-        
-
+            <div class="col-md-4 mt-40 pd-60">
+                <label>{{ $subscription->plan->getBillableName() }}</label>  
+                <h2 class="mb-40">{{ $subscription->plan->getBillableFormattedPrice() }}</h2>
+                    
                 @if (!$transaction['payment_claimed'])
                     <p>{!! trans('cashier::messages.direct.checkout.intro', [
                         'plan' => $subscription->plan->getBillableName(),
                         'price' => $subscription->plan->getBillableFormattedPrice(),
                     ]) !!}</p>
-                    <hr>
+                    <div class="alert alert-info">
                     {!! $gatewayService->getPaymentGuide() !!}
+                    </div>
                     <hr>
-                    
                     <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@claim', ['subscription_id' => $subscription->uid]) }}">
                         {{ csrf_field() }}
                         <button

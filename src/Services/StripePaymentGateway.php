@@ -329,6 +329,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function cancelNow($subscription)
     {
         $stripeSubscription = $this->getStripeSubscription($subscription->uid);
+        
         $stripeSubscription->cancel();
         
         // sync

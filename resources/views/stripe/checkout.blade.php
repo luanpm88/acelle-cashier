@@ -89,21 +89,30 @@
     <body>
         <div class="main-container row mt-40">
             <div class="col-md-2"></div>
-            <div class="col-md-4 text-center mt-40 pd-60">
-                <img width="100%" src="{{ url('/vendor/acelle-cashier/image/stripe.png') }}" />
-            </div>
             <div class="col-md-4 mt-40 pd-60">
-                <h1 class="text-semibold mb-20 mt-0">{{ trans('cashier::messages.stripe.checkout_with_stripe') }}</h1>
+                <label class="text-semibold text-muted mb-20 mt-0">
+                    <strong>
+                        {{ trans('cashier::messages.stripe.checkout_with_stripe') }}
+                    </strong>
+                </label>
+                <img class="rounded" width="100%" src="{{ url('/vendor/acelle-cashier/image/stripe.png') }}" />
+            </div>
+            <div class="col-md-4 mt-40 pd-60">                
                 <label>{{ $subscription->plan->getBillableName() }}</label>  
                 <h2 class="mb-40">{{ $subscription->plan->getBillableFormattedPrice() }}</h2>
-        
+                    
                 @if ($gatewayService->getCardInformation($subscription->user) !== NULL)
+                    <p>{!! trans('cashier::messages.stripe.click_or_choose_card_bellow_to_pay', [
+                        'plan' => $subscription->plan->getBillableName(),
+                        'price' => $subscription->plan->getBillableFormattedPrice(),
+                    ]) !!}</p>
+                        
                     <div class="sub-section">
-                        <h4 class="text-semibold">{!! trans('cashier::messages.stripe.card_list') !!}</h4>
-                        <ul class="dotted-list topborder section mb-20">
+                        <h4 class="text-semibold mb-3 mt-4">{!! trans('cashier::messages.stripe.card_list') !!}</h4>
+                        <ul class="dotted-list topborder section mb-4">
                             <li>
                                 <div class="unit size1of2">
-                                    <strong>{{ trans('messages.card.holder') }}</strong>
+                                    {{ trans('messages.card.holder') }}
                                 </div>
                                 <div class="lastUnit size1of2">
                                     <mc:flag>{{ $gatewayService->getCardInformation($subscription->user)->name }}</mc:flag>
@@ -111,17 +120,17 @@
                             </li>
                             <li>
                                 <div class="unit size1of2">
-                                    <strong>{{ trans('messages.card.last4') }}</strong>
+                                    {{ trans('messages.card.last4') }}
                                 </div>
                                 <div class="lastUnit size1of2">
                                     <mc:flag>{{ $gatewayService->getCardInformation($subscription->user)->last4 }}</mc:flag>
                                 </div>
                             </li>
                         </ul>
-                        <hr />
+                        
                         <a href="{{ action('\Acelle\Cashier\Controllers\StripeController@charge', [
                             'subscription_id' => $subscription->uid,
-                        ]) }}" class="btn btn-primary">{{ trans('messages.subscription.pay_with_this_card') }}</a>
+                        ]) }}" class="btn btn-primary mr-2">{{ trans('messages.subscription.pay_with_this_card') }}</a>
                         <a href="javascript:;" class="btn btn-secondary" onclick="$('#stripe_button button').click()">{{ trans('messages.subscription.pay_with_new_card') }}</a>
                     </div>
                 @else

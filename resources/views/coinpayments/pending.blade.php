@@ -5,20 +5,39 @@
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
             
         <style>
+            body {
+                background: #f9f9f9;
+            }
+            body:before {
+                height: 100%;
+                width: 50%;
+                position: fixed;
+                content: " ";
+                top: 0;
+                right: 0;
+                background: #fff;
+                -webkit-animation: enter-background-shadow .6s;
+                animation: enter-background-shadow .6s;
+                -webkit-animation-fill-mode: both;
+                animation-fill-mode: both;
+                -webkit-transform-origin: right;
+                -ms-transform-origin: right;
+                transform-origin: right;
+            }            
             .mb-10 {
                 margin-bottom: 10px;
-            }
-            .mb-20 {
-                margin-bottom: 20px;
             }
             .mb-40 {
                 margin-bottom: 40px;
             }
-            .pl-20 {
-                padding-left: 20px;
+            .mb-20 {
+                margin-bottom: 20px;
             }
             .mt-40 {
                 margin-top: 40px;
+            }
+            .pd-60 {
+                padding: 60px;
             }
             
             ul.dotted-list {
@@ -72,11 +91,15 @@
     <body>
         <div class="row mt-40">
             <div class="col-md-2"></div>
-            <div class="col-md-3 text-center mt-40">
+            <div class="col-md-4 mt-40 pd-60">
+                <label class="text-semibold text-muted mb-20 mt-0">
+                    <strong>
+                        {{ $transaction['remote']['checkout']['item_name'] }}
+                    </strong>
+                </label>
                 <img width="100%" src="{{ url('/vendor/acelle-cashier/image/coinpayments.png') }}" />
             </div>
-            <div class="col-md-5 mt-40">
-                <h1 class="text-semibold mb-20 mt-0">{{ $transaction['remote']['checkout']['item_name'] }}</h1>
+            <div class="col-md-4 mt-40 pd-60">
         
                 <p>{!! trans('cashier::messages.coinpayments.pending.intro', [
                     'name' => $transaction['remote']['checkout']['item_name'],

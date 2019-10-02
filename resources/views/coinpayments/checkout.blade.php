@@ -5,20 +5,39 @@
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
             
         <style>
+            body {
+                background: #f9f9f9;
+            }
+            body:before {
+                height: 100%;
+                width: 50%;
+                position: fixed;
+                content: " ";
+                top: 0;
+                right: 0;
+                background: #fff;
+                -webkit-animation: enter-background-shadow .6s;
+                animation: enter-background-shadow .6s;
+                -webkit-animation-fill-mode: both;
+                animation-fill-mode: both;
+                -webkit-transform-origin: right;
+                -ms-transform-origin: right;
+                transform-origin: right;
+            }            
             .mb-10 {
                 margin-bottom: 10px;
-            }
-            .mb-20 {
-                margin-bottom: 20px;
             }
             .mb-40 {
                 margin-bottom: 40px;
             }
-            .pl-20 {
-                padding-left: 20px;
+            .mb-20 {
+                margin-bottom: 20px;
             }
             .mt-40 {
                 margin-top: 40px;
+            }
+            .pd-60 {
+                padding: 60px;
             }
             
             ul.dotted-list {
@@ -72,13 +91,19 @@
     <body>
         <div class="row mt-40">
             <div class="col-md-2"></div>
-            <div class="col-md-3 text-center mt-40 pl-20">
+            <div class="col-md-4 mt-40 pl-20 pd-60">
+                <label class="text-semibold text-muted mb-20 mt-0">
+                    <strong>
+                        {{ trans('cashier::messages.coinpayments.checkout.page_title') }}
+                    </strong>
+                </label>
                 <div class="logo-wrapper">
                     <img width="100%" src="{{ url('/vendor/acelle-cashier/image/coinpayments.png') }}" />
                 </div>
             </div>
-            <div class="col-md-5 mt-40">
-                <h1 class="text-semibold mb-20 mt-0">{{ trans('cashier::messages.coinpayments.checkout.page_title') }}</h1>
+            <div class="col-md-4 mt-40 pd-60">
+                <label>{{ $subscription->plan->getBillableName() }}</label>  
+                <h2 class="mb-40">{{ $subscription->plan->getBillableFormattedPrice() }}</h2>
                 
                 @if (!$transaction)
                     <p>{!! trans('cashier::messages.coinpayments.checkout.intro', [
