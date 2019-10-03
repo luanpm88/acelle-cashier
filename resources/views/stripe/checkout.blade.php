@@ -23,6 +23,9 @@
             .pd-60 {
                 padding: 60px;
             }
+            .full-width {
+                width: 100%;
+            }
             
             ul.dotted-list {
                 list-style: none;
@@ -139,7 +142,7 @@
                         'price' => $subscription->plan->getBillableFormattedPrice(),
                     ]) !!}</p>
                     <hr />
-                    <a href="javascript:;" class="btn btn-secondary" onclick="$('#stripe_button button').click()">{{ trans('messages.subscription.pay_with_stripe') }}</a>
+                    <a href="javascript:;" class="btn btn-secondary full-width" onclick="$('#stripe_button button').click()">{{ trans('messages.subscription.pay_with_stripe') }}</a>
                 @endif
                 
                 <form id="stripe_button" style="display: none" action="{{ action('\Acelle\Cashier\Controllers\StripeController@updateCard', [

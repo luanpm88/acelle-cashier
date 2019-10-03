@@ -86,4 +86,49 @@ class StripeController extends Controller
             'subscription' => $subscription,
         ]);
     }
+    
+    /**
+     * Renew subscription.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     **/
+    public function changePlan(Request $request, $subscription_id)
+    {
+        // Get current customer
+        $subscription = Subscription::findByUid($subscription_id);
+        $service = $this->getPaymentService();
+        
+        // @todo dependency injection 
+        $plan = \Acelle\Model\Plan::findByUid($request->plan_id);        
+        
+        // Save return url
+        if ($request->return_url) {
+            $request->session()->put('checkout_return_url', $request->return_url);
+        }
+        
+        // check if status is not pending
+        if ($service->hasPending($subscription)) {
+            return redirect()->away($request->return_url);
+        }
+        
+        if ($request->isMethod('post')) {
+            $return_url = $request->session()->get('checkout_return_url', url('/'));
+            if (!$return_url) {
+                $return_url = url('/');
+            }
+            
+            // change plan
+            $service->changePlan($subscription, $plan);
+
+            // Redirect to my subscription page
+            return redirect()->away($return_url);
+        }
+        
+        return view('cashier::stripe.change_plan', [
+            'subscription' => $subscription,
+            'plan_id' => $request->plan_id,
+        ]);
+    }
 }
