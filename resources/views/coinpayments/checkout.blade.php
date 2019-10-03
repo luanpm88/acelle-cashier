@@ -115,6 +115,14 @@
                     <a href="{{ action('\Acelle\Cashier\Controllers\CoinpaymentsController@charge', [
                         'subscription_id' => $subscription->uid,
                     ]) }}" class="btn btn-secondary">{{ trans('cashier::messages.coinpayments.pay_now') }}</a>
+                        
+                    <form class="mt-5" method="POST" action="{{ action('\Acelle\Cashier\Controllers\CoinpaymentsController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
+                        {{ csrf_field() }}
+                        
+                        <a href="javascript:;" onclick="$(this).closest('form').submit()"
+                            class="text-muted" style="font-size: 12px; text-decoration: underline"
+                        >{{ trans('cashier::messages.stripe.cancel_new_subscription') }}</a>
+                    </form>
                 @else
                     @if ($subscription->isActive())
                         <p>{!! trans('cashier::messages.coinpayments.checkout.complete', [

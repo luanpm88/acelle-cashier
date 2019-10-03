@@ -212,4 +212,29 @@ class CoinpaymentsController extends Controller
             'amount' => $plan->getBillableFormattedPrice(),
         ]);
     }
+    
+    /**
+     * Cancel new subscription.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function cancelNow(Request $request, $subscription_id)
+    {
+        $subscription = Subscription::findByUid($subscription_id);
+        $service = $this->getPaymentService();
+
+        if ($subscription->isPending()) {
+            $subscription->setEnded();
+        }
+
+        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        if (!$return_url) {
+            $return_url = url('/');
+        }
+
+        // Redirect to my subscription page
+        return redirect()->away($return_url);
+    }
 }

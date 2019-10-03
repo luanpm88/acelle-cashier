@@ -131,4 +131,29 @@ class StripeController extends Controller
             'plan_id' => $request->plan_id,
         ]);
     }
+    
+    /**
+     * Cancel new subscription.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function cancelNow(Request $request, $subscription_id)
+    {
+        $subscription = Subscription::findByUid($subscription_id);
+        $service = $this->getPaymentService();
+
+        if ($subscription->isNew()) {
+            $subscription->setEnded();
+        }
+
+        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        if (!$return_url) {
+            $return_url = url('/');
+        }
+
+        // Redirect to my subscription page
+        return redirect()->away($return_url);
+    }
 }

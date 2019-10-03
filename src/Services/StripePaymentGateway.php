@@ -440,16 +440,17 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  Int  $subscriptionId
      * @return date
      */
-    public function getInvoices($subscriptionId)
+    public function getInvoices($subscription)
     {
         $result = [];
 
-        $stripeSubscription = $this->getStripeSubscription($subscriptionId);
+        $stripeSubscription = $this->getStripeSubscription($subscription->uid);
         $invoices = \Stripe\Invoice::all(["subscription" => $stripeSubscription->id]);
 
         foreach($invoices["data"] as $invoice) {
             $result[] = new InvoiceParam([
-                'time' => $invoice->created,
+                'createdAt' => $invoice->period_start,
+                'periodEndsAt' => $invoice->lines->data[0]["period"]["end"],
                 'amount' => $this->revertPrice($invoice->amount_paid, strtoupper($invoice->currency)) . " (" .$invoice->currency. ")",
                 'description' => $invoice->billing_reason,
                 'status' => $invoice->object

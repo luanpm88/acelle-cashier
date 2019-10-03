@@ -145,6 +145,14 @@
                     <a href="javascript:;" class="btn btn-secondary full-width" onclick="$('#stripe_button button').click()">{{ trans('messages.subscription.pay_with_stripe') }}</a>
                 @endif
                 
+                <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\StripeController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
+                    {{ csrf_field() }}
+                    
+                    <a href="javascript:;" onclick="$(this).closest('form').submit()"
+                        class="text-muted" style="font-size: 12px; text-decoration: underline"
+                    >{{ trans('cashier::messages.stripe.cancel_new_subscription') }}</a>
+                </form>
+                
                 <form id="stripe_button" style="display: none" action="{{ action('\Acelle\Cashier\Controllers\StripeController@updateCard', [
                     '_token' => csrf_token(),
                     'subscription_id' => $subscription->uid,

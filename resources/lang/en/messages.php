@@ -9,6 +9,7 @@
     'stripe.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
         <br> Your browser will redirect to next page shortly.',
     'stripe.checkout.processing_payment' => 'Processing your payment... please wait!',
+    'stripe.cancel_new_subscription' => 'Click here to choose another plan',
     'direct.checkout.page_title' => 'Checkout',
     'direct.title' => 'Manual Checkout',
     'direct.checkout.intro' => 'You are checking out <strong>:plan</strong> with <strong>:price</strong>.

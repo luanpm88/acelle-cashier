@@ -128,6 +128,14 @@
                         >{{ trans('cashier::messages.direct.unclaim_payment') }}</button>
                     </form>
                 @endif
+                
+                <form class="mt-5" method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
+                    {{ csrf_field() }}
+                    
+                    <a href="javascript:;" onclick="$(this).closest('form').submit()"
+                        class="text-muted" style="font-size: 12px; text-decoration: underline"
+                    >{{ trans('cashier::messages.stripe.cancel_new_subscription') }}</a>
+                </form>
             </div>
             <div class="col-md-2"></div>
         </div>
