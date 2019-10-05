@@ -33,10 +33,34 @@ class StripeController extends Controller
         
         $request->session()->put('checkout_return_url', $request->return_url);
         
-        return view('cashier::stripe.checkout', [
-            'gatewayService' => $this->getPaymentService(),
-            'subscription' => $subscription,
-        ]);
+        if (isSiteDemo()) {
+            $service = $this->getPaymentService();
+            \Stripe\Stripe::setApiVersion("2017-04-06");
+            
+            $session = \Stripe\Checkout\Session::create([
+                'payment_method_types' => ['card'],
+                'line_items' => [[
+                  'name' => $subscription->plan->getBillableName(),
+                  'description' => \Acelle\Model\Setting::get('site_description'),
+                  'images' => ['https://b.imge.to/2019/10/05/vE0yqs.png'],
+                  'amount' => $subscription->plan->stripePrice(),
+                  'currency' => $subscription->plan->getBillableCurrency(),
+                  'quantity' => 1,
+                ]],
+                'success_url' => url('/'),
+                'cancel_url' => 'https://example.com/cancel',
+            ]);
+            
+            return view('cashier::stripe.checkout_demo', [
+                'service' => $request->return_url,
+                'session' => $request->return_url,
+            ]);
+        } else {
+            return view('cashier::stripe.checkout', [
+                'gatewayService' => $this->getPaymentService(),
+                'subscription' => $subscription,
+            ]);
+        }
     }
     
     /**
