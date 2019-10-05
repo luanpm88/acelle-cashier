@@ -41,7 +41,7 @@ class StripeController extends Controller
                 'payment_method_types' => ['card'],
                 'line_items' => [[
                   'name' => $subscription->plan->getBillableName(),
-                  'description' => \Acelle\Model\Setting::get('site_description'),
+                  'description' => \Acelle\Model\Setting::get('site_name'),
                   'images' => ['https://b.imge.to/2019/10/05/vE0yqs.png'],
                   'amount' => $subscription->plan->stripePrice(),
                   'currency' => $subscription->plan->getBillableCurrency(),
