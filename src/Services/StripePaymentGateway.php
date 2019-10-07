@@ -555,11 +555,12 @@ class StripePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getChangePlanUrl($subscription, $returnUrl='/')
+    public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/')
     {
         return action("\Acelle\Cashier\Controllers\\StripeController@changePlan", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
+            'plan_id' => $plan_id,
         ]);
     }
     
