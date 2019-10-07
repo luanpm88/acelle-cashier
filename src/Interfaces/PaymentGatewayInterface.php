@@ -19,7 +19,7 @@ interface PaymentGatewayInterface
     //public function changePlan($subscriptionId, $plan);
     //public function renewSubscription($subscription);
     
-    //public function isSupportRecurring();
+    public function isSupportRecurring();
     //public function validate();
     //
     //public function getInvoices($subscriptionId);

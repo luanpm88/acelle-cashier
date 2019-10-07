@@ -10,6 +10,12 @@
         <br> Your browser will redirect to next page shortly.',
     'stripe.checkout.processing_payment' => 'Processing your payment... please wait!',
     'stripe.cancel_new_subscription' => 'Click here to choose another plan',
+    'stripe.invoice.manual' => 'Manual updated',
+    'stripe.invoice.subscription_create' => 'Subscription created',
+    'stripe.invoice.subscription_update' => 'Manual updated',
+    'stripe.invoice.subscription' => 'Subscription ',
+    'stripe.invoice.upcoming' => 'Upcoming invoice',
+    'stripe.invoice.subscription_threshold' => 'Billing threshold being reached',
     'direct.checkout.page_title' => 'Checkout',
     'direct.title' => 'Manual Checkout',
     'direct.checkout.intro' => 'You are checking out <strong>:plan</strong> with <strong>:price</strong>.

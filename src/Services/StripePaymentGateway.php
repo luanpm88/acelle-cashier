@@ -451,9 +451,9 @@ class StripePaymentGateway implements PaymentGatewayInterface
             $result[] = new InvoiceParam([
                 'createdAt' => $invoice->period_start,
                 'periodEndsAt' => $invoice->lines->data[0]["period"]["end"],
-                'amount' => $this->revertPrice($invoice->amount_paid, strtoupper($invoice->currency)) . " (" .$invoice->currency. ")",
-                'description' => $invoice->billing_reason,
-                'status' => $invoice->object
+                'amount' => $this->revertPrice($invoice->amount_paid, strtoupper($invoice->currency)) . ' ' . strtoupper($invoice->currency),
+                'description' => trans('cashier::messages.stripe.invoice.' . $invoice->billing_reason),
+                'status' => $invoice->status
             ]);
         }
 
