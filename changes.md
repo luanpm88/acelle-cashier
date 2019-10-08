@@ -1,5 +1,6 @@
 # Cashier Change Log
 
+
 ## Version 2.0.4
 
 - Allow user to pass paramaters when fetching invoices.
