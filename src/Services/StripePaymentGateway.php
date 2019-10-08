@@ -176,6 +176,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
         // create if not exist
         $stripeCustomer = \Stripe\Customer::create([
+            'email' => $user->getBillableEmail(),
             'metadata' => [
                 'local_user_id' => $user->getBillableId(),
             ],

@@ -149,7 +149,7 @@
                     {{ csrf_field() }}
                     
                     <a href="javascript:;" onclick="$(this).closest('form').submit()"
-                        class="text-muted" style="font-size: 12px; text-decoration: underline"
+                        class="text-muted mt-4" style="font-size: 12px; text-decoration: underline; display: block"
                     >{{ trans('cashier::messages.stripe.cancel_new_subscription') }}</a>
                 </form>
                 
