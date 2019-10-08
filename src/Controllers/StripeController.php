@@ -52,8 +52,8 @@ class StripeController extends Controller
             ]);
             
             return view('cashier::stripe.checkout_demo', [
-                'service' => $request->return_url,
-                'session' => $request->return_url,
+                'service' => $service,
+                'session' => $session,
             ]);
         } else {
             return view('cashier::stripe.checkout', [
