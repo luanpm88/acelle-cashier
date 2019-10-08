@@ -5,7 +5,13 @@
     'stripe.click_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with Stripe with <strong>:price</strong>.
         Please click the button bellow to proceed with the payment information.',
     'stripe.click_or_choose_card_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with Stripe with <strong>:price</strong>.
-        Please choose to pay with exist card or pay with new card.',        
+        Please choose to pay with exist card or pay with new card.',
+    'stripe.change_plan_confirmation' => 'You are about to change current subscription plan to <strong>:plan</strong>.
+        Click the proceed button below to change.',
+    'stripe.change_plan_proceed' => 'Proceed',
+    'stripe.return_back' => 'Return back',
+    'stripe.change_plan' => 'Change plan',
+    'stripe.new_plan' => 'New plan',
     'stripe.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
         <br> Your browser will redirect to next page shortly.',
     'stripe.checkout.processing_payment' => 'Processing your payment... please wait!',

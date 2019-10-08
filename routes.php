@@ -30,6 +30,7 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     Route::get('/cashier/direct/{subscription_id}/checkout', 'DirectController@checkout');
     
     Route::post('/cashier/stripe/{subscription_id}/cancel-now', 'StripeController@cancelNow');
+    Route::get('/cashier/stripe/{subscription_id}/change-plan-pending', 'StripeController@changePlanPending');
     Route::match(['get', 'post'], '/cashier/stripe/{subscription_id}/change-plan', 'StripeController@changePlan');
     Route::match(['get', 'post'], '/cashier/stripe/{subscription_id}/charge', 'StripeController@charge');
     Route::post('/cashier/stripe/{subscription_id}/update-card', 'StripeController@updateCard');

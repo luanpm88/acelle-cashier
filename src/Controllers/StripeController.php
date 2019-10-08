@@ -112,7 +112,7 @@ class StripeController extends Controller
     }
     
     /**
-     * Renew subscription.
+     * Change subscription plan.
      *
      * @param \Illuminate\Http\Request $request
      *
@@ -137,6 +137,11 @@ class StripeController extends Controller
             return redirect()->away($request->return_url);
         }
         
+        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        if (!$return_url) {
+            $return_url = url('/');
+        }
+        
         if ($request->isMethod('post')) {
             $return_url = $request->session()->get('checkout_return_url', url('/'));
             if (!$return_url) {
@@ -151,6 +156,26 @@ class StripeController extends Controller
         }
         
         return view('cashier::stripe.change_plan', [
+            'subscription' => $subscription,
+            'plan_id' => $request->plan_id,
+            'return_url' => $return_url,
+        ]);
+    }
+    
+    /**
+     * Change subscription plan pending page.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     **/
+    public function changePlanPending(Request $request, $subscription_id)
+    {
+        // Get current customer
+        $subscription = Subscription::findByUid($subscription_id);
+        $service = $this->getPaymentService();
+        
+        return view('cashier::stripe.change_plan_pending', [
             'subscription' => $subscription,
             'plan_id' => $request->plan_id,
         ]);
