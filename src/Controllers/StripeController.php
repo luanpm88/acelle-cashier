@@ -159,6 +159,7 @@ class StripeController extends Controller
             'subscription' => $subscription,
             'plan_id' => $request->plan_id,
             'return_url' => $return_url,
+            'newPlan' => $plan,
         ]);
     }
     

@@ -102,11 +102,11 @@
             </div>
             <div class="col-md-4 mt-40 pd-60">                
                 <label>{{ trans('cashier::messages.stripe.new_plan') }}</label>  
-                <h2 class="mb-40">{{ $subscription->plan->getBillableName() }}</h2>
+                <h2 class="mb-40">{{ $newPlan->getBillableName() }}</h2>
                 
                 <p>{!! trans('cashier::messages.stripe.change_plan_confirmation', [
-                    'plan' => $subscription->plan->getBillableName(),
-                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                    'plan' => $newPlan->getBillableName(),
+                    'price' => $newPlan->getBillableFormattedPrice(),
                 ]) !!}</p>
                     
                 
