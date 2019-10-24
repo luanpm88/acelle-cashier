@@ -1,6 +1,6 @@
 <html lang="en">
     <head>
-        <title>{{ trans('cashier::messages.stripe.checkout.page_title') }}</title>
+        <title>{{ trans('cashier::messages.braintree.checkout.page_title') }}</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
             
@@ -16,6 +16,9 @@
             }
             .mt-40 {
                 margin-top: 40px;
+            }
+            .mt-20 {
+                margin-top: 20px;
             }
             .pd-30 {
                 padding: 30px;
@@ -86,6 +89,43 @@
                 -ms-transform-origin: right;
                 transform-origin: right;
             }
+            
+            .button {
+  cursor: pointer;
+  font-weight: 500;
+  left: 3px;
+  line-height: inherit;
+  position: relative;
+  text-decoration: none;
+  text-align: center;
+  border-style: solid;
+  border-width: 1px;
+  border-radius: 3px;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  display: inline-block;
+}
+
+.button--small {
+  padding: 10px 20px;
+  font-size: 0.875rem;
+}
+
+.button--green {
+  outline: none;
+  background-color: #64d18a;
+  border-color: #64d18a;
+  color: white;
+  transition: all 200ms ease;
+}
+
+.button--green:hover {
+  background-color: #8bdda8;
+  color: white;
+}
+.braintree-placeholder {
+    margin-bottom: 0 !important;
+}
         </style>
     </head>
     
@@ -95,30 +135,30 @@
             <div class="col-md-4 mt-40 pd-60">
                 <label class="text-semibold text-muted mb-20 mt-0">
                     <strong>
-                        {{ trans('cashier::messages.stripe.checkout_with_stripe') }}
+                        {{ trans('cashier::messages.braintree.checkout_with_braintree') }}
                     </strong>
                 </label>
-                <img class="rounded" width="100%" src="{{ url('/vendor/acelle-cashier/image/stripe.png') }}" />
+                <img class="rounded" width="100%" src="{{ url('/vendor/acelle-cashier/image/braintree.png') }}" />
             </div>
             <div class="col-md-4 mt-40 pd-60">                
-                <label>{{ $subscription->plan->getBillableName() }}</label>  
-                <h2 class="mb-40">{{ $subscription->plan->getBillableFormattedPrice() }}</h2>
+                <label>{{ $remotePlan->name }}</label>  
+                <h2 class="mb-40">{{ $remotePlan->price . $remotePlan->currencyIsoCode }}</h2>
                     
-                @if ($gatewayService->getCardInformation($subscription->user) !== NULL)
-                    <p>{!! trans('cashier::messages.stripe.click_or_choose_card_bellow_to_pay', [
-                        'plan' => $subscription->plan->getBillableName(),
-                        'price' => $subscription->plan->getBillableFormattedPrice(),
-                    ]) !!}</p>
-                        
-                    <div class="sub-section">
-                        <h4 class="text-semibold mb-3 mt-4">{!! trans('cashier::messages.stripe.card_list') !!}</h4>
+                <p class="mb-0">{!! trans('cashier::messages.braintree.click_bellow_to_pay', [
+                    'plan' => $remotePlan->name,
+                    'price' => $remotePlan->price . $remotePlan->currencyIsoCode,
+                ]) !!}</p>
+                    
+                @if ($cardInfo !== NULL)
+                    <div class="sub-section mb-5">
+                        <h4 class="text-semibold mb-3 mt-4">{!! trans('cashier::messages.braintree.current_card') !!}</h4>
                         <ul class="dotted-list topborder section mb-4">
                             <li>
                                 <div class="unit size1of2">
                                     {{ trans('messages.card.holder') }}
                                 </div>
                                 <div class="lastUnit size1of2">
-                                    <mc:flag>{{ $gatewayService->getCardInformation($subscription->user)->name }}</mc:flag>
+                                    <mc:flag>{{ $cardInfo->cardType }}</mc:flag>
                                 </div>
                             </li>
                             <li>
@@ -126,24 +166,25 @@
                                     {{ trans('messages.card.last4') }}
                                 </div>
                                 <div class="lastUnit size1of2">
-                                    <mc:flag>{{ $gatewayService->getCardInformation($subscription->user)->last4 }}</mc:flag>
+                                    <mc:flag>{{ $cardInfo->last4 }}</mc:flag>
                                 </div>
                             </li>
                         </ul>
                         
-                        <a href="{{ action('\Acelle\Cashier\Controllers\StripeController@charge', [
+                        <a href="{{ action('\Acelle\Cashier\Controllers\BraintreeController@charge', [
                             'subscription_id' => $subscription->uid,
-                        ]) }}" class="btn btn-primary mr-2">{{ trans('cashier::messages.stripe.pay_with_this_card') }}</a>
-                        <a href="javascript:;" class="btn btn-secondary" onclick="$('#stripe_button button').click()">{{ trans('cashier::messages.stripe.pay_with_new_card') }}</a>
+                        ]) }}" class="btn btn-primary mr-2">{{ trans('cashier::messages.braintree.pay_with_this_card') }}</a><!--
+                        <a href="javascript:;" class="btn btn-secondary" onclick="$('#stripe_button button').click()">{{ trans('cashier::messages.braintree.pay_with_new_card') }}</a>-->
                     </div>
-                @else
-                    <p>{!! trans('cashier::messages.stripe.click_bellow_to_pay', [
-                        'plan' => $subscription->plan->getBillableName(),
-                        'price' => $subscription->plan->getBillableFormattedPrice(),
-                    ]) !!}</p>
-                    <hr />
-                    <a href="javascript:;" class="btn btn-secondary full-width" onclick="$('#stripe_button button').click()">{{ trans('cashier::messages.stripe.pay') }}</a>
+                                       
                 @endif
+                
+                <h4 class="text-semibold mt-4">{!! trans('cashier::messages.braintree.pay_with_new_card') !!}</h4>
+                    
+                <script src="https://js.braintreegateway.com/web/dropin/1.6.1/js/dropin.js"></script>
+                <div id="dropin-container"></div>
+                
+                <a id="submit-button" href="javascript:;" class="btn btn-secondary full-width mt-10">{{ trans('cashier::messages.braintree.pay') }}</a>
                 
                 <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\StripeController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
                     {{ csrf_field() }}
@@ -152,25 +193,31 @@
                         class="text-muted mt-4" style="font-size: 12px; text-decoration: underline; display: block"
                     >{{ trans('cashier::messages.stripe.cancel_new_subscription') }}</a>
                 </form>
-                
-                <form id="stripe_button" style="display: none" action="{{ action('\Acelle\Cashier\Controllers\StripeController@updateCard', [
-                    '_token' => csrf_token(),
+                    
+                <form id="updateCard" style="display: none" action="{{ action('\Acelle\Cashier\Controllers\BraintreeController@updateCard', [
                     'subscription_id' => $subscription->uid,
                 ]) }}" method="POST">
-                    <script
-                      src="https://checkout.stripe.com/checkout.js" class="stripe-button"
-                      data-key="{{ $gatewayService->publishableKey }}"
-                      data-amount="{{ $subscription->plan->stripePrice() }}"
-                      data-currency="{{ $subscription->plan->currency->code }}"
-                      data-name="{{ \Acelle\Model\Setting::get('site_name') }}"
-                      data-email="{{ $subscription->user->getBillableEmail() }}"
-                      data-description="{{ \Acelle\Model\Setting::get('site_description') }}"
-                      data-image="https://stripe.com/img/documentation/checkout/marketplace.png"
-                      data-locale="{{ language_code() }}"
-                      data-zip-code="true"
-                      data-label="{{ trans('messages.pay_with_strip_label_button') }}">
-                    </script>
+                    {{ csrf_field() }}
+                    <input type="hidden" name="nonce" value="" />
                 </form>
+                
+                <script>
+                    var button = document.querySelector('#submit-button');
+    
+                    braintree.dropin.create({
+                      authorization: '{{ $clientToken }}',
+                      selector: '#dropin-container'
+                    }, function (err, instance) {
+                      button.addEventListener('click', function () {
+                        instance.requestPaymentMethod(function (err, payload) {
+                          // Submit payload.nonce to your server
+                          $('[name="nonce"]').val(payload.nonce);
+                          $('#updateCard').submit();
+                        });
+                      })
+                    });
+                </script>
+                    
             </div>
             <div class="col-md-2"></div>
         </div>

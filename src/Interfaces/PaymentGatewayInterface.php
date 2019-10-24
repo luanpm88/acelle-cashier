@@ -8,8 +8,8 @@ use Acelle\Cashier\Models\Subscription;
 interface PaymentGatewayInterface
 {
     public function create($customer, $plan);
-    public function charge($subscription);
     public function sync($subscription);
+    public function validate();
     
     
     

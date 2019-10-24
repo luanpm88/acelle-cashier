@@ -16,6 +16,16 @@ return [
                 'secret_key' => null,
             ],
         ],
+        'braintree' => [
+            'name' => 'braintree',
+            'fields' => [
+                'environment' => 'sandbox',
+                'merchant_id' => null,
+                'public_key' => null,
+                'private_key' => null,
+                'mapping' => null,
+            ],
+        ],
         'coinpayments' => [
             'name' => 'coinpayments',
             'fields' => [

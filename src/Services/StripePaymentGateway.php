@@ -2,6 +2,7 @@
 
 namespace Acelle\Cashier\Services;
 
+use Illuminate\Support\Facades\Log;
 use Stripe\Card as StripeCard;
 use Stripe\Token as StripeToken;
 use Stripe\Customer as StripeCustomer;
@@ -365,12 +366,16 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $stripeSubscription->cancel_at_period_end = false;
 
         $stripeSubscription->save();
-
-        // invoice at once
-        \Stripe\Invoice::create([
-            "customer" => $stripeSubscription->customer,
-            "subscription" => $stripeSubscription->id,
-        ]);
+        
+        try {
+            // invoice at once
+            \Stripe\Invoice::create([
+                "customer" => $stripeSubscription->customer,
+                "subscription" => $stripeSubscription->id,
+            ]);
+        } catch(\Exception $e) {
+            Log::error('Can not invoice at once when changing Stripe Plan: '.$e->getMessage());
+        }
 
         return $subscription;
     }

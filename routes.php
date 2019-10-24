@@ -12,6 +12,10 @@
 */
 
 Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controllers'], function() {
+    Route::match(['get', 'post'], '/cashier/braintree/{subscription_id}/charge', 'BraintreeController@charge');
+    Route::post('/cashier/braintree/{subscription_id}/update-card', 'BraintreeController@updateCard');
+    Route::get('/cashier/braintree/{subscription_id}/checkout', 'BraintreeController@checkout');
+    
     Route::post('/cashier/coinpayments/{subscription_id}/cancel-now', 'CoinpaymentsController@cancelNow');
     Route::match(['get', 'post'], '/cashier/coinpayments/{subscription_id}/change-plan', 'CoinpaymentsController@changePlan');
     Route::match(['get', 'post'], '/cashier/coinpayments/{subscription_id}/renew', 'CoinpaymentsController@renew');
