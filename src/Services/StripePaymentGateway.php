@@ -137,12 +137,12 @@ class StripePaymentGateway implements PaymentGatewayInterface
      */
     protected function getStripePlan($plan)
     {
-        $stripePlans = \Stripe\Plan::all();
-        foreach ($stripePlans as $stripePlan) {
-            if ($stripePlan->metadata->local_plan_id == $plan->getBillableId()) {
-                return $stripePlan;
-            }
-        }
+        //$stripePlans = \Stripe\Plan::all();
+        //foreach ($stripePlans as $stripePlan) {
+        //    if ($stripePlan->metadata->local_plan_id == $plan->getBillableId()) {
+        //        return $stripePlan;
+        //    }
+        //}
 
         // if plan dosen't exist
         $stripePlan = \Stripe\Plan::create([
