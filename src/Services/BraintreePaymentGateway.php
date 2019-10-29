@@ -14,9 +14,9 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
     public function __construct($environment, $merchantId, $publicKey, $privateKey) {
         $this->serviceGateway = new \Braintree_Gateway([
             'environment' => $environment,
-            'merchantId' => $merchantId,
-            'publicKey' => $publicKey,
-            'privateKey' => $privateKey,
+            'merchantId' => (isset($merchantId) ? $merchantId : 'noname'),
+            'publicKey' => (isset($publicKey) ? $publicKey : 'noname'),
+            'privateKey' => (isset($privateKey) ? $privateKey : 'noname'),
         ]);
     }
     
@@ -26,7 +26,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      * @return void
      */
     public function validate()
-    {
+    {        
         try {
             $clientToken = $this->serviceGateway->clientToken()->generate([
                 "customerId" => '123'
@@ -69,6 +69,30 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         $subscription->plan_id = $plan->getBillableId();
         $subscription->status = Subscription::STATUS_NEW;
         
+        // dose not support recurring, update ends at column
+        $interval = $plan->getBillableInterval();
+        $intervalCount = $plan->getBillableIntervalCount();
+
+        switch ($interval) {
+            case 'month':
+                $endsAt = \Carbon\Carbon::now()->addMonth($intervalCount)->timestamp;
+                break;
+            case 'day':
+                $endsAt = \Carbon\Carbon::now()->addDay($intervalCount)->timestamp;
+            case 'week':
+                $endsAt = \Carbon\Carbon::now()->addWeek($intervalCount)->timestamp;
+                break;
+            case 'year':
+                $endsAt = \Carbon\Carbon::now()->addYear($intervalCount)->timestamp;
+                break;
+            default:
+                $endsAt = null;
+        }
+        $subscription->ends_at = $endsAt;
+        $subscription->current_period_ends_at = $endsAt;
+        
+        
+        // save
         $subscription->save();
         
         return $subscription;
@@ -82,7 +106,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      */
     public function isSupportRecurring()
     {
-        return true;
+        return false;
     }
     
     /**
@@ -93,7 +117,38 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      */
     public function sync($subscription)
     {
+        $transaction = $this->getTransaction($subscription);
+        if ($subscription->isNew()) {
+            // check if has transaction
+            if ($transaction != null) {
+                $subscription->setPending();
+            }
+        }
         
+        if ($subscription->isPending()) {
+            // check if has transaction
+            if ($transaction != null) {
+                $braintreeTransaction = $this->getBraintreeTransaction($transaction['id']);
+                if ($braintreeTransaction->status == 'authorized') {
+                    $subscription->setActive();
+                    
+                    // current_period_ends_at is always ends_at
+                    $subscription->current_period_ends_at = $subscription->ends_at;
+                }
+            }
+        }
+                
+    }
+    
+    /**
+     * Check for notice.
+     *
+     * @param  Subscription  $subscription
+     * @return date
+     */
+    public function hasPending($subscription)
+    {
+        return false;
     }
     
     /**
@@ -174,26 +229,91 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      */
     public function charge($subscription)
     {
-        // get or create plan
-        $stripePlan = $this->getStripePlan($subscription->plan);
-
-        // get or create plan
-        $stripeCustomer = $this->getStripeCustomer($subscription->user);
-
-        // create subscription
-        $stripeSubscription = \Stripe\Subscription::create([
-            "customer" => $stripeCustomer->id,
-            "items" => [
-                [
-                    "plan" => $stripePlan->id,
-                ],
-            ],
-            'metadata' => [
-                'local_subscription_id' => $subscription->uid,
-            ],
-        ]);
+        $user = $subscription->user;
+        $braintreeUser = $this->getBraintreeCustomer($user);
+        $card = $this->getCardInformation($user);
         
-        $this->sync($subscription);
+        //var_dump($card);
+        //die();
+        
+        $result = $this->serviceGateway->transaction()->sale([
+            'amount' => $subscription->plan->getBillableAmount(),
+            'paymentMethodToken' => $card->token,
+        ]);
+          
+        if ($result->success) {
+            // See $result->transaction for details
+            $this->addTransaction($subscription, [
+                'id' => $result->transaction->id,
+            ]);
+            
+            $this->sync($subscription);
+        } else {
+            foreach($result->errors->deepAll() AS $error) {
+                throw new \Exception($error->code . ": " . $error->message . "\n");
+            }
+        }
+    }
+    
+    /**
+     * Add transaction.
+     *
+     * @param  mixed              $token
+     * @param  SubscriptionParam  $param
+     * @return void
+     */
+    public function getTransactions($subscription)
+    {
+        $metadata = $subscription->getMetadata();
+        $transactions = isset($metadata['transactions']) ? $metadata['transactions'] : [];
+        
+        return $transactions;
+    }
+    
+    /**
+     * Get remote transaction.
+     *
+     * @param  mixed              $token
+     * @param  SubscriptionParam  $param
+     * @return void
+     */
+    public function getBraintreeTransaction($tid)
+    {
+        return $this->serviceGateway->transaction()->find($tid);
+    }
+    
+    /**
+     * Add transaction.
+     *
+     * @param  mixed              $token
+     * @param  SubscriptionParam  $param
+     * @return void
+     */
+    public function addTransaction($subscription, $transaction)
+    {
+        $transactions = $this->getTransactions($subscription);
+        
+        $transactions[] = $transaction;
+        $subscription->updateMetadata(['transactions' => $transactions]);
+    }
+    
+    
+    /**
+     * Add transaction.
+     *
+     * @param  mixed              $token
+     * @param  SubscriptionParam  $param
+     * @return void
+     */
+    public function getTransaction($subscription)
+    {
+        $transactions = $this->getTransactions($subscription);
+        
+        if (empty($transactions)) {
+            return null;
+        } else {
+            return $transactions[count($transactions)-1];
+        }
     }
     
     /**
@@ -221,5 +341,45 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         }
         
         throw new \Exception('Can not find remote plan with id = ' . $remoteId); 
+    }
+    
+    /**
+     * Get subscription invoices.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function getInvoices($subscription)
+    {
+        $transactions = [];
+        
+        $transaction = $this->getBraintreeTransaction($this->getTransaction($subscription)['id']);
+        
+        $invoices = [];
+        
+        $invoices[] = new InvoiceParam([
+            'createdAt' => $transaction->createdAt->getTimestamp(),
+            'periodEndsAt' => $subscription->ends_at->timestamp,
+            'amount' => $subscription->plan->getBillableAmount(),
+            'description' => $subscription->plan->getBillableName(),
+            'status' => 'active'
+        ]);
+        
+        return $invoices;
+    }
+    
+    /**
+     * Resume subscription.
+     *
+     * @param  Subscription  $subscription
+     * @return date
+     */
+    public function cancelNow($subscription)
+    {
+        $subscription->ends_at = \Carbon\Carbon::now();
+        $subscription->status = Subscription::STATUS_ENDED;
+        $subscription->save();
+        
+        $this->sync($subscription);
     }
 }

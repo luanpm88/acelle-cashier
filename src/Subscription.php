@@ -262,6 +262,28 @@ class Subscription extends Model
         $this->status = self::STATUS_ENDED;
         $this->save();
     }
+    
+    /**
+     * Determine if the subscription is pending.
+     *
+     * @return bool
+     */
+    public function setPending()
+    {
+        $this->status = self::STATUS_PENDING;
+        $this->save();
+    }
+    
+    /**
+     * Determine if the subscription is pending.
+     *
+     * @return bool
+     */
+    public function setActive()
+    {
+        $this->status = self::STATUS_ACTIVE;
+        $this->save();
+    }
 
     /**
      * Determine if the subscription has ended and the grace period has expired.

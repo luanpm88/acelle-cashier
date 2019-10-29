@@ -37,16 +37,15 @@ class BraintreeController extends Controller
         
         $cardInfo = $service->getCardInformation($subscription->user);
         
-        $remotePlan = $service->getRemotePlan($subscription->plan);
-        
-        var_dump($remotePlan);
+        //$tid = $service->getTransaction($subscription)['id'];
+        //var_dump($service->serviceGateway->transaction()->find($tid));
+        //die();
         
         return view('cashier::braintree.checkout', [
             'gatewayService' => $service,
             'subscription' => $subscription,
             'clientToken' => $clientToken,
             'cardInfo' => $cardInfo,
-            'remotePlan' => $remotePlan,
         ]);
     }
     
@@ -89,12 +88,44 @@ class BraintreeController extends Controller
             // subscribe to plan
             $gatewayService->charge($subscription);
 
-            //// Redirect to my subscription page
-            //return redirect()->away($return_url);
+            // Redirect to my subscription page
+            return redirect()->away($return_url);
         }
 
         return view('cashier::braintree.charge', [
             'subscription' => $subscription,
+        ]);
+    }
+    
+    /**
+     * Subscription pending page.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     **/
+    public function pending(Request $request, $subscription_id)
+    {
+        $service = $this->getPaymentService();
+        $subscription = Subscription::findByUid($subscription_id);
+        $transaction = $service->getTransaction($subscription);
+        
+        $service->sync($subscription);
+        
+        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        if (!$return_url) {
+            $return_url = url('/');
+        }
+        
+        if (!$subscription->isPending()) {
+            return redirect()->away($return_url);
+        }
+        
+        return view('cashier::braintree.pending', [
+            'gatewayService' => $service,
+            'subscription' => $subscription,
+            'transaction' => $transaction,
+            'return_url' => $return_url,
         ]);
     }
     

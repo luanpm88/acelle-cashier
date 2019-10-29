@@ -141,12 +141,12 @@
                 <img class="rounded" width="100%" src="{{ url('/vendor/acelle-cashier/image/braintree.png') }}" />
             </div>
             <div class="col-md-4 mt-40 pd-60">                
-                <label>{{ $remotePlan->name }}</label>  
-                <h2 class="mb-40">{{ $remotePlan->price . $remotePlan->currencyIsoCode }}</h2>
+                <label>{{ $subscription->plan->getBillableName() }}</label>  
+                <h2 class="mb-40">{{ $subscription->plan->getBillableFormattedPrice() }}</h2>
                     
                 <p class="mb-0">{!! trans('cashier::messages.braintree.click_bellow_to_pay', [
-                    'plan' => $remotePlan->name,
-                    'price' => $remotePlan->price . $remotePlan->currencyIsoCode,
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
                 ]) !!}</p>
                     
                 @if ($cardInfo !== NULL)
@@ -186,7 +186,7 @@
                 
                 <a id="submit-button" href="javascript:;" class="btn btn-secondary full-width mt-10">{{ trans('cashier::messages.braintree.pay') }}</a>
                 
-                <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\StripeController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
+                <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\BraintreeController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
                     {{ csrf_field() }}
                     
                     <a href="javascript:;" onclick="$(this).closest('form').submit()"
