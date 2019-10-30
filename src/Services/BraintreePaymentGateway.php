@@ -3,6 +3,7 @@
 namespace Acelle\Cashier\Services;
 
 use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
+use Acelle\Cashier\Cashier;
 use Carbon\Carbon;
 use Acelle\Cashier\Subscription;
 use Acelle\Cashier\InvoiceParam;
@@ -128,16 +129,38 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         if ($subscription->isPending()) {
             // check if has transaction
             if ($transaction != null) {
-                $braintreeTransaction = $this->getBraintreeTransaction($transaction['id']);
-                if ($braintreeTransaction->status == 'authorized') {
-                    $subscription->setActive();
-                    
+                if ($transaction['status'] == 'settled') {
+                    // set subscription to active
+                    $subscription->setActive();                    
                     // current_period_ends_at is always ends_at
                     $subscription->current_period_ends_at = $subscription->ends_at;
                 }
             }
         }
+        
+        if ($subscription->isActive()) {
+            // check if has transaction
+            if ($transaction != null) {                
+                // change plan transaction
+                if (isset($transaction['tag']) && $transaction['tag'] == 'change_plan') {
+                    if ($transaction['status'] == 'settled') {
+                        $subscription->plan_id = $transaction['plan_id'];
+                    }
+                }
                 
+                // renew plan
+                if (isset($transaction['tag']) && $transaction['tag'] == 'renew') {
+                    if ($transaction['status'] == 'settled') {
+                        $endsAt = Carbon::createFromTimestamp($transaction['endsAt']);
+                        
+                        $subscription->ends_at = $endsAt;
+                        $subscription->current_period_ends_at = $endsAt;
+                    }
+                }
+            }
+        }
+        
+        $subscription->save();
     }
     
     /**
@@ -148,7 +171,33 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      */
     public function hasPending($subscription)
     {
+        $transaction = $this->getTransaction($subscription);
+        
+        // check remote transaction has pending
+        if ($transaction) {
+            return $transaction['status'] != 'settled';
+        }
+        
         return false;
+    }
+    
+    /**
+     * Get notice message.
+     *
+     * @param  Subscription  $subscription
+     * @return date
+     */
+    public function getPendingNotice($subscription)
+    {
+        $transaction = $this->getTransaction($subscription);
+        
+        return trans('cashier::messages.braintree.has_transaction_pending', [
+            'description' => $transaction['description'],
+            'amount' => $transaction['amount'],
+            'url' => action('\Acelle\Cashier\Controllers\BraintreeController@pending', [
+                'subscription_id' => $subscription->uid,
+            ]),
+        ]);
     }
     
     /**
@@ -245,6 +294,10 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
             // See $result->transaction for details
             $this->addTransaction($subscription, [
                 'id' => $result->transaction->id,
+                'createdAt' => Carbon::now()->timestamp,
+                'periodEndsAt' => $subscription->ends_at->timestamp,
+                'amount' => $subscription->plan->getBillableFormattedPrice(),
+                'description' => trans('cashier::messages.braintree.subscribed_to_plan', ['plan' => $subscription->plan->getBillableName()]),
             ]);
             
             $this->sync($subscription);
@@ -262,10 +315,26 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      * @param  SubscriptionParam  $param
      * @return void
      */
-    public function getTransactions($subscription)
+    public function getTransactions($subscription, $remote = false)
     {
         $metadata = $subscription->getMetadata();
         $transactions = isset($metadata['transactions']) ? $metadata['transactions'] : [];
+        
+        
+        foreach($transactions as $key => $transaction) {
+            // overide admin status
+            if (isset($transaction['adminStatus'])) {
+                $transactions[$key]['status'] = $transaction['adminStatus'];
+            
+            // get remote status
+            } else if ($remote) {
+                // get remote transaction
+                $braintreeTransaction = $this->getBraintreeTransaction($transaction['id']);
+                if ($braintreeTransaction) {
+                    $transactions[$key]['status'] = $braintreeTransaction->status;
+                }
+            }
+        }
         
         return $transactions;
     }
@@ -279,7 +348,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      */
     public function getBraintreeTransaction($tid)
     {
-        return $this->serviceGateway->transaction()->find($tid);
+        return isset($tid) ? $this->serviceGateway->transaction()->find($tid) : null;
     }
     
     /**
@@ -311,9 +380,24 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         
         if (empty($transactions)) {
             return null;
-        } else {
-            return $transactions[count($transactions)-1];
         }
+        
+        $transaction = $transactions[count($transactions)-1];
+        
+        // get admin status
+        if (isset($transaction['adminStatus'])) {
+            $transaction['status'] = $transaction['adminStatus'];
+        } else {
+            // get remote transaction
+            $braintreeTransaction = $this->getBraintreeTransaction($transaction['id']);
+            if ($braintreeTransaction) {
+                $transaction['status'] = $braintreeTransaction->status;
+            }
+        }
+        
+
+        
+        return $transaction;
     }
     
     /**
@@ -351,19 +435,19 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      */
     public function getInvoices($subscription)
     {
-        $transactions = [];
-        
-        $transaction = $this->getBraintreeTransaction($this->getTransaction($subscription)['id']);
-        
         $invoices = [];
         
-        $invoices[] = new InvoiceParam([
-            'createdAt' => $transaction->createdAt->getTimestamp(),
-            'periodEndsAt' => $subscription->ends_at->timestamp,
-            'amount' => $subscription->plan->getBillableAmount(),
-            'description' => $subscription->plan->getBillableName(),
-            'status' => 'active'
-        ]);
+        $transactions = array_reverse($this->getTransactions($subscription, true));            
+        
+        foreach ($transactions as $transaction) {
+            $invoices[] = new InvoiceParam([
+                'createdAt' => $transaction['createdAt'],
+                'periodEndsAt' => $transaction['periodEndsAt'],
+                'amount' => $transaction['amount'],
+                'description' => $transaction['description'],
+                'status' => $transaction['status'],
+            ]);
+        }
         
         return $invoices;
     }
@@ -381,5 +465,194 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         $subscription->save();
         
         $this->sync($subscription);
+    }
+    
+    /**
+     * Get renew url.
+     *
+     * @return string
+     */
+    public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/')
+    {
+        return action("\Acelle\Cashier\Controllers\\BraintreeController@changePlan", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+            'plan_id' => $plan_id,
+        ]);
+    }
+    
+    /**
+     * Swap subscription plan.
+     *
+     * @param  Subscription  $subscription
+     * @return date
+     */
+    public function changePlan($subscription, $newPlan)
+    {
+        // calc result
+        $result = Cashier::calcChangePlan($subscription, $newPlan);
+        $amount = round($result["amount"], 2);
+        $endsAt = $result["endsAt"];
+        
+        $newPlan->price = $amount;
+        
+        // charging
+        $user = $subscription->user;
+        $braintreeUser = $this->getBraintreeCustomer($user);
+        $card = $this->getCardInformation($user);
+        
+        // amount == 0
+        if ($amount == 0) {
+            // add force local transaction
+            $this->addTransaction($subscription, [
+                'id' => null,
+                'createdAt' => Carbon::now()->timestamp,
+                'periodEndsAt' => $endsAt->timestamp,
+                'amount' => $newPlan->getBillableFormattedPrice(),
+                'description' => trans('cashier::messages.braintree.change_plan', ['plan' => $newPlan->getBillableName()]),
+                'tag' => 'change_plan',
+                'plan_id' => $newPlan->getBillableId(),
+                'status' => 'settled',
+            ]);
+            
+            // sync transaction
+            $this->sync($subscription);
+            
+            return $subscription;
+        }
+        
+        // Braintree transaction if amount > 0
+        if ($amount > 0) {
+            $result = $this->serviceGateway->transaction()->sale([
+                'amount' => $amount,
+                'paymentMethodToken' => $card->token,
+            ]);
+              
+            if ($result->success) {
+                // add local transaction for payment
+                $this->addTransaction($subscription, [
+                    'id' => $result->transaction->id,
+                    'createdAt' => Carbon::now()->timestamp,
+                    'periodEndsAt' => $endsAt->timestamp,
+                    'amount' => $newPlan->getBillableFormattedPrice(),
+                    'description' => trans('cashier::messages.braintree.change_plan_to', ['plan' => $newPlan->getBillableName()]),
+                    'tag' => 'change_plan',
+                    'plan_id' => $newPlan->getBillableId()
+                ]);
+            } else {
+                foreach($result->errors->deepAll() AS $error) {
+                    throw new \Exception($error->code . ": " . $error->message . "\n");
+                }
+            }
+        }
+        
+        // sync transaction
+        $this->sync($subscription);
+        
+        return $subscription;
+    }
+    
+    /**
+     * Get renew url.
+     *
+     * @return string
+     */
+    public function getRenewUrl($subscription, $returnUrl='/')
+    {
+        return action("\Acelle\Cashier\Controllers\\BraintreeController@renew", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
+    
+    /**
+     * Renew subscription plan.
+     *
+     * @param  Subscription  $subscription
+     * @return date
+     */
+    public function renew($subscription)
+    {
+        // calc result
+        $amount = $subscription->plan->getBillableAmount();
+        $endsAt = $subscription->nextPeriod();
+        
+        // charging
+        $plan = $subscription->plan;
+        $user = $subscription->user;
+        $braintreeUser = $this->getBraintreeCustomer($user);
+        $card = $this->getCardInformation($user);
+        
+        // amount == 0
+        if ($amount == 0) {
+            // add force local transaction
+            $this->addTransaction($subscription, [
+                'id' => null,
+                'createdAt' => Carbon::now()->timestamp,
+                'periodEndsAt' => $endsAt->timestamp,
+                'amount' => $plan->getBillableFormattedPrice(),
+                'description' => trans('cashier::messages.braintree.renew_plan', ['plan' => $plan->getBillableName()]),
+                'tag' => 'renew',
+                'plan_id' => $plan->getBillableId(),
+                'endsAt' => $endsAt->timestamp,
+                'status' => 'settled',
+            ]);
+            
+            // sync transaction
+            $this->sync($subscription);
+            
+            return $subscription;
+        }
+        
+        // Braintree transaction if amount > 0
+        if ($amount > 0) {
+            $result = $this->serviceGateway->transaction()->sale([
+                'amount' => $amount,
+                'paymentMethodToken' => $card->token,
+            ]);
+              
+            if ($result->success) {
+                // add local transaction for payment
+                $this->addTransaction($subscription, [
+                    'id' => $result->transaction->id,
+                    'createdAt' => Carbon::now()->timestamp,
+                    'periodEndsAt' => $endsAt->timestamp,
+                    'amount' => $plan->getBillableFormattedPrice(),
+                    'description' => trans('cashier::messages.braintree.renew_plan', ['plan' => $plan->getBillableName()]),
+                    'tag' => 'renew',
+                    'endsAt' => $endsAt->timestamp,
+                    'plan_id' => $plan->getBillableId()
+                ]);
+            } else {
+                foreach($result->errors->deepAll() AS $error) {
+                    throw new \Exception($error->code . ": " . $error->message . "\n");
+                }
+            }
+        }
+        
+        // sync transaction
+        $this->sync($subscription);
+        
+        return $subscription;
+    }
+    
+    /**
+     * Allow admin approve pending subscription.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function setActive($subscription)
+    {
+        $transaction = $this->getTransaction($subscription);
+        $transaction['adminStatus'] = 'settled';
+        
+        $transactions = $this->getTransactions($subscription);
+        $transactions[count($transactions) - 1] = $transaction;
+        
+        // save
+        $subscription->updateMetadata(['transactions' => $transactions]);
+        
+        $subscription->sync($subscription);
     }
 }

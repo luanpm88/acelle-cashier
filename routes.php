@@ -12,6 +12,10 @@
 */
 
 Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controllers'], function() {
+    Route::get('/cashier/braintree/{subscription_id}/renew/pending', 'BraintreeController@renewPending');
+    Route::match(['get', 'post'], '/cashier/braintree/{subscription_id}/renew', 'BraintreeController@renew');
+    Route::get('/cashier/braintree/{subscription_id}/change-plan-pending', 'BraintreeController@changePlanPending');
+    Route::match(['get', 'post'], '/cashier/braintree/{subscription_id}/change-plan', 'BraintreeController@changePlan');
     Route::post('/cashier/braintree/{subscription_id}/cancel-now', 'BraintreeController@cancelNow');
     Route::get('/cashier/braintree/{subscription_id}/pending', 'BraintreeController@pending');
     Route::match(['get', 'post'], '/cashier/braintree/{subscription_id}/charge', 'BraintreeController@charge');

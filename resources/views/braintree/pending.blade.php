@@ -106,6 +106,17 @@
                 <p>{!! trans('cashier::messages.braintree.pending.intro', [
                     'name' => '',
                 ]) !!}</p>
+                    
+                <ul class="dotted-list topborder section mb-4">
+                    <li>
+                        <div class="unit size1of2">
+                            {{ trans('cashier::messages.braintree.status') }}
+                        </div>
+                        <div class="lastUnit size1of2">
+                            <mc:flag><strong>{{ str_replace('_', ' ', $transaction['status']) }}</strong></mc:flag>
+                        </div>
+                    </li>
+                </ul>
             </div>
             <div class="col-md-2"></div>
         </div>
