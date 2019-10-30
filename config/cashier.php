@@ -23,7 +23,6 @@ return [
                 'merchant_id' => null,
                 'public_key' => null,
                 'private_key' => null,
-                'mapping' => null,
             ],
         ],
         'coinpayments' => [
