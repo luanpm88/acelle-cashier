@@ -121,7 +121,7 @@ class Subscription extends Model
         // @todo dependency injection
         return $this->belongsTo('\Acelle\Model\Customer', 'user_id', 'uid');
     }
-    
+
     /**
      * Determine if the subscription is recurring and not on trial.
      *
@@ -145,22 +145,6 @@ class Subscription extends Model
     }
 
     /**
-     * Chagre subscription.
-     *
-     * @param  string  $subscription
-     * @param  string  $plan
-     * @return \Laravel\Cashier\SubscriptionBuilder
-     */
-    public function charge($gateway)
-    {
-        // Gateway add subscription
-        $gateway->charge($this);
-
-        // sync
-        $this->sync($gateway);
-    }
-
-    /**
      * Determine if the subscription is active, on trial, or within its grace period.
      *
      * @return bool
@@ -179,7 +163,7 @@ class Subscription extends Model
     {
         return (is_null($this->ends_at) || $this->onGracePeriod()) && !$this->isPending() && !$this->isNew();
     }
-    
+
     /**
      * Determine if the subscription is active.
      *
@@ -229,8 +213,8 @@ class Subscription extends Model
     {
         return ! $this->onTrial() && ! $this->cancelled();
     }
-    
-    
+
+
 
     /**
      * Determine if the subscription is no longer active.
@@ -241,7 +225,7 @@ class Subscription extends Model
     {
         return ! is_null($this->ends_at);
     }
-    
+
     /**
      * Determine if the subscription is ended.
      *
@@ -251,7 +235,7 @@ class Subscription extends Model
     {
         return $this->status == self::STATUS_ENDED;
     }
-    
+
     /**
      * Determine if the subscription is ended.
      *
@@ -262,7 +246,7 @@ class Subscription extends Model
         $this->status = self::STATUS_ENDED;
         $this->save();
     }
-    
+
     /**
      * Determine if the subscription is pending.
      *
@@ -273,7 +257,7 @@ class Subscription extends Model
         $this->status = self::STATUS_PENDING;
         $this->save();
     }
-    
+
     /**
      * Determine if the subscription is pending.
      *
@@ -393,27 +377,6 @@ class Subscription extends Model
     }
 
     /**
-     * Retrive subscription from remote.
-     *
-     * @return $this
-     */
-    public function retrieve($gateway)
-    {
-        $subscriptionParam = $gateway->retrieveSubscription($this->uid);
-        $this->updateInfo($subscriptionParam);
-
-        if (!isset($subscriptionParam->endsAt)) {
-            $subscriptionParam->endsAt = $this->ends_at;
-        }
-
-        if (isset($this->ends_at)) {
-            $subscriptionParam->currentPeriodEnd = $this->ends_at->timestamp;
-        }
-
-        return $subscriptionParam;
-    }
-
-    /**
      * Change the billing cycle anchor on a plan change.
      *
      * @param  \DateTimeInterface|int|string  $date
@@ -442,117 +405,6 @@ class Subscription extends Model
         $this->trial_ends_at = null;
 
         return $this;
-    }
-
-    /**
-     * Update/Sync local subscription.
-     *
-     * @return $this
-     */
-    public function sync($gateway)
-    {
-        // retrive and update info
-        $this->retrieve($gateway);
-
-        // check renew
-        $this->checkPendingPaymentForFuture($gateway);
-    }
-
-    /**
-     * Update/Sync local subscription.
-     *
-     * @return $this
-     */
-    public function updateInfo($subscriptionParam)
-    {
-        // update ends at
-        if ($gateway->isSupportRecurring()) {
-            $this->ends_at = $subscriptionParam->endsAt;
-        }
-
-        // update plan if if changed
-        if ($subscriptionParam->planId) {
-            $this->plan_id = $subscriptionParam->planId;
-        }
-
-        // update plan if if changed
-        if ($subscriptionParam->status) {
-            $this->status = $subscriptionParam->status;
-        }
-
-        $this->save();
-    }
-
-    /**
-     * Cancel the subscription at the end of the billing period.
-     *
-     * @return $this
-     */
-    public function cancel($gateway)
-    {
-        $gateway->cancelSubscription($this->uid);
-
-        $this->sync($gateway);
-    }
-
-    /**
-     * Resume the cancelled subscription.
-     *
-     * @return $this
-     *
-     * @throws \LogicException
-     */
-    public function resume($gateway)
-    {
-        $gateway->resumeSubscription($this->uid);
-
-        $this->sync($gateway);
-    }
-
-    /**
-     * Resume the cancelled subscription.
-     *
-     * @return $this
-     *
-     * @throws \LogicException
-     */
-    public function renew($gateway)
-    {
-        $gateway->renewSubscription($this);
-
-        $this->sync($gateway);
-    }
-
-    /**
-     * Cancel the subscription immediately.
-     *
-     * @return $this
-     */
-    public function cancelNow($gateway)
-    {
-        // Set ends at to today
-        $this->ends_at = \Carbon\Carbon::now()->startOfDay();
-
-        if ($this->isNew()) {
-            $this->markAsCancelled();
-            return;
-        }
-
-        $gateway->cancelNowSubscription($this->uid);
-
-        $this->sync($gateway);
-    }
-
-    /**
-     * Cancel the subscription immediately.
-     *
-     * @return $this
-     */
-    public function swap($plan, $gateway)
-    {
-        $gateway->swapSubscriptionPlan($this->uid, $plan);
-
-        $this->sync($gateway);
     }
 
     /**
@@ -600,28 +452,6 @@ class Subscription extends Model
     }
 
     /**
-     * Get invoice.
-     *
-     *
-     * @throws \LogicException
-     */
-    public function getInvoices($gateway)
-    {
-        return $gateway->getInvoices($this->uid);
-    }
-
-    /**
-     * Get next invoice status.
-     *
-     * @param  Subscription    $subscription
-     * @return Boolean
-     */
-    public function nextInvoice($gateway)
-    {
-        return $gateway->nextInvoice($this);
-    }
-
-    /**
      * Check if subscription is going to expire.
      *
      * @param  Subscription    $subscription
@@ -633,17 +463,6 @@ class Subscription extends Model
             return false;
         }
         return $this->ends_at->subDay($days)->lessThanOrEqualTo(\Carbon\Carbon::now());
-    }
-
-    /**
-     * Check if subscription has future payment pending.
-     *
-     * @param  Gateway    $gateway
-     * @return Boolean
-     */
-    public function checkPendingPaymentForFuture($gateway)
-    {
-        return $gateway->checkPendingPaymentForFuture($this);
     }
 
     /**
@@ -721,28 +540,6 @@ class Subscription extends Model
     }
 
     /**
-     * Get subscription raw invoices.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function getRawInvoices($gateway)
-    {
-        return $gateway->getRawInvoices($this->uid);
-    }
-
-    /**
-     * Set done for subscription.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function approvePendingInvoice($gateway)
-    {
-        $gateway->approvePendingInvoice($this);
-    }
-
-    /**
      * Check if payment is claimed.
      *
      * @param  Int  $subscriptionId
@@ -763,5 +560,19 @@ class Subscription extends Model
     {
         $this->payment_claimed = true;
         $this->save();
+    }
+
+    /**
+     * Check subscription status.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public static function check($gateway)
+    {
+        $subscriptions = self::whereNull('ends_at')->orWhere('ends_at', '>=', \Carbon\Carbon::now())->get();
+        foreach ($subscriptions as $subscription) {
+            $gateway->sync($subscription);
+        }
     }
 }
