@@ -300,71 +300,6 @@ class Subscription extends Model
     }
 
     /**
-     * Increment the quantity of the subscription.
-     *
-     * @param  int  $count
-     * @return $this
-     */
-    public function incrementQuantity($count = 1)
-    {
-        $this->updateQuantity($this->quantity + $count);
-
-        return $this;
-    }
-
-    /**
-     *  Increment the quantity of the subscription, and invoice immediately.
-     *
-     * @param  int  $count
-     * @return $this
-     */
-    public function incrementAndInvoice($count = 1)
-    {
-        $this->incrementQuantity($count);
-
-        $this->user->invoice();
-
-        return $this;
-    }
-
-    /**
-     * Decrement the quantity of the subscription.
-     *
-     * @param  int  $count
-     * @return $this
-     */
-    public function decrementQuantity($count = 1)
-    {
-        $this->updateQuantity(max(1, $this->quantity - $count));
-
-        return $this;
-    }
-
-    /**
-     * Update the quantity of the subscription.
-     *
-     * @param  int  $quantity
-     * @param  \Stripe\Customer|null  $customer
-     * @return $this
-     */
-    public function updateQuantity($quantity, $customer = null)
-    {
-        $subscription = $this->asStripeSubscription();
-
-        $subscription->quantity = $quantity;
-
-        $subscription->prorate = $this->prorate;
-
-        $subscription->save();
-
-        $this->quantity = $quantity;
-
-        $this->save();
-
-        return $this;
-    }
-
-    /**
      * Indicate that the plan change should not be prorated.
      *
      * @return $this
@@ -415,40 +350,6 @@ class Subscription extends Model
     public function markAsCancelled()
     {
         $this->fill(['ends_at' => Carbon::now()->startOfDay()])->save();
-    }
-
-
-
-    /**
-     * Sync the tax percentage of the user to the subscription.
-     *
-     * @return void
-     */
-    public function syncTaxPercentage()
-    {
-        $subscription = $this->asStripeSubscription();
-
-        $subscription->tax_percent = $this->user->taxPercentage();
-
-        $subscription->save();
-    }
-
-    /**
-     * Get the subscription as a Stripe subscription object.
-     *
-     * @return \Stripe\Subscription
-     *
-     * @throws \LogicException
-     */
-    public function asStripeSubscription()
-    {
-        $subscriptions = $this->user->asStripeCustomer()->subscriptions;
-
-        if (! $subscriptions) {
-            throw new LogicException('The Stripe customer does not have any subscriptions.');
-        }
-
-        return $subscriptions->retrieve($this->stripe_id);
     }
 
     /**
