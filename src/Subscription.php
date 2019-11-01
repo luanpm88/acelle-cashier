@@ -244,6 +244,7 @@ class Subscription extends Model
     public function setEnded()
     {
         $this->status = self::STATUS_ENDED;
+        $this->ends_at = \Carbon\Carbon::now();
         $this->save();
     }
 
