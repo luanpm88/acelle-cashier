@@ -593,4 +593,30 @@ class StripePaymentGateway implements PaymentGatewayInterface
     {
         return false;
     }
+    
+    /**
+     * Get notice message.
+     *
+     * @param  Subscription  $subscription
+     * @return date
+     */
+    public function getPendingNotice($subscription)
+    {
+        return trans('cashier::messages.stripe.has_transaction_pending', [
+            'url' => action('\Acelle\Cashier\Controllers\StripeController@pending', [
+                'subscription_id' => $subscription->uid,
+            ]),
+        ]);
+    }
+    
+    /**
+     * Renew subscription plan.
+     *
+     * @param  Subscription  $subscription
+     * @return date
+     */
+    public function renew($subscription)
+    {
+        return false;
+    }
 }

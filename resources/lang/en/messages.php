@@ -25,6 +25,8 @@
     'stripe.invoice.subscription' => 'Subscription updated',
     'stripe.invoice.upcoming' => 'Upcoming invoice',
     'stripe.invoice.subscription_threshold' => 'Billing threshold being reached',
+    'stripe.has_transaction_pending' => 'There are pending transaction.
+        <br><a href=":url"><strong>Click here</strong></a> to see more details.',
     'braintree.cancel_subscription' => 'Click here to cancel the transaction. This can be undone.',
     'braintree.pending.intro' => 'There is a pending transaction. Please wait for validating your payment.',
     'braintree.pending.page_title' => 'Transaction is pending',

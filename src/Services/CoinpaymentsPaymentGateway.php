@@ -15,7 +15,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     
     // Contruction
     public function __construct($merchantId, $publicKey, $privateKey, $ipnSecret)
-    {   
+    {
         $this->coinPaymentsAPI = new CoinpaymentsAPI($privateKey, $publicKey, 'json'); // new CoinPayments($privateKey, $publicKey, $merchantId, $ipnSecret, null);
     }
     

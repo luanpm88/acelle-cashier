@@ -56,7 +56,7 @@ class CoinpaymentsAPI
                 throw new Exception("Your private and public keys are not both set!");
             }
         } catch (Exception $e) {
-            echo 'Error: ' . $e->getMessage();
+            // echo 'Error: ' . $e->getMessage();
         }
 
         // Initiate a cURL request object

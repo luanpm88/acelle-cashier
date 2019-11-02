@@ -10,23 +10,15 @@ interface PaymentGatewayInterface
     public function create($customer, $plan);
     public function sync($subscription);
     public function validate();
-    
-    
-    
-    //public function cancelSubscription($subscriptionId);    
-    //public function resumeSubscription($subscriptionId);
-    //public function cancelNowSubscription($subscriptionId);
-    //public function changePlan($subscriptionId, $plan);
-    //public function renewSubscription($subscription);
-    
     public function isSupportRecurring();
-    //public function validate();
-    //
-    //public function getInvoices($subscriptionId);
-    //public function getRawInvoices($subscriptionId);
-    //
-    //public function checkPendingPaymentForFuture($subscription);
-    //public function setDone($subscription);
-    //
-    //public function approvePendingInvoice($subscription);
+    public function hasPending($subscription);
+    public function getPendingNotice($subscription);
+    public function getInvoices($subscription);    
+    public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/');
+    public function getRenewUrl($subscription, $returnUrl='/');
+    public function setActive($subscription);
+    public function renew($subscription);
+    public function cancelNow($subscription);
+    public function changePlan($subscription, $newPlan);
+    
 }
