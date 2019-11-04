@@ -126,4 +126,9 @@
     'braintree.status' => 'Status',
     'braintree.renew_proceed' => 'Proceed',
     'braintree.renew_subscription' => 'Renew subscription',
+    'stripe.create_subscription' => 'Subscribed to <strong>:plan</strong> plan',
+    'stripe.change_plan_to' => 'Change to <strong>:plan</strong> plan',
+    'stripe.cancel_plan' => 'Cancel <strong>:plan</strong> plan',
+    'stripe.resume_plan' => 'Resume <strong>:plan</strong> plan',
+    'stripe.cancel_now_plan' => 'Cancel now <strong>:plan</strong> plan',
 ) ?>

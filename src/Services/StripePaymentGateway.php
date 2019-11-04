@@ -125,6 +125,18 @@ class StripePaymentGateway implements PaymentGatewayInterface
             ],
         ]);
         
+        // add force local transaction
+        $this->addTransaction($subscription, [
+            'id' => null,
+            'createdAt' => Carbon::now()->timestamp,
+            'periodEndsAt' => null,
+            'amount' => $subscription->plan->getBillableFormattedPrice(),
+            'description' => trans('cashier::messages.stripe.create_subscription', ['plan' => $subscription->plan->getBillableName()]),
+            'tag' => 'new_subscribe',
+            'plan_id' => $subscription->plan->getBillableId(),
+            'status' => 'active',
+        ]);
+        
         $this->sync($subscription);
     }
 
@@ -294,8 +306,20 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function cancel($subscription)
     {
         $stripeSubscription = $this->getStripeSubscription($subscription->uid);
-        $stripeSubscription->cancel_at_period_end = true;
+        $stripeSubscription->cancel_at_period_end = true;        
         $stripeSubscription->save();
+        
+        // add force local transaction
+        $this->addTransaction($subscription, [
+            'id' => null,
+            'createdAt' => Carbon::now()->timestamp,
+            'periodEndsAt' => $stripeSubscription->current_period_end,
+            'amount' => null,
+            'description' => trans('cashier::messages.stripe.cancel_plan', ['plan' => $subscription->plan->getBillableName()]),
+            'tag' => 'cancel_plan',
+            'plan_id' => $subscription->plan->getBillableId(),
+            'status' => 'active',
+        ]);
         
         // sync
         $this->sync($subscription);
@@ -318,6 +342,18 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $stripeSubscription->plan = $stripeSubscription->plan->id;
         $stripeSubscription->save();
         
+        // add force local transaction
+        $this->addTransaction($subscription, [
+            'id' => null,
+            'createdAt' => Carbon::now()->timestamp,
+            'periodEndsAt' => null,
+            'amount' => null,
+            'description' => trans('cashier::messages.stripe.resume_plan', ['plan' => $subscription->plan->getBillableName()]),
+            'tag' => 'cancel_plan',
+            'plan_id' => $subscription->plan->getBillableId(),
+            'status' => 'active',
+        ]);
+        
         // sync
         $this->sync($subscription);
     }
@@ -333,6 +369,18 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $stripeSubscription = $this->getStripeSubscription($subscription->uid);
         
         $stripeSubscription->cancel();
+        
+        // add force local transaction
+        $this->addTransaction($subscription, [
+            'id' => null,
+            'createdAt' => Carbon::now()->timestamp,
+            'periodEndsAt' => Carbon::now()->timestamp,
+            'amount' => null,
+            'description' => trans('cashier::messages.stripe.cancel_now', ['plan' => $subscription->plan->getBillableName()]),
+            'tag' => 'cancel_plan',
+            'plan_id' => $subscription->plan->getBillableId(),
+            'status' => 'active',
+        ]);
         
         // sync
         $this->sync($subscription);
@@ -372,6 +420,18 @@ class StripePaymentGateway implements PaymentGatewayInterface
             \Stripe\Invoice::create([
                 "customer" => $stripeSubscription->customer,
                 "subscription" => $stripeSubscription->id,
+            ]);
+            
+            // add force local transaction
+            $this->addTransaction($subscription, [
+                'id' => null,
+                'createdAt' => Carbon::now()->timestamp,
+                'periodEndsAt' => null,
+                'amount' => $plan->getBillableFormattedPrice(),
+                'description' => trans('cashier::messages.stripe.change_plan_to', ['plan' => $plan->getBillableName()]),
+                'tag' => 'change_plan',
+                'plan_id' => $plan->getBillableId(),
+                'status' => 'active',
             ]);
         } catch(\Exception $e) {
             Log::error('Can not invoice at once when changing Stripe Plan: '.$e->getMessage());
@@ -450,16 +510,28 @@ class StripePaymentGateway implements PaymentGatewayInterface
     {
         $result = [];
 
-        $stripeSubscription = $this->getStripeSubscription($subscription->uid);
-        $invoices = \Stripe\Invoice::all(["subscription" => $stripeSubscription->id]);
-
-        foreach($invoices["data"] as $invoice) {
+        //$stripeSubscription = $this->getStripeSubscription($subscription->uid);
+        //$invoices = \Stripe\Invoice::all(["subscription" => $stripeSubscription->id]);
+        //
+        //foreach($invoices["data"] as $invoice) {
+        //    $result[] = new InvoiceParam([
+        //        'createdAt' => $invoice->period_start,
+        //        'periodEndsAt' => $invoice->lines->data[0]["period"]["end"],
+        //        'amount' => $this->revertPrice($invoice->amount_due, strtoupper($invoice->currency)) . ' ' . strtoupper($invoice->currency),
+        //        'description' => trans('cashier::messages.stripe.invoice.' . $invoice->billing_reason),
+        //        'status' => $invoice->status
+        //    ]);
+        //}
+        
+        $transactions = array_reverse($this->getTransactions($subscription));            
+        
+        foreach ($transactions as $transaction) {
             $result[] = new InvoiceParam([
-                'createdAt' => $invoice->period_start,
-                'periodEndsAt' => $invoice->lines->data[0]["period"]["end"],
-                'amount' => $this->revertPrice($invoice->amount_due, strtoupper($invoice->currency)) . ' ' . strtoupper($invoice->currency),
-                'description' => trans('cashier::messages.stripe.invoice.' . $invoice->billing_reason),
-                'status' => $invoice->status
+                'createdAt' => $transaction['createdAt'],
+                'periodEndsAt' => $transaction['periodEndsAt'],
+                'amount' => $transaction['amount'],
+                'description' => $transaction['description'],
+                'status' => $transaction['status'],
             ]);
         }
 
@@ -618,5 +690,35 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function renew($subscription)
     {
         return false;
+    }
+    
+    /**
+     * Get transactions.
+     *
+     * @param  mixed              $token
+     * @param  SubscriptionParam  $param
+     * @return void
+     */
+    public function getTransactions($subscription)
+    {
+        $metadata = $subscription->getMetadata();
+        $transactions = isset($metadata['transactions']) ? $metadata['transactions'] : [];
+        
+        return $transactions;
+    }
+    
+    /**
+     * Add transaction.
+     *
+     * @param  mixed              $token
+     * @param  SubscriptionParam  $param
+     * @return void
+     */
+    public function addTransaction($subscription, $transaction)
+    {
+        $transactions = $this->getTransactions($subscription);
+        
+        $transactions[] = $transaction;
+        $subscription->updateMetadata(['transactions' => $transactions]);
     }
 }

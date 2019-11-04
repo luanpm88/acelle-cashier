@@ -309,7 +309,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
     }
     
     /**
-     * Add transaction.
+     * Get transactions.
      *
      * @param  mixed              $token
      * @param  SubscriptionParam  $param
