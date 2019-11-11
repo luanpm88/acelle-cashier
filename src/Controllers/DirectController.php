@@ -113,6 +113,11 @@ class DirectController extends Controller
         $subscription = Subscription::findByUid($subscription_id);
         $transaction = $service->getTransaction($subscription);
         
+        // Save return url
+        if ($request->return_url) {
+            $request->session()->put('checkout_return_url', $request->return_url);
+        }
+        
         $return_url = $request->session()->get('checkout_return_url', url('/'));
         if (!$return_url) {
             $return_url = url('/');

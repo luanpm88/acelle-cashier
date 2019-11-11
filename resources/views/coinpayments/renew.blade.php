@@ -48,7 +48,7 @@
                 line-height: 24px;
                 padding: 12px 0 11px;
                 border-bottom: 1px dotted #e0e0e0;
-                display: list-item;
+                display: flex;
             }
             .dotted-list>li>div {
                 padding: 0;
@@ -87,7 +87,7 @@
             }
             label {
                 display: inline-block;
-                width: 200px;
+                width: 170px;
                 font-weight: 600;
             }
         </style>
