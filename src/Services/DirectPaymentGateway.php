@@ -126,7 +126,7 @@ EOF;
         // Create new transaction for payment
         $sql =<<<EOF
             INSERT INTO transactions (subscription_id, price, currency, status, description, created_at, data, payment_claimed)  
-            VALUES ('{$subscription->uid}', {$amount}, '{$currency}', '{$status}', '{$description}', {$created_at}, '{$data}', FALSE);
+            VALUES ('{$subscription->uid}', {$amount}, '{$currency}', '{$status}', '{$description}', {$created_at}, '{$data}', 0);
 EOF;
         $act = $this->db->exec($sql);
         if(!$act){
