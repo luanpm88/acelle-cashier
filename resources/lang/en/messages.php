@@ -46,7 +46,12 @@
     'direct.title' => 'Manual Checkout',
     'direct.checkout.intro' => 'You are checking out <strong>:plan</strong> with <strong>:price</strong>.
         Please follow the guide below to finish your payment before using plan:',
-    'direct.claimed.intro' => 'You claimed that you paid for <strong>:plan</strong>, the amount is <strong>:price</strong>. Please wait for the payment confirmation.',
+    'direct.claimed.intro' => '<p>You claimed that you paid for <strong>:plan</strong>, the amount is <strong>:price</strong>.
+        Please wait for the payment confirmation.</p>
+        <p>Normally it may take 1 - 2 days for subscription to be reviewed and approved. Should you have any question, please contact us at:<br>
+        - <strong>mobile</strong>: +88900200300<br>
+        - <strong>Email</strong>: admin@acellemail.com</p>
+        ',
     'direct.claim_payment' => 'I paid already!',
     'direct.unclaim_payment' => 'Sorry! I claimed by mistake. Click to undo.',
     'direct.subscribed_to_plan' => 'Subscribe to plan <strong>:plan</strong>',
@@ -89,6 +94,7 @@
     'direct.next_period_day' => 'Next period end day',
     'direct.pending.claimed.intro' => 'You claimed that you paid for the below transaction.
         Please wait for the payment confirmation.',
+    'direct.pending.claimed.please_wait' => 'Your subscription is being reviewed, please wait...',
     'direct.renew_plan_desc' => 'Renew <strong>:plan</strong> plan',
     'coinpayments.renew_plan_desc' => 'Renew <strong>:plan</strong> plan',
     'direct.return_back' => 'Return back',

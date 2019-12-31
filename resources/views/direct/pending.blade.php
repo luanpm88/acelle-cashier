@@ -102,10 +102,12 @@
             </div>
             <div class="col-md-4 mt-40 pd-60">
                 <label>{{ $subscription->plan->getBillableName() }}</label>  
-                <h2 class="mb-40">{{ $subscription->plan->getBillableFormattedPrice() }}</h2>
+                
         
 
                 @if (!$transaction['payment_claimed'])
+                    <h2 class="mb-40">{{ $subscription->plan->getBillableFormattedPrice() }}</h2>
+
                     <p>{!! trans('cashier::messages.direct.pending.intro', [
                         'plan' => $subscription->plan->getBillableName(),
                         'price' => $subscription->plan->getBillableFormattedPrice(),
@@ -171,6 +173,8 @@
                         @endif
                     </form>
                 @else
+                    <h2 class="mb-40">{!! trans('cashier::messages.direct.pending.claimed.please_wait') !!}</h2>
+
                     <p>{!! trans('cashier::messages.direct.pending.claimed.intro', [
                         'plan' => $subscription->plan->getBillableName(),
                         'price' => $subscription->plan->getBillableFormattedPrice(),

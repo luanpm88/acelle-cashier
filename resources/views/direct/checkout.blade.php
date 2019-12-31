@@ -96,10 +96,12 @@
                 <img width="100%" src="{{ url('/vendor/acelle-cashier/image/direct.png') }}" />
             </div>
             <div class="col-md-4 mt-40 pd-60">
-                <label>{{ $subscription->plan->getBillableName() }}</label>  
-                <h2 class="mb-40">{{ $subscription->plan->getBillableFormattedPrice() }}</h2>
+                <label>{{ $subscription->plan->getBillableName() }}</label>                  
                     
                 @if (!$transaction['payment_claimed'])
+                    
+                    <h2 class="mb-40">{{ $subscription->plan->getBillableFormattedPrice() }}</h2>
+
                     <p>{!! trans('cashier::messages.direct.checkout.intro', [
                         'plan' => $subscription->plan->getBillableName(),
                         'price' => $subscription->plan->getBillableFormattedPrice(),
@@ -115,18 +117,20 @@
                         >{{ trans('cashier::messages.direct.claim_payment') }}</button>
                     </form>
                 @else
-                    <p>{!! trans('cashier::messages.direct.claimed.intro', [
+                    <h2 class="mb-40">{!! trans('cashier::messages.direct.pending.claimed.please_wait') !!}</h2>
+
+                    {!! trans('cashier::messages.direct.claimed.intro', [
                         'plan' => $subscription->plan->getBillableName(),
                         'price' => $subscription->plan->getBillableFormattedPrice(),
-                    ]) !!}</p>
+                    ]) !!}
                     <hr>
                     
-                    <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@unclaim', ['subscription_id' => $subscription->uid]) }}">
+                    {{-- <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@unclaim', ['subscription_id' => $subscription->uid]) }}">
                         {{ csrf_field() }}
                         <button
                             class="btn btn-secondary mr-10"
                         >{{ trans('cashier::messages.direct.unclaim_payment') }}</button>
-                    </form>
+                    </form> --}}
                 @endif
                 
                 <form class="mt-5" method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
