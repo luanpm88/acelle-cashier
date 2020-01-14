@@ -175,10 +175,11 @@
                 @else
                     <h2 class="mb-40">{!! trans('cashier::messages.direct.pending.claimed.please_wait') !!}</h2>
 
-                    <p>{!! trans('cashier::messages.direct.pending.claimed.intro', [
+                    {!! trans('cashier::messages.direct.claimed.intro', [
                         'plan' => $subscription->plan->getBillableName(),
                         'price' => $subscription->plan->getBillableFormattedPrice(),
-                    ]) !!}</p>
+                    ]) !!}
+                    <hr>
                         
                     <ul class="dotted-list">
                         <li>
@@ -205,26 +206,26 @@
                     ]) }}">
                         {{ csrf_field() }}
                         
-                        <button
+                        {{-- <button
                             class="btn btn-secondary bg-grey mr-10 mb-10"
-                        >{{ trans('cashier::messages.direct.unclaim_payment') }}</button>
+                        >{{ trans('cashier::messages.direct.unclaim_payment') }}</button> --}}
 
-                            
-                        @if (!$subscription->isPending())
-                            <a
-                            href="{{ $return_url }}"
-                                class="btn btn-secondary mr-10"
-                            >{{ trans('cashier::messages.direct.return_back') }}</a>
-                        @else
-                            <form class="mt-5" method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
-                                {{ csrf_field() }}
-                                
-                                <a style="display: block;" href="javascript:;" onclick="$(this).closest('form').submit()"
-                                    class="text-muted mt-5" style="font-size: 12px; text-decoration: underline"
-                                >{{ trans('cashier::messages.stripe.cancel_new_subscription') }}</a>
-                            </form>
-                        @endif
                     </form>
+
+                    @if (!$subscription->isPending())
+                        <a
+                        href="{{ $return_url }}"
+                            class="btn btn-secondary mr-10"
+                        >{{ trans('cashier::messages.direct.return_back') }}</a>
+                    @else
+                        <form class="mt-5" method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
+                            {{ csrf_field() }}
+                            
+                            <a style="display: block;" href="javascript:;" onclick="$(this).closest('form').submit()"
+                                class="text-muted mt-5" style="font-size: 12px; text-decoration: underline"
+                            >{{ trans('cashier::messages.stripe.cancel_new_subscription') }}</a>
+                        </form>
+                    @endif
                 @endif
             </div>
             <div class="col-md-2"></div>
