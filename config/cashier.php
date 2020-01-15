@@ -6,7 +6,8 @@ return [
         'direct' => [
             'name' => 'direct',
             'fields' => [
-                'notice' => 'How to pay plan guide....',
+                'payment_instruction' => '',
+                'confirmation_message' => '',
             ],
         ],
         'stripe' => [

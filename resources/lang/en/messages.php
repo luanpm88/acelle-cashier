@@ -52,6 +52,41 @@
         - <strong>mobile</strong>: +88900200300<br>
         - <strong>Email</strong>: admin@acellemail.com</p>
         ',
+    'direct.payment_instruction.demo' => '
+        <p>Please make a deposit to our bank account at:</p>
+
+        <p><strong>FIRST CENTURY BANK USA</strong><br>
+        Routing (ABA): 061120084<br>
+        Account number: 4013000067378<br>
+        Beneficiary name: Jolie Kennedy<br>
+        </p>
+
+        <p>---</p>
+        
+        <p><strong>CITIBANK UK</strong><br>
+        SWIFT CODE: CIBLBDDHXXX<br>
+        Account number: 9000110067378<br>
+        Beneficiary name: Jolie Kennedy<br>
+        </p>
+        
+        <p class="text-danger" style="color: red">* Above is sample payment information, you can change it in your payment gateway setting page</p>
+    ',
+    'direct.confirmation_message.demo' => '
+        <p>Thank you for the payment! Your subscription is now under review and will be activated
+        as soon as the payment is verified. Normally it may take 1 - 2 business days to process.
+        <br>
+        Should you have any question, contact us at:<br><br>
+        
+        <strong>YOUR COMPANY NAME</strong><br>
+        
+        38 Green Lake Court
+        Hoffman Estates, IL 60169<br>---
+        <br>
+        Mobile: +1 (000) 000-0000 <br>
+        Email: support@yourcompany.com</p>
+        
+        <p class="text-danger" style="color: red">* Above is sample confirmation message, you can change it in your payment gateway setting page</p>
+    ',
     'direct.claim_payment' => 'I paid already!',
     'direct.unclaim_payment' => 'Sorry! I claimed by mistake. Click to undo.',
     'direct.subscribed_to_plan' => 'Subscribe to plan <strong>:plan</strong>',

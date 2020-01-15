@@ -147,7 +147,7 @@
                         </li>
                     </ul>
                     <div class="alert alert-info">
-                    {!! $gatewayService->getPaymentGuide() !!}
+                    {!! $gatewayService->getPaymentInstruction() !!}
                     </div>
                     <hr>
                     <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@pendingClaim', ['subscription_id' => $subscription->uid]) }}">
@@ -175,10 +175,8 @@
                 @else
                     <h2 class="mb-40">{!! trans('cashier::messages.direct.pending.claimed.please_wait') !!}</h2>
 
-                    {!! trans('cashier::messages.direct.claimed.intro', [
-                        'plan' => $subscription->plan->getBillableName(),
-                        'price' => $subscription->plan->getBillableFormattedPrice(),
-                    ]) !!}
+                    {!! $gatewayService->getPaymentConfirmationMessage() !!}
+
                     <hr>
                         
                     <ul class="dotted-list">

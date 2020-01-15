@@ -446,9 +446,29 @@ EOF;
      *
      * @return Boolean
      */
-    public function getPaymentGuide()
+    public function getPaymentInstruction()
     {
-        return config('cashier.gateways.direct.fields.notice');
+        if (config('cashier.gateways.direct.fields.payment_instruction')) {
+            return config('cashier.gateways.direct.fields.payment_instruction');
+        } else {
+            return trans('cashier::messages.direct.payment_instruction.demo');
+        }
+            
+    }
+
+    /**
+     * Get payment confirmation message.
+     *
+     * @return Boolean
+     */
+    public function getPaymentConfirmationMessage()
+    {
+        if (config('cashier.gateways.direct.fields.confirmation_message')) {
+            return config('cashier.gateways.direct.fields.confirmation_message');
+        } else {
+            return trans('cashier::messages.direct.confirmation_message.demo');
+        }
+            
     }
     
     /**
