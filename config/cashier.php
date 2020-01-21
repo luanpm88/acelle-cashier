@@ -36,5 +36,13 @@ return [
                 'receive_currency' => 'BTC',
             ],
         ],
+        'paypal' => [
+            'name' => 'paypal',
+            'fields' => [
+                'environment' => 'sandbox',
+                'client_id' => null,
+                'secret' => null,
+            ],
+        ],
     ],
 ];

@@ -172,4 +172,7 @@
     'stripe.cancel_plan' => 'Cancel <strong>:plan</strong> plan',
     'stripe.resume_plan' => 'Resume <strong>:plan</strong> plan',
     'stripe.cancel_now_plan' => 'Cancel now <strong>:plan</strong> plan',
+    'paypal.title' => 'Pay with PayPal',
+    'paypal.checkout.intro' => 'You are checking out <strong>:plan</strong> with <strong>:price</strong>.
+        Click on the button below to finish your payment with PayPal before using plan.',    
 ) ?>

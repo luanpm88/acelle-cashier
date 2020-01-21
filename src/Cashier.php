@@ -44,6 +44,12 @@ class Cashier
                     $config['fields']['private_key'],
                     $config['fields']['ipn_secret']
                 );
+            case 'paypal':
+                return new \Acelle\Cashier\Services\PaypalPaymentGateway(
+                    $config['fields']['environment'],
+                    $config['fields']['client_id'],
+                    $config['fields']['secret']
+                );
             default:
                 return false;
         }
