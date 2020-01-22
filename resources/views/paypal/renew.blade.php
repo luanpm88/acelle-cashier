@@ -76,7 +76,7 @@
                     ]) !!}</p>   
 
                     <script
-                        src="https://www.paypal.com/sdk/js?client-id={{ $service->client_id }}"> // Required. Replace SB_CLIENT_ID with your sandbox client ID.
+                        src="https://www.paypal.com/sdk/js?client-id={{ $service->client_id }}&currency={{ $subscription->plan->getBillableCurrency() }}"> // Required. Replace SB_CLIENT_ID with your sandbox client ID.
                     </script>
                         
                     <div id="paypal-button-container"></div>

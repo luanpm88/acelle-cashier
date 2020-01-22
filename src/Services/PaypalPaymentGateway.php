@@ -248,9 +248,6 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         // To print the whole response body, uncomment the following line
         // echo json_encode($response->result, JSON_PRETTY_PRINT);
 
-        var_dump($response->result);
-        die();
-
         // if success
         if ($response->statusCode != 200 || $response->result->status != 'COMPLETED') {
             throw new \Exception('Something went wrong:' . json_encode($response->result));
