@@ -115,7 +115,7 @@
                             {{ trans('cashier::messages.direct.new_plan') }}
                         </div>
                         <div class="lastUnit size1of2">
-                            <mc:flag>{{ $subscription->plan->getBillableName() }}</mc:flag>
+                            <mc:flag>{{ $newPlan->getBillableName() }}</mc:flag>
                         </div>
                     </li>
                     <li>

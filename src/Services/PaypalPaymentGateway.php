@@ -41,6 +41,15 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
      */
     public function validate()
     {
+        try {
+            $response = $this->client->execute(new OrdersGetRequest('ssssss'));
+        } catch (\Exception $e) {
+            $result = json_decode($e->getMessage(), true);
+            if (isset($result['error']) && $result['error'] == 'invalid_client') {
+                throw new \Exception($e->getMessage());
+            }            
+        }
+        
         return true;
     }
 
@@ -98,8 +107,127 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
      */
     public function charge($subscription, $options=[])
     {
+        if ($subscription->plan->price > 0) {
+            // check order ID
+            $this->checkOrderID($options['orderID']);
+        }            
+
+        // save transaction
+        $this->addTransaction($subscription, [
+            'createdAt' => $subscription->created_at->timestamp,
+            'periodEndsAt' => $subscription->ends_at->timestamp,
+            'amount' => $subscription->plan->getBillableFormattedPrice(),
+            'description' => trans('cashier::messages.paypal.subscribe_to_plan', [
+                'plan' => $subscription->plan->getBillableName(),
+            ]),
+            'status' => 'active'
+        ]);
+    }
+
+    /**
+     * Get remote transaction.
+     *
+     * @return Boolean
+     */
+    public function getTransactions($subscription)
+    {
+        $metadata = $subscription->getMetadata();
+        $transactions = isset($metadata['transactions']) ? $metadata['transactions'] : [];
+        
+        return $transactions;
+    }
+
+    /**
+     * Get remote transaction.
+     *
+     * @return Boolean
+     */
+    public function addTransaction($subscription, $data)
+    {
+        $transactions = $this->getTransactions($subscription);
+        array_unshift($transactions, $data);
+
+        $subscription->updateMetadata(['transactions' => $transactions]);
+    }
+
+    /**
+     * Get transaction by subscription id.
+     *
+     * @return void
+     */
+    public function getTransaction($subscription)
+    {
+        $transactions = $this->getTransactions($subscription);
+        if (empty($transactions)) {
+            return null;
+        } else {
+            return $transactions[0];
+        }
+    }
+    
+    /**
+     * Allow admin approve pending subscription.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function setActive($subscription)
+    {
+        return true;
+    }
+    
+    /**
+     * Retrieve subscription param.
+     *
+     * @param  Subscription  $subscription
+     * @return SubscriptionParam
+     */
+    public function sync($subscription)
+    {
+        if ($subscription->isPending() || $subscription->isNew()) {
+            
+        } else if ($subscription->isActive()) {
+            
+        }
+        
+        // current_period_ends_at is always ends_at
+        $subscription->current_period_ends_at = $subscription->ends_at;
+        
+        $subscription->save();
+    }
+    
+    /**
+     * Resume subscription.
+     *
+     * @param  Subscription  $subscription
+     * @return date
+     */
+    public function cancelNow($subscription)
+    {
+        $subscription->setEnded();
+    }
+    
+    /**
+     * Check if support recurring.
+     *
+     * @param  string    $userId
+     * @return Boolean
+     */
+    public function isSupportRecurring()
+    {
+        return false;
+    }
+
+    /**
+     * Swap subscription plan.
+     *
+     * @param  Subscription  $subscription
+     * @return date
+     */
+    public function checkOrderID($orderID)
+    {
         // Check payment status
-        $response = $this->client->execute(new OrdersGetRequest($options['orderID']));
+        $response = $this->client->execute(new OrdersGetRequest($orderID));
 
         /**
          *Enable the following line to print complete response as JSON.
@@ -120,431 +248,12 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         // To print the whole response body, uncomment the following line
         // echo json_encode($response->result, JSON_PRETTY_PRINT);
 
+        var_dump($response->result);
+        die();
+
         // if success
-        if ($response->statusCode == 200 && $response->result->status == 'COMPLETED') {
-            return true;
-        } else {
+        if ($response->statusCode != 200 || $response->result->status != 'COMPLETED') {
             throw new \Exception('Something went wrong:' . json_encode($response->result));
-        }
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    /**
-     * Get transaction by subscription id.
-     *
-     * @return void
-     */
-    public function getTransaction($subscription)
-    {
-        
-    }
-    
-    /**
-     * Get transaction by subscription id.
-     *
-     * @return void
-     */
-    public function findTransactionBySubscription($subscription)
-    {
-        
-    }
-    
-    /**
-     * Get transaction by subscription id.
-     *
-     * @return void
-     */
-    public function getInitTransaction($subscription)
-    {
-        $sql =<<<EOF
-                SELECT * from transactions WHERE subscription_id='{$subscription->uid}' ORDER BY created_at ASC;
-EOF;
-
-        $ret = $this->db->query($sql);
-        $row = $ret->fetchArray(SQLITE3_ASSOC);
-        
-        return $row;
-    }
-    
-    
-    /**
-     * Claim payment.
-     *
-     * @return void
-     */
-    public function pendingClaim($transaction_id)
-    {
-        $claimed = true;
-        // Create new transaction for payment
-        $sql =<<<EOF
-            UPDATE transactions SET payment_claimed='{$claimed}'  
-            WHERE ID='{$transaction_id}';
-EOF;
-        $act = $this->db->exec($sql);
-        if(!$act){
-            throw new \Exception($this->db->lastErrorMsg());
-        }
-    }
-    
-    /**
-     * Unclaim payment.
-     *
-     * @return void
-     */
-    public function pendingUnclaim($transaction_id)
-    {
-        $claimed = false;
-        // Create new transaction for payment
-        $sql =<<<EOF
-            UPDATE transactions SET payment_claimed='{$claimed}'  
-            WHERE ID='{$transaction_id}';
-EOF;
-        $act = $this->db->exec($sql);
-        if(!$act){
-            throw new \Exception($this->db->lastErrorMsg());
-        }
-    }
-    
-    /**
-     * Allow admin approve pending subscription.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function setActive($subscription)
-    {
-        if ($this->hasPending($subscription)) {
-            $this->setSubscriptionAcive($subscription);
-        } else {
-            $this->setPendingAcive($subscription);
-        }
-    }
-    
-    /**
-     * Allow admin approve pending subscription.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function setSubscriptionAcive($subscription)
-    {
-        $status = Subscription::STATUS_ACTIVE;
-        
-        // Create new transaction for payment
-        $sql =<<<EOF
-            UPDATE transactions SET status='{$status}'  
-            WHERE subscription_id='{$subscription->uid}';
-EOF;
-        $act = $this->db->exec($sql);
-        if(!$act){
-            throw new \Exception($this->db->lastErrorMsg());
-        }
-        
-        $this->sync($subscription);
-    }
-    
-    /**
-     * Allow admin approve pending subscription.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function setPendingAcive($subscription)
-    {
-        $transaction = $this->getTransaction($subscription);
-        
-        $status = Subscription::STATUS_ACTIVE;
-        
-        // Create new transaction for payment
-        $sql =<<<EOF
-            UPDATE transactions SET status='{$status}'  
-            WHERE ID='{$transaction['ID']}';
-EOF;
-        $act = $this->db->exec($sql);
-        if(!$act){
-            throw new \Exception($this->db->lastErrorMsg());
-        }
-        
-        $this->sync($subscription);
-    }
-    
-    /**
-     * Check pending transaction.
-     *
-     * @return void
-     */
-    public function checkPendingPayment()
-    {
-        if(!$this->db) {
-            throw new \Exception($this->db->lastErrorMsg());
-        } else {
-            return true;
-        }
-    }
-    
-    /**
-     * Retrieve subscription param.
-     *
-     * @param  Subscription  $subscription
-     * @return SubscriptionParam
-     */
-    public function sync($subscription)
-    {
-        if ($subscription->isPending() || $subscription->isNew()) {
-            $transaction = $this->getInitTransaction($subscription);
-            
-            if ($transaction['status'] == 'pending') {
-                $subscription->status = Subscription::STATUS_PENDING;
-            }
-            
-            if ($transaction['status'] == 'active') {
-                $subscription->status = Subscription::STATUS_ACTIVE;
-            }
-            
-            if ($transaction['status'] == 'ended') {
-                $subscription->status = Subscription::STATUS_ENDED;
-            }
-        } else if ($subscription->isActive()) {
-            // get lastest transaction
-            $transaction = $this->getTransaction($subscription);
-            
-            // set active if price is free
-            if ($transaction['status'] == 'pending' && $transaction['price'] == 0) {
-                $this->setActive($subscription);
-                
-                $transaction = $this->getTransaction($subscription);
-            }
-            
-            if ($transaction['status'] == 'active') {
-                $data = json_decode($transaction['data'], true);
-                
-                $subscription->ends_at = \Carbon\Carbon::createFromTimestamp($data['periodEndsAt']);
-                
-                if (isset($data["new_plan_id"])) {
-                    $subscription->plan_id = $data["new_plan_id"];
-                }
-            }
-        }
-        
-        // current_period_ends_at is always ends_at
-        $subscription->current_period_ends_at = $subscription->ends_at;
-        
-        $subscription->save();
-        
-//        $subscription = Subscription::findByUid($subscriptionId);
-//        
-//        // Check if plan is free
-//        if ($subscription->plan->getBillableAmount() == 0) {
-//            return new SubscriptionParam([
-//                'status' => Subscription::STATUS_DONE,
-//                'createdAt' => $subscription->created_at,
-//            ]);
-//        }
-//        
-//        $metadata = $subscription->getMetadata();
-//        if (isset($metadata->transaction_id)) {
-//            $tid = $metadata->transaction_id;
-//            $sql =<<<EOF
-//                SELECT * from transactions WHERE ID='{$tid}' ORDER BY created_at DESC;
-//EOF;
-//        } else {
-//            $sql =<<<EOF
-//                SELECT * from transactions WHERE subscription_id='{$subscriptionId}' ORDER BY created_at DESC;
-//EOF;
-//        }
-//
-//        $ret = $this->db->query($sql);
-//        $row = $ret->fetchArray(SQLITE3_ASSOC);
-//        
-//        if(!$row) {
-//            throw new \Exception("Can not find the subscription with id = $subscriptionId");
-//        }
-//        
-//        $subscriptionParam = new SubscriptionParam([
-//            'status' => $row['status'],
-//            'amount' => $row['price'],
-//        ]);
-//        
-//        // Update subscription id
-//        $subscription->updateMetadata(['transaction_id' => $row['ID']]);
-//        
-//        return $subscriptionParam;
-    }
-    
-    /**
-     * Resume subscription.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function cancelNow($subscription)
-    {
-        $subscription->setEnded();
-    }
-    
-    
-    
-    
-    /**
-     * Check if support recurring.
-     *
-     * @param  string    $userId
-     * @return Boolean
-     */
-    public function isSupportRecurring()
-    {
-        return false;
-    }
-    
-    /**
-     * Get payment guiline message.
-     *
-     * @return Boolean
-     */
-    public function getPaymentInstruction()
-    {
-        if (config('cashier.gateways.direct.fields.payment_instruction')) {
-            return config('cashier.gateways.direct.fields.payment_instruction');
-        } else {
-            return trans('cashier::messages.direct.payment_instruction.demo');
-        }
-            
-    }
-
-    /**
-     * Get payment confirmation message.
-     *
-     * @return Boolean
-     */
-    public function getPaymentConfirmationMessage()
-    {
-        if (config('cashier.gateways.direct.fields.confirmation_message')) {
-            return config('cashier.gateways.direct.fields.confirmation_message');
-        } else {
-            return trans('cashier::messages.direct.confirmation_message.demo');
-        }
-            
-    }
-    
-    /**
-     * Format price.
-     *
-     * @param string
-     *
-     * @return string
-     */
-    public function format_price($price, $format = '{PRICE}')
-    {
-        return str_replace('{PRICE}', self::format_number($price), $format);
-    }
-    
-    
-    
-    /**
-     * Check if customer has valid card.
-     *
-     * @param  string    $userId
-     * @return Boolean
-     */
-    public function billableUserHasCard($user)
-    {
-        return true;
-    }
-    
-    /**
-     * Update user card.
-     *
-     * @param  string    $userId
-     * @return Boolean
-     */
-    public function billableUserUpdateCard($user, $params)
-    {
-        
-    }
-    
-    
-    
-    /**
-     * Cancel subscription.
-     *
-     * @param  Subscription  $subscription
-     * @return [$currentPeriodEnd]
-     */
-    public function cancelSubscription($subscriptionId)
-    {
-        
-    }
-    
-    /**
-     * Resume subscription.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function resumeSubscription($subscriptionId)
-    {
-        
-    }
-    
-    /**
-     * Resume subscription.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function cancelNowSubscription($subscriptionId)
-    {
-        
-    }
-    
-    /**
-     * Renew subscription.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function renewSubscription($subscription)
-    {
-        $created_at = \Carbon\Carbon::now()->timestamp;
-        $status = Subscription::STATUS_PENDING;
-        $description = 'Transaction was created. Waiting for payment...';
-        $amount = $subscription->plan->getBillableAmount();
-        $currency = $subscription->plan->getBillableCurrency();
-        
-        $data = json_encode([
-            'createdAt' => \Carbon\Carbon::now()->timestamp,
-            'periodEndsAt' => $subscription->nextPeriod()->timestamp,
-            'amount' => \Acelle\Library\Tool::format_price($subscription->plan->price, $subscription->plan->currency->format),
-            'description' => trans('messages.invoice.renew_plan', [
-                'plan' => $subscription->plan->name,
-            ]),
-        ]);
-        
-        // custom amount
-        if (isset($options['amount'])) {
-            $amount = $options['amount'];
-        }
-        
-        // Create new transaction for payment
-        $sql =<<<EOF
-            INSERT INTO transactions (subscription_id, price, currency, status, description, created_at, data)  
-            VALUES ('{$subscription->uid}', {$amount}, '{$currency}', '{$status}', '{$description}', {$created_at}, '{$data}');
-EOF;
-        $act = $this->db->exec($sql);
-        if(!$act){
-            throw new \Exception($this->db->lastErrorMsg());
         }
     }
     
@@ -556,46 +265,27 @@ EOF;
      */
     public function changePlan($subscription, $newPlan)
     {
-        $created_at = \Carbon\Carbon::now()->timestamp;
-        $status = Subscription::STATUS_PENDING;
-        $description = 'Transaction was created. Waiting for payment...';        
-        $currency = $subscription->plan->getBillableCurrency();
-        
-        
         // calc result
         $result = Cashier::calcChangePlan($subscription, $newPlan);
-        $amount = $result["amount"];
-        $endsAt = $result["endsAt"];
-        
+        $amount = round($result["amount"]);
+        $endsAt = $result["endsAt"];        
         $newPlan->price = $amount;
+
+        $subscription->plan_id = $newPlan->getBillableId();
+        $subscription->ends_at = $endsAt;
+        $subscription->save();
         
-        if ($amount < 0) {
-            throw new \Exception(trans('cashier::messages.direct.can_not_change_to_lower_plan'));
-        }
-        
-        $data = json_encode([
-            'createdAt' => \Carbon\Carbon::now()->timestamp,
-            'planId' => $newPlan->getBillableId(),
-            'periodEndsAt' => $endsAt->timestamp,
+        // save transaction
+        $this->addTransaction($subscription, [
+            'createdAt' => $subscription->created_at->timestamp,
+            'periodEndsAt' => $subscription->ends_at->timestamp,
             'amount' => $newPlan->getBillableFormattedPrice(),
-            'new_plan_id' => $newPlan->getBillableId(),
-            'description' => trans('cashier::messages.direct.change_plan_to', [
+            'description' => trans('cashier::messages.paypal.change_plan_to', [
                 'current_plan' => $subscription->plan->getBillableName(),
                 'new_plan' => $newPlan->getBillableName(),
             ]),
+            'status' => 'active'
         ]);
-        
-        // Create new transaction for payment
-        $sql =<<<EOF
-            INSERT INTO transactions (subscription_id, price, currency, status, description, created_at, data, payment_claimed)  
-            VALUES ('{$subscription->uid}', {$amount}, '{$currency}', '{$status}', '{$description}', {$created_at}, '{$data}', 0);
-EOF;
-        $act = $this->db->exec($sql);
-        if(!$act){
-            throw new \Exception($this->db->lastErrorMsg());
-        }
-        
-        $subscription->save();
         
         return $subscription;
     }
@@ -608,37 +298,25 @@ EOF;
      */
     public function renew($subscription)
     {
-        $created_at = \Carbon\Carbon::now()->timestamp;
-        $status = Subscription::STATUS_PENDING;
-        $description = 'Transaction was created. Waiting for payment...';        
-        $currency = $subscription->plan->getBillableCurrency();
-        
-        
         // calc result
         $amount = $subscription->plan->getBillableAmount();
         $endsAt = $subscription->nextPeriod()->timestamp;
+
+        $subscription->ends_at = $endsAt;
+        $subscription->save();
         
-        $data = json_encode([
-            'createdAt' => \Carbon\Carbon::now()->timestamp,
-            'planId' => $subscription->plan->getBillableId(),
-            'periodEndsAt' => $endsAt,
+        // save transaction
+        $this->addTransaction($subscription, [
+            'createdAt' => $subscription->created_at->timestamp,
+            'periodEndsAt' => $subscription->ends_at->timestamp,
             'amount' => $subscription->plan->getBillableFormattedPrice(),
-            'description' => trans('cashier::messages.direct.renew_plan_desc', [
+            'description' => trans('cashier::messages.paypal.renew_plan_desc', [
                 'plan' => $subscription->plan->getBillableName(),
             ]),
+            'status' => 'active'
         ]);
         
-        // Create new transaction for payment
-        $sql =<<<EOF
-            INSERT INTO transactions (subscription_id, price, currency, status, description, created_at, data, payment_claimed)  
-            VALUES ('{$subscription->uid}', {$amount}, '{$currency}', '{$status}', '{$description}', {$created_at}, '{$data}', 0);
-EOF;
-        $act = $this->db->exec($sql);
-        if(!$act){
-            throw new \Exception($this->db->lastErrorMsg());
-        }
         
-        $subscription->save();
         
         return $subscription;
     }
@@ -651,20 +329,19 @@ EOF;
      */
     public function getInvoices($subscription)
     {
-        $invoices = [];        
+        $invoices = [];     
+        
+        foreach($this->getTransactions($subscription) as $transaction) {
+            $invoices[] = new InvoiceParam([
+                'createdAt' => $transaction['createdAt'],
+                'periodEndsAt' => $transaction['periodEndsAt'],
+                'amount' => $transaction['amount'],
+                'description' => $transaction['description'],
+                'status' => $transaction['status'],
+            ]);
+        }
         
         return $invoices;
-    }
-    
-    /**
-     * Top-up subscription.
-     *
-     * @param  Subscription    $subscription
-     * @return Boolean
-     */
-    public function topUp($subscription)
-    {
-        return false;
     }
     
     /**
@@ -676,30 +353,18 @@ EOF;
     public function getRawInvoices($subscription)
     {
         $invoices = [];
+
+        foreach($this->getTransactions($subscription) as $transaction) {
+            $invoices[] = new InvoiceParam([
+                'createdAt' => $transaction['createdAt'],
+                'periodEndsAt' => $transaction['periodEndsAt'],
+                'amount' => $transaction['amount'],
+                'description' => $transaction['description'],
+                'status' => $transaction['status'],
+            ]);
+        }
         
         return $invoices;
-    }
-    
-    /**
-     * Check if subscription has future payment pending.
-     *
-     * @param  Subscription    $subscription
-     * @return Boolean
-     */
-    public function checkPendingPaymentForFuture($subscription)
-    {
-        ss;
-    }
-    
-    /**
-     * Approve future invoice
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function approvePendingInvoice($subscription)
-    {
-        ss;
     }
     
     /**
