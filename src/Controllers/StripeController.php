@@ -48,9 +48,11 @@ class StripeController extends Controller
                   'quantity' => 1,
                 ]],
                 'success_url' => url('/'),
-                'cancel_url' => 'https://example.com/cancel',
+                'cancel_url' => action('\Acelle\Http\Controllers\AccountSubscriptionController@index'),
             ]);
             
+            $subscription->delete();
+
             return view('cashier::stripe.checkout_demo', [
                 'service' => $service,
                 'session' => $session,
