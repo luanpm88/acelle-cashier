@@ -32,15 +32,15 @@ class StripeController extends Controller
         $subscription = Subscription::findByUid($subscription_id);
         
         $request->session()->put('checkout_return_url', $request->return_url);
-
-        if ($subscription->plan->price == 0) {
-            $subscription->delete();
-
-            $request->session()->flash('alert-error', trans('messages.operation_not_allowed_in_demo'));
-            return redirect()->action('\Acelle\Http\Controllers\AccountSubscriptionController@selectPlan');
-        }
         
         if (isSiteDemo()) {
+            if ($subscription->plan->price == 0) {
+                $subscription->delete();
+
+                $request->session()->flash('alert-error', trans('messages.operation_not_allowed_in_demo'));
+                return redirect()->action('\Acelle\Http\Controllers\AccountSubscriptionController@selectPlan');
+            }
+
             $service = $this->getPaymentService();
             \Stripe\Stripe::setApiVersion("2017-04-06");
             
