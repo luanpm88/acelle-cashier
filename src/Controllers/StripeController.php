@@ -7,9 +7,19 @@ use Acelle\Cashier\Subscription;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
+use Acelle\Cashier\SubscriptionTransaction;
 
 class StripeController extends Controller
 {
+    public function getReturnUrl(Request $request) {
+        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        if (!$return_url) {
+            $return_url = url('/');
+        }
+
+        return $return_url;
+    }
+
     /**
      * Get current payment service.
      *
@@ -31,8 +41,30 @@ class StripeController extends Controller
     {
         $subscription = Subscription::findByUid($subscription_id);
         
+        // save return url
         $request->session()->put('checkout_return_url', $request->return_url);
+
+        // if free plan
+        if ($subscription->plan->getBillableAmount() == 0) {
+            // charged successfully. Set subscription to active
+            $subscription->start();
+
+            // add transaction
+            $subscription->addTransaction([
+                'ends_at' => $subscription->ends_at,
+                'current_period_ends_at' => $subscription->current_period_ends_at,
+                'status' => SubscriptionTransaction::STATUS_SUCCESS,
+                'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                    'plan' => $subscription->plan->getBillableName(),
+                ]),
+                'amount' => $subscription->plan->getBillableFormattedPrice()
+            ]);
+
+            // Redirect to my subscription page
+            return redirect()->away($this->getReturnUrl($request));
+        }
         
+        // for demo site only
         if (isSiteDemo()) {
             if ($subscription->plan->price == 0) {
                 $subscription->delete();
@@ -64,12 +96,12 @@ class StripeController extends Controller
                 'service' => $service,
                 'session' => $session,
             ]);
-        } else {
-            return view('cashier::stripe.checkout', [
-                'gatewayService' => $this->getPaymentService(),
-                'subscription' => $subscription,
-            ]);
         }
+
+        return view('cashier::stripe.checkout', [
+            'service' => $this->getPaymentService(),
+            'subscription' => $subscription,
+        ]);
     }
     
     /**
@@ -83,14 +115,12 @@ class StripeController extends Controller
     {
         // subscription and service
         $subscription = Subscription::findByUid($subscription_id);
-        $gatewayService = $this->getPaymentService();
+        $service = $this->getPaymentService();
         
         // update card
-        $gatewayService->billableUserUpdateCard($subscription->user, $request->all());
+        $service->billableUserUpdateCard($subscription->user, $request->all());
 
-        return redirect()->action('\Acelle\Cashier\Controllers\StripeController@charge', [
-            'subscription_id' => $subscription->uid,
-        ]);
+        return redirect()->away($request->redirect);
     }
     
     /**
@@ -104,12 +134,26 @@ class StripeController extends Controller
     {
         // subscription and service
         $subscription = Subscription::findByUid($subscription_id);
-        $gatewayService = $this->getPaymentService();
+        $service = $this->getPaymentService();
         $return_url = $request->session()->get('checkout_return_url', url('/'));
 
         if ($request->isMethod('post')) {
             // subscribe to plan
-            $gatewayService->charge($subscription);
+            $service->charge($subscription);
+
+            // charged successfully. Set subscription to active
+            $subscription->start();
+
+            // add transaction
+            $subscription->addTransaction([
+                'ends_at' => $subscription->ends_at,
+                'current_period_ends_at' => $subscription->current_period_ends_at,
+                'status' => SubscriptionTransaction::STATUS_SUCCESS,
+                'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                    'plan' => $subscription->plan->getBillableName(),
+                ]),
+                'amount' => $subscription->plan->getBillableFormattedPrice()
+            ]);
 
             // Redirect to my subscription page
             return redirect()->away($return_url);
@@ -132,43 +176,27 @@ class StripeController extends Controller
         // Get current customer
         $subscription = Subscription::findByUid($subscription_id);
         $service = $this->getPaymentService();
-        
         // @todo dependency injection 
-        $plan = \Acelle\Model\Plan::findByUid($request->plan_id);        
+        $newPlan = \Acelle\Model\Plan::findByUid($request->plan_id);
         
-        // Save return url
-        if ($request->return_url) {
-            $request->session()->put('checkout_return_url', $request->return_url);
-        }
+        // calc when change plan
+        $result = Cashier::calcChangePlan($subscription, $newPlan);
         
-        // check if status is not pending
-        if ($service->hasPending($subscription)) {
-            return redirect()->away($request->return_url);
-        }
-        
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
-        if (!$return_url) {
-            $return_url = url('/');
-        }
-        
-        if ($request->isMethod('post')) {
-            $return_url = $request->session()->get('checkout_return_url', url('/'));
-            if (!$return_url) {
-                $return_url = url('/');
-            }
-            
+        if ($request->isMethod('post')) {            
             // change plan
-            $service->changePlan($subscription, $plan);
+            $service->changePlan($subscription, $newPlan);
 
             // Redirect to my subscription page
-            return redirect()->away($return_url);
+            return redirect()->away($this->getReturnUrl($request));
         }
         
         return view('cashier::stripe.change_plan', [
             'subscription' => $subscription,
-            'plan_id' => $request->plan_id,
-            'return_url' => $return_url,
-            'newPlan' => $plan,
+            'return_url' => $this->getReturnUrl($request),
+            'newPlan' => $newPlan,
+            'nextPeriodDay' => $result['endsAt'],
+            'service' => $service,
+            'amount' => $result['amount'],
         ]);
     }
     

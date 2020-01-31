@@ -27,8 +27,6 @@
                 <div class="sub-section">
                     <div class="row">
                         <div class="col-md-12">
-                            
-                        
                             <p class="text-muted">{!! trans('cashier::messages.stripe.checkout.processing_payment.intro') !!}</p>
                             
                             <form id="pay_now" method="POST" action="{{ action('\Acelle\Cashier\Controllers\StripeController@changePlan', [

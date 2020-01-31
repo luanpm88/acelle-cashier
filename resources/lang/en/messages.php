@@ -4,6 +4,8 @@
     'stripe.card_list' => 'Your card information',
     'stripe.click_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with Stripe with <strong>:price</strong>.
         Please click the button bellow to proceed with the payment information.',
+    'stripe.checkout.tree_plan' => 'You are checking out <strong>:plan</strong> with Stripe with <strong>:price</strong>.
+        Please click the button bellow to proceed.',
     'stripe.pay' => 'Pay',
     'stripe.pay_with_new_card' => 'Pay with new card',
     'stripe.pay_with_this_card' => 'Pay with this card',
@@ -190,4 +192,13 @@
     'paypal.renew_plan.intro' => 'You are about to renew :plan plan. Please check the renew information below before proceeding.',
     'paypal.renew_plan_desc' => 'Renew <strong>:plan</strong> plan',
     'paypal.renew_subscription' => 'Renew subscription',
+    'transaction.subscribed_to_plan' => 'Subscribed to :plan plan',
+    'stripe.free_proceed' => 'Proceed',
+    'stripe.change_plan.intro' => 'You are about to change <strong>:plan</strong> plan to <strong>:new_plan</strong> plan.
+        Please check the information below before proceeding.',
+    'stripe.change_plan.proceed' => 'Proceed',
+    'transaction.change_plan' => 'Change to :plan plan',
+    'stripe.update_payment_and_proceed' => 'Update payment & Proceed',
+    'stripe.payment_outdated.alert' => 'Your payment method is outdated. Click update payment button below
+        to re enter your payment information.',
 ) ?>

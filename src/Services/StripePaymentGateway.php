@@ -12,23 +12,24 @@ use Acelle\Cashier\Subscription;
 use Acelle\Cashier\SubscriptionParam;
 use Acelle\Cashier\InvoiceParam;
 use Carbon\Carbon;
+use Acelle\Cashier\Cashier;
+use Acelle\Cashier\SubscriptionTransaction;
 
 class StripePaymentGateway implements PaymentGatewayInterface
 {
-    public $subscriptionParam;
-    public $owner;
-    public $plan;
-    public $cardToken;
     public $secretKey;
     public $publishableKey;
 
+    /**
+     * Construction
+     */
     public function __construct($secret_key, $publishable_key)
     {
         $this->secretKey = $secret_key;
         $this->publishableKey = $publishable_key;
         
         \Stripe\Stripe::setApiKey($secret_key);
-        \Stripe\Stripe::setApiVersion("2017-04-06");
+        \Stripe\Stripe::setApiVersion("2019-12-03");
     }
 
     /**
@@ -63,24 +64,12 @@ class StripePaymentGateway implements PaymentGatewayInterface
         } catch (Exception $e) {
             // Something else happened, completely unrelated to Stripe
         }
-
-    }
-
-    /**
-     * Check if support recurring.
-     *
-     * @param  string    $userId
-     * @return Boolean
-     */
-    public function isSupportRecurring()
-    {
-        return true;
     }
 
     /**
      * Create a new subscription.
      *
-     * @param  mixed                $token
+     * @param  Customer                $customer
      * @param  Subscription         $subscription
      * @return void
      */
@@ -96,79 +85,115 @@ class StripePaymentGateway implements PaymentGatewayInterface
         
         return $subscription;
     }
-
+    
     /**
-     * Create a new subscriptionParam.
+     * Charge customer with subscription.
      *
-     * @param  mixed              $token
-     * @param  SubscriptionParam  $param
+     * @param  Customer                $customer
+     * @param  Subscription         $subscription
      * @return void
      */
-    public function charge($subscription)
-    {
+    public function charge($subscription) {
         // get or create plan
-        $stripePlan = $this->getStripePlan($subscription->plan);
+        $stripeCustomer = $this->getStripeCustomer($subscription->user);
+
+        // Charge customter with current card
+        \Stripe\Charge::create([
+            'amount' => $this->convertPrice($subscription->plan->getBillableAmount(), $subscription->plan->getBillableCurrency()),
+            'currency' => $subscription->plan->getBillableCurrency(),
+            'customer' => $stripeCustomer->id,
+            'source' => $this->getCardInformation($subscription->user)->id,
+            'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                'plan' => $subscription->plan->getBillableName(),
+            ]),
+        ]);
+    }
+
+    public function sync($subscription) {}
+
+    public function isSupportRecurring() {
+        return true;
+    }
+
+    public function hasPending($subscription) {
+        return false;
+    }
+
+    public function getPendingNotice($subscription) {
+        return false;
+    }
+
+    public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/') {
+        return action("\Acelle\Cashier\Controllers\StripeController@changePlan", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+            'plan_id' => $plan_id,
+        ]);
+    }
+
+    public function getRenewUrl($subscription, $returnUrl='/') {
+        return false;
+    }
+
+    public function changePlan(&$subscription, $newPlan) {
+        // calc when change plan
+        $result = Cashier::calcChangePlan($subscription, $newPlan);
+
+        // set new amount to plan
+        $newPlan->price = $result['amount'];
 
         // get or create plan
         $stripeCustomer = $this->getStripeCustomer($subscription->user);
 
-        // create subscription
-        $stripeSubscription = \Stripe\Subscription::create([
-            "customer" => $stripeCustomer->id,
-            "items" => [
-                [
-                    "plan" => $stripePlan->id,
-                ],
-            ],
-            'metadata' => [
-                'local_subscription_id' => $subscription->uid,
-            ],
+        if ($result['amount'] > 0) {
+            // Charge customter with current card
+            \Stripe\Charge::create([
+                'amount' => $this->convertPrice($newPlan->getBillableAmount(), $newPlan->getBillableCurrency()),
+                'currency' => $newPlan->getBillableCurrency(),
+                'customer' => $stripeCustomer->id,
+                'source' => $this->getCardInformation($subscription->user)->id,
+                'description' => trans('cashier::messages.transaction.change_plan', [
+                    'plan' => $newPlan->getBillableName(),
+                ]),
+            ]);
+        }
+
+        // update subscription date
+        $subscription->current_period_ends_at = $result['endsAt'];
+        if (isset($subscription->ends_at) && $subscription->ends_at < $result['endsAt']) {
+            $subscription->ends_at = $result['endsAt'];
+        }
+        $subscription->plan_id = $newPlan->getBillableId();
+        $subscription->save();
+
+        // add transaction
+        $subscription->addTransaction([
+            'ends_at' => $subscription->ends_at,
+            'current_period_ends_at' => $subscription->current_period_ends_at,
+            'status' => SubscriptionTransaction::STATUS_SUCCESS,
+            'description' => trans('cashier::messages.transaction.change_plan', [
+                'plan' => $newPlan->getBillableName(),
+            ]),
+            'amount' => $newPlan->getBillableFormattedPrice()
         ]);
-        
-        // add force local transaction
-        $this->addTransaction($subscription, [
-            'id' => null,
-            'createdAt' => Carbon::now()->timestamp,
-            'periodEndsAt' => null,
-            'amount' => $subscription->plan->getBillableFormattedPrice(),
-            'description' => trans('cashier::messages.stripe.create_subscription', ['plan' => $subscription->plan->getBillableName()]),
-            'tag' => 'new_subscribe',
-            'plan_id' => $subscription->plan->getBillableId(),
-            'status' => 'active',
-        ]);
-        
-        $this->sync($subscription);
     }
 
     /**
-     * Get the Stripe plan instance for the current user and token.
+     * Get card information from Stripe user.
      *
-     * @param  string|null          $token
-     * @param  SubscriptionParam    $subscriptionParam
-     * @return \Stripe\Customer
+     * @param  Subscription    $subscription
+     * @return Boolean
      */
-    protected function getStripePlan($plan)
+    public function getCardInformation($user)
     {
-        //$stripePlans = \Stripe\Plan::all();
-        //foreach ($stripePlans as $stripePlan) {
-        //    if ($stripePlan->metadata->local_plan_id == $plan->getBillableId()) {
-        //        return $stripePlan;
-        //    }
-        //}
+        // get or create plan
+        $stripeCustomer = $this->getStripeCustomer($user);
 
-        // if plan dosen't exist
-        $stripePlan = \Stripe\Plan::create([
-            'name' => $plan->getBillableName(),
-            'interval' => $plan->getBillableInterval(),
-            'interval_count' => $plan->getBillableIntervalCount(),
-            'currency' => $plan->getBillableCurrency(),
-            'amount' => $this->convertPrice($plan->getBillableAmount(), $plan->getBillableCurrency()),
-            'metadata' => [
-                'local_plan_id' => $plan->getBillableId(),
-            ],
-        ]);
+        $cards = $stripeCustomer->sources->all(
+            ['object' => 'card']
+        );
 
-        return $stripePlan;
+        return empty($cards->data) ? NULL : $cards->data["0"];
     }
 
     /**
@@ -199,20 +224,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Check if customer has valid card.
-     *
-     * @param  string    $userId
-     * @return Boolean
-     */
-    public function billableUserHasCard($user)
-    {
-        $stripeCustomer = $this->getStripeCustomer($user);
-
-        // get card from customer
-        return isset($stripeCustomer->default_source);
-    }
-
-    /**
      * Update user card.
      *
      * @param  string    $userId
@@ -225,219 +236,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $card = $stripeCustomer->sources->create(['source' => $params['stripeToken']]);
         $stripeCustomer->default_source = $card->id;
         $stripeCustomer->save();
-    }
-
-    /**
-     * Get Stripe Subscription.
-     *
-     * @param  Subscription  $subscription
-     * @return SubscriptionParam
-     */
-    public function getStripeSubscription($subscriptionId)
-    {
-        // Find in gateway server
-        $stripeSubscriptions = \Stripe\Subscription::all();
-        foreach ($stripeSubscriptions as $stripeSubscription) {
-            if ($stripeSubscription->metadata->local_subscription_id == $subscriptionId) {
-                return $stripeSubscription;
-            }
-        }
-
-        // Find cancelled subscription
-        $stripeSubscriptions = \Stripe\Subscription::all(["status" => "canceled"]);
-        foreach ($stripeSubscriptions as $stripeSubscription) {
-            if ($stripeSubscription->metadata->local_subscription_id == $subscriptionId) {
-                return $stripeSubscription;
-            }
-        }
-
-        return NULL;
-    }
-
-    /**
-     * Retrieve subscription param.
-     *
-     * @param  Subscription  $subscription
-     * @return SubscriptionParam
-     */
-    public function sync($subscription)
-    {
-        // get stripe subscription
-        $stripeSubscription = $this->getStripeSubscription($subscription->uid);
-        
-        // default is active
-        $subscription->status = Subscription::STATUS_ACTIVE;
-        
-        // Can not find strip subscription
-        if ($stripeSubscription == NULL) {
-            throw new \Exception('Stripe subscription can not be found');
-        }
-        
-        // Current period ends at
-        if ($stripeSubscription->current_period_end) {
-            $subscription->current_period_ends_at = Carbon::createFromTimestamp($stripeSubscription->current_period_end);
-        }
-        
-        // ends at
-        $subscription->ends_at = null;
-        if ($stripeSubscription->cancel_at && $stripeSubscription->current_period_end) {
-            $subscription->ends_at = Carbon::createFromTimestamp($stripeSubscription->current_period_end);
-        }
-
-        // ended
-        if ($stripeSubscription->ended_at) {
-            $subscription->ends_at = Carbon::createFromTimestamp($stripeSubscription->ended_at);
-            $subscription->status = Subscription::STATUS_ENDED;
-        }
-
-        // update plan
-        $subscription->plan_id = $stripeSubscription->plan->metadata->local_plan_id;
-        
-        $subscription->save();        
-        return $subscription;
-    }
-
-    /**
-     * Cancel subscription.
-     *
-     * @param  Subscription  $subscription
-     * @return [$currentPeriodEnd]
-     */
-    public function cancel($subscription)
-    {
-        $stripeSubscription = $this->getStripeSubscription($subscription->uid);
-        $stripeSubscription->cancel_at_period_end = true;        
-        $stripeSubscription->save();
-        
-        // add force local transaction
-        $this->addTransaction($subscription, [
-            'id' => null,
-            'createdAt' => Carbon::now()->timestamp,
-            'periodEndsAt' => $stripeSubscription->current_period_end,
-            'amount' => null,
-            'description' => trans('cashier::messages.stripe.cancel_plan', ['plan' => $subscription->plan->getBillableName()]),
-            'tag' => 'cancel_plan',
-            'plan_id' => $subscription->plan->getBillableId(),
-            'status' => 'active',
-        ]);
-        
-        // sync
-        $this->sync($subscription);
-    }
-
-    /**
-     * Resume subscription.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function resume($subscription)
-    {
-        $stripeSubscription = $this->getStripeSubscription($subscription->uid);
-        $stripeSubscription->cancel_at_period_end = false;
-
-        // To resume the subscription we need to set the plan parameter on the Stripe
-        // subscription object. This will force Stripe to resume this subscription
-        // where we left off. Then, we'll set the proper trial ending timestamp.
-        $stripeSubscription->plan = $stripeSubscription->plan->id;
-        $stripeSubscription->save();
-        
-        // add force local transaction
-        $this->addTransaction($subscription, [
-            'id' => null,
-            'createdAt' => Carbon::now()->timestamp,
-            'periodEndsAt' => null,
-            'amount' => null,
-            'description' => trans('cashier::messages.stripe.resume_plan', ['plan' => $subscription->plan->getBillableName()]),
-            'tag' => 'cancel_plan',
-            'plan_id' => $subscription->plan->getBillableId(),
-            'status' => 'active',
-        ]);
-        
-        // sync
-        $this->sync($subscription);
-    }
-
-    /**
-     * Resume subscription.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function cancelNow($subscription)
-    {
-        $stripeSubscription = $this->getStripeSubscription($subscription->uid);
-        
-        $stripeSubscription->cancel();
-        
-        // add force local transaction
-        $this->addTransaction($subscription, [
-            'id' => null,
-            'createdAt' => Carbon::now()->timestamp,
-            'periodEndsAt' => Carbon::now()->timestamp,
-            'amount' => null,
-            'description' => trans('cashier::messages.stripe.cancel_now', ['plan' => $subscription->plan->getBillableName()]),
-            'tag' => 'cancel_plan',
-            'plan_id' => $subscription->plan->getBillableId(),
-            'status' => 'active',
-        ]);
-        
-        // sync
-        $this->sync($subscription);
-    }
-
-    /**
-     * Renew subscription.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function renewSubscription($subscription)
-    {
-
-    }
-
-    /**
-     * Swap subscription plan.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function changePlan($subscription, $plan)
-    {
-        $stripeSubscription = $this->getStripeSubscription($subscription->uid);
-
-        $stripePlan = $this->getStripePlan($plan);
-
-        $stripeSubscription->plan = $stripePlan;
-
-        $stripeSubscription->cancel_at_period_end = false;
-
-        $stripeSubscription->save();
-        
-        try {
-            // invoice at once
-            \Stripe\Invoice::create([
-                "customer" => $stripeSubscription->customer,
-                "subscription" => $stripeSubscription->id,
-            ]);
-            
-            // add force local transaction
-            $this->addTransaction($subscription, [
-                'id' => null,
-                'createdAt' => Carbon::now()->timestamp,
-                'periodEndsAt' => null,
-                'amount' => $plan->getBillableFormattedPrice(),
-                'description' => trans('cashier::messages.stripe.change_plan_to', ['plan' => $plan->getBillableName()]),
-                'tag' => 'change_plan',
-                'plan_id' => $plan->getBillableId(),
-                'status' => 'active',
-            ]);
-        } catch(\Exception $e) {
-            Log::error('Can not invoice at once when changing Stripe Plan: '.$e->getMessage());
-        }
-
-        return $subscription;
     }
 
     /**
@@ -481,7 +279,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
         $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
 
-        return $price * $rate;
+        return round($price * $rate);
     }
 
     /**
@@ -498,227 +296,5 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
 
         return $price / $rate;
-    }
-
-    /**
-     * Get subscription invoices.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function getInvoices($subscription)
-    {
-        $result = [];
-
-        //$stripeSubscription = $this->getStripeSubscription($subscription->uid);
-        //$invoices = \Stripe\Invoice::all(["subscription" => $stripeSubscription->id]);
-        //
-        //foreach($invoices["data"] as $invoice) {
-        //    $result[] = new InvoiceParam([
-        //        'createdAt' => $invoice->period_start,
-        //        'periodEndsAt' => $invoice->lines->data[0]["period"]["end"],
-        //        'amount' => $this->revertPrice($invoice->amount_due, strtoupper($invoice->currency)) . ' ' . strtoupper($invoice->currency),
-        //        'description' => trans('cashier::messages.stripe.invoice.' . $invoice->billing_reason),
-        //        'status' => $invoice->status
-        //    ]);
-        //}
-        
-        $transactions = array_reverse($this->getTransactions($subscription));            
-        
-        foreach ($transactions as $transaction) {
-            $result[] = new InvoiceParam([
-                'createdAt' => $transaction['createdAt'],
-                'periodEndsAt' => $transaction['periodEndsAt'],
-                'amount' => $transaction['amount'],
-                'description' => $transaction['description'],
-                'status' => $transaction['status'],
-            ]);
-        }
-
-        return $result;
-    }
-
-    /**
-     * Top-up subscription.
-     *
-     * @param  Subscription    $subscription
-     * @return Boolean
-     */
-    public function topUp($subscription)
-    {
-        return false;
-    }
-
-    /**
-     * Get subscription raw invoices.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function getRawInvoices($subscription)
-    {
-        $result = [];
-
-        $stripeSubscription = $this->getStripeSubscription($subscription->uid);
-        $invoices = \Stripe\Invoice::all(["subscription" => $stripeSubscription->id]);
-
-        return $invoices["data"];
-    }
-
-    /**
-     * Allow admin update payment status without service without payment.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function setActive($subscription)
-    {
-        throw new \Exception('The Payment service dose not support this feature!');
-    }
-
-    /**
-     * Approve future invoice
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function approvePendingInvoice($subscription)
-    {
-        throw new \Exception('The Payment service dose not support this feature!');
-    }
-
-    /**
-     * Check if subscription has future payment pending.
-     *
-     * @param  Subscription    $subscription
-     * @return Boolean
-     */
-    public function checkPendingPaymentForFuture($subscription)
-    {
-    }
-
-    /**
-     * Check if subscription has future payment pending.
-     *
-     * @param  Subscription    $subscription
-     * @return Boolean
-     */
-    public function getCardInformation($user)
-    {
-        // get or create plan
-        $stripeCustomer = $this->getStripeCustomer($user);
-
-        $cards = $stripeCustomer->sources->all(
-            ['object' => 'card']
-        );
-
-        return empty($cards->data) ? NULL : $cards->data["0"];
-    }
-    
-    /**
-     * Get renew url.
-     *
-     * @return string
-     */
-    public function getRenewUrl($subscription, $returnUrl='/')
-    {
-        return action("\Acelle\Cashier\Controllers\\StripeController@renew", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-        ]);
-    }
-    
-    /**
-     * Get renew url.
-     *
-     * @return string
-     */
-    public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/')
-    {
-        return action("\Acelle\Cashier\Controllers\\StripeController@changePlan", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-            'plan_id' => $plan_id,
-        ]);
-    }
-    
-    /**
-     * Get renew url.
-     *
-     * @return string
-     */
-    public function getPendingUrl($subscription, $returnUrl='/')
-    {
-        return action("\Acelle\Cashier\Controllers\\StripeController@pending", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-        ]);
-    }
-    
-    /**
-     * Check for notice.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function hasPending($subscription)
-    {
-        return false;
-    }
-    
-    /**
-     * Get notice message.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function getPendingNotice($subscription)
-    {
-        return trans('cashier::messages.stripe.has_transaction_pending', [
-            'url' => action('\Acelle\Cashier\Controllers\StripeController@pending', [
-                'subscription_id' => $subscription->uid,
-            ]),
-        ]);
-    }
-    
-    /**
-     * Renew subscription plan.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function renew($subscription)
-    {
-        return false;
-    }
-    
-    /**
-     * Get transactions.
-     *
-     * @param  mixed              $token
-     * @param  SubscriptionParam  $param
-     * @return void
-     */
-    public function getTransactions($subscription)
-    {
-        $metadata = $subscription->getMetadata();
-        $transactions = isset($metadata['transactions']) ? $metadata['transactions'] : [];
-        
-        return $transactions;
-    }
-    
-    /**
-     * Add transaction.
-     *
-     * @param  mixed              $token
-     * @param  SubscriptionParam  $param
-     * @return void
-     */
-    public function addTransaction($subscription, $transaction)
-    {
-        $transactions = $this->getTransactions($subscription);
-        
-        $transactions[] = $transaction;
-        $subscription->updateMetadata(['transactions' => $transactions]);
     }
 }

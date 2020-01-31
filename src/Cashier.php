@@ -69,14 +69,14 @@ class Cashier
             throw new \Exception(trans('cashier::messages.can_not_change_to_diff_currency_period_plan'));
         }
         
-        $newEndsAt = $subscription->ends_at;
+        $newEndsAt = $subscription->current_period_ends_at;
         
-        $remainDays = $subscription->ends_at->diffInDays(\Carbon\Carbon::now());
+        $remainDays = $subscription->current_period_ends_at->diffInDays(\Carbon\Carbon::now());
 
         // amout per day of current plan
         $currentAmount = $subscription->plan->getBillableAmount();
-        $periodDays = $subscription->ends_at->diffInDays($subscription->periodStartAt());
-        $remainDays = $subscription->ends_at->diffInDays(\Carbon\Carbon::now());
+        $periodDays = $subscription->current_period_ends_at->diffInDays($subscription->periodStartAt());
+        $remainDays = $subscription->current_period_ends_at->diffInDays(\Carbon\Carbon::now());
         $currentPerDayAmount = ($currentAmount/$periodDays);
         $newAmount = ($plan->price/$periodDays)*$remainDays;
         $remainAmount = $currentPerDayAmount*$remainDays;
@@ -91,7 +91,7 @@ class Cashier
             
             // if free plan
             if ($plan->getBillableAmount() == 0) {
-                $newEndsAt = $subscription->ends_at;
+                $newEndsAt = $subscription->current_period_ends_at;
             }
         }
 

@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use LogicException;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Model;
+use Acelle\Cashier\SubscriptionTransaction;
 
 class Subscription extends Model
 {
@@ -120,6 +121,17 @@ class Subscription extends Model
     {
         // @todo dependency injection
         return $this->belongsTo('\Acelle\Model\Customer', 'user_id', 'uid');
+    }
+
+    /**
+     * Associations.
+     *
+     * @var object | collect
+     */
+    public function subscriptionTransactions()
+    {
+        // @todo dependency injection
+        return $this->hasMany('\Acelle\Cashier\SubscriptionTransaction');
     }
 
     /**
@@ -381,7 +393,7 @@ class Subscription extends Model
 
         switch ($interval) {
             case 'month':
-                $endsAt = $this->ends_at->addMonth($intervalCount);
+                $endsAt = $this->ends_at->addMonthsNoOverflow($intervalCount);
                 break;
             case 'day':
                 $endsAt = $this->ends_at->addDay($intervalCount);
@@ -389,7 +401,7 @@ class Subscription extends Model
                 $endsAt = $this->ends_at->addWeek($intervalCount);
                 break;
             case 'year':
-                $endsAt = $this->ends_at->addYear($intervalCount);
+                $endsAt = $this->ends_at->addYearsNoOverflow($intervalCount);
                 break;
             default:
                 $endsAt = null;
@@ -406,21 +418,21 @@ class Subscription extends Model
      */
     public function periodStartAt()
     {
-        $startAt = $this->ends_at;
+        $startAt = $this->current_period_ends_at;
         $interval = $this->plan->getBillableInterval();
         $intervalCount = $this->plan->getBillableIntervalCount();
 
         switch ($interval) {
             case 'month':
-                $startAt = $this->ends_at->subMonth($intervalCount);
+                $startAt = $startAt->subMonthsNoOverflow($intervalCount);
                 break;
             case 'day':
-                $startAt = $this->ends_at->subDay($intervalCount);
+                $startAt = $startAt->subDay($intervalCount);
             case 'week':
-                $startAt = $this->ends_at->subWeek($intervalCount);
+                $startAt = $startAt->subWeek($intervalCount);
                 break;
             case 'year':
-                $startAt = $this->ends_at->subYear($intervalCount);
+                $startAt = $startAt->subYearsNoOverflow($intervalCount);
                 break;
             default:
                 $startAt = null;
@@ -476,5 +488,109 @@ class Subscription extends Model
         foreach ($subscriptions as $subscription) {
             $gateway->sync($subscription);
         }
+    }
+
+    /**
+     * Get period by start date.
+     *
+     * @param  date  $date
+     * @return date
+     */
+    public function getPeriodEndsAt($startDate)
+    {        
+        // dose not support recurring, update ends at column
+        $interval = $this->plan->getBillableInterval();
+        $intervalCount = $this->plan->getBillableIntervalCount();
+
+        switch ($interval) {
+            case 'month':
+                $endsAt = $startDate->addMonthsNoOverflow($intervalCount);
+                break;
+            case 'day':
+                $endsAt = $startDate->addDay($intervalCount);
+            case 'week':
+                $endsAt = $startDate->addWeek($intervalCount);
+                break;
+            case 'year':
+                $endsAt = $startDate->addYearsNoOverflow($intervalCount);
+                break;
+            default:
+                $endsAt = null;
+        }
+        return $endsAt;
+    }
+    
+    /**
+     * Start subscription.
+     *
+     * @param  date  $date
+     * @return date
+     */
+    public function start()
+    {
+        $this->ends_at = null;
+        $this->current_period_ends_at = $this->getPeriodEndsAt(\Carbon\Carbon::now());
+        $this->status = self::STATUS_ACTIVE;
+        $this->save();
+    }
+
+    /**
+     * Subscription transactions.
+     *
+     * @return array
+     */
+    public function getInvoices()
+    {
+        return $this->subscriptionTransactions()->orderBy('created_at', 'desc')->get();
+    }
+
+    /**
+     * Subscription transactions.
+     *
+     * @return array
+     */
+    public function addTransaction($data)
+    {
+        $transaction = new SubscriptionTransaction();
+        $transaction->subscription_id = $this->id;
+        $transaction->fill($data);
+
+        if (isset($data['metadata'])) {
+            $transaction->metadata = json_encode($data['metadata']);
+        }
+
+        $transaction->save();
+    }
+
+    /**
+     * Cancel subscription. Set ends at to the end of period.
+     *
+     * @return void
+     */
+    public function cancel()
+    {
+        $this->ends_at = $this->current_period_ends_at;
+        $this->save();
+    }
+
+    /**
+     * Cancel subscription. Set ends at to the end of period.
+     *
+     * @return void
+     */
+    public function resume()
+    {
+        $this->ends_at = null;
+        $this->save();
+    }
+
+    /**
+     * Cancel subscription. Set ends at to the end of period.
+     *
+     * @return void
+     */
+    public function cancelNow()
+    {
+        $this->setEnded();
     }
 }
