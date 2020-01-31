@@ -593,4 +593,31 @@ class Subscription extends Model
     {
         $this->setEnded();
     }
+
+    public function changePlan($newPlan) {
+        // calc when change plan
+        $result = Cashier::calcChangePlan($this, $newPlan);
+
+        // set new amount to plan
+        $newPlan->price = $result['amount'];
+
+        // update subscription date
+        $this->current_period_ends_at = $result['endsAt'];
+        if (isset($this->ends_at) && $this->ends_at < $result['endsAt']) {
+            $this->ends_at = $result['endsAt'];
+        }
+        $this->plan_id = $newPlan->getBillableId();
+        $this->save();
+
+        // add transaction
+        $this->addTransaction([
+            'ends_at' => $this->ends_at,
+            'current_period_ends_at' => $this->current_period_ends_at,
+            'status' => SubscriptionTransaction::STATUS_SUCCESS,
+            'description' => trans('cashier::messages.transaction.change_plan', [
+                'plan' => $newPlan->getBillableName(),
+            ]),
+            'amount' => $newPlan->getBillableFormattedPrice()
+        ]);
+    }
 }

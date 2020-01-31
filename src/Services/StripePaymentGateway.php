@@ -93,19 +93,17 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  Subscription         $subscription
      * @return void
      */
-    public function charge($subscription) {
+    public function charge($subscription, $data) {
         // get or create plan
         $stripeCustomer = $this->getStripeCustomer($subscription->user);
 
         // Charge customter with current card
         \Stripe\Charge::create([
-            'amount' => $this->convertPrice($subscription->plan->getBillableAmount(), $subscription->plan->getBillableCurrency()),
-            'currency' => $subscription->plan->getBillableCurrency(),
+            'amount' => $this->convertPrice($data['amount'], $data['currency']),
+            'currency' => $data['currency'],
             'customer' => $stripeCustomer->id,
             'source' => $this->getCardInformation($subscription->user)->id,
-            'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
-                'plan' => $subscription->plan->getBillableName(),
-            ]),
+            'description' => $data['description'],
         ]);
     }
 
@@ -133,49 +131,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
     public function getRenewUrl($subscription, $returnUrl='/') {
         return false;
-    }
-
-    public function changePlan(&$subscription, $newPlan) {
-        // calc when change plan
-        $result = Cashier::calcChangePlan($subscription, $newPlan);
-
-        // set new amount to plan
-        $newPlan->price = $result['amount'];
-
-        // get or create plan
-        $stripeCustomer = $this->getStripeCustomer($subscription->user);
-
-        if ($result['amount'] > 0) {
-            // Charge customter with current card
-            \Stripe\Charge::create([
-                'amount' => $this->convertPrice($newPlan->getBillableAmount(), $newPlan->getBillableCurrency()),
-                'currency' => $newPlan->getBillableCurrency(),
-                'customer' => $stripeCustomer->id,
-                'source' => $this->getCardInformation($subscription->user)->id,
-                'description' => trans('cashier::messages.transaction.change_plan', [
-                    'plan' => $newPlan->getBillableName(),
-                ]),
-            ]);
-        }
-
-        // update subscription date
-        $subscription->current_period_ends_at = $result['endsAt'];
-        if (isset($subscription->ends_at) && $subscription->ends_at < $result['endsAt']) {
-            $subscription->ends_at = $result['endsAt'];
-        }
-        $subscription->plan_id = $newPlan->getBillableId();
-        $subscription->save();
-
-        // add transaction
-        $subscription->addTransaction([
-            'ends_at' => $subscription->ends_at,
-            'current_period_ends_at' => $subscription->current_period_ends_at,
-            'status' => SubscriptionTransaction::STATUS_SUCCESS,
-            'description' => trans('cashier::messages.transaction.change_plan', [
-                'plan' => $newPlan->getBillableName(),
-            ]),
-            'amount' => $newPlan->getBillableFormattedPrice()
-        ]);
     }
 
     /**

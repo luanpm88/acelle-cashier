@@ -138,8 +138,14 @@ class StripeController extends Controller
         $return_url = $request->session()->get('checkout_return_url', url('/'));
 
         if ($request->isMethod('post')) {
-            // subscribe to plan
-            $service->charge($subscription);
+            // charge customer
+            $service->charge($subscription, [
+                'amount' => $subscription->plan->getBillableAmount(),
+                'currency' => $subscription->plan->getBillableCurrency(),
+                'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                    'plan' => $subscription->plan->getBillableName(),
+                ]),
+            ]);
 
             // charged successfully. Set subscription to active
             $subscription->start();
@@ -182,9 +188,18 @@ class StripeController extends Controller
         // calc when change plan
         $result = Cashier::calcChangePlan($subscription, $newPlan);
         
-        if ($request->isMethod('post')) {            
+        if ($request->isMethod('post')) {         
+            // charge customer
+            $service->charge($subscription, [
+                'amount' => $result['amount'],
+                'currency' => $newPlan->getBillableCurrency(),
+                'description' => trans('cashier::messages.transaction.change_plan', [
+                    'plan' => $newPlan->getBillableName(),
+                ]),
+            ]);
+            
             // change plan
-            $service->changePlan($subscription, $newPlan);
+            $subscription->changePlan($newPlan);            
 
             // Redirect to my subscription page
             return redirect()->away($this->getReturnUrl($request));
