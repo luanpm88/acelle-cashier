@@ -135,7 +135,6 @@ class StripeController extends Controller
         // subscription and service
         $subscription = Subscription::findByUid($subscription_id);
         $service = $this->getPaymentService();
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
 
         if ($request->isMethod('post')) {
             // charge customer
@@ -162,7 +161,7 @@ class StripeController extends Controller
             ]);
 
             // Redirect to my subscription page
-            return redirect()->away($return_url);
+            return redirect()->away($this->getReturnUrl($request));
         }
 
         return view('cashier::stripe.charge', [

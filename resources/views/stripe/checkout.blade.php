@@ -60,38 +60,38 @@
                     ]) !!}</p>
                     <hr />
                     <a href="javascript:;" class="btn btn-secondary full-width" onclick="$('#stripe_button button').click()">{{ trans('cashier::messages.stripe.pay') }}</a>
-
-                    <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\StripeController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
-                        {{ csrf_field() }}
-                        
-                        <a href="javascript:;" onclick="$(this).closest('form').submit()"
-                            class="text-muted mt-4" style="font-size: 12px; text-decoration: underline; display: block"
-                        >{{ trans('cashier::messages.stripe.cancel_new_subscription') }}</a>
-                    </form>
-                    
-                    <form id="stripe_button" style="display: none" action="{{ action('\Acelle\Cashier\Controllers\StripeController@updateCard', [
-                        '_token' => csrf_token(),
-                        'subscription_id' => $subscription->uid,
-                    ]) }}" method="POST">
-                        <input type="hidden" name="redirect" value="{{ action('\Acelle\Cashier\Controllers\StripeController@charge', [
-                            'subscription_id' => $subscription->uid,
-                        ]) }}" />
-
-                        <script
-                        src="https://checkout.stripe.com/checkout.js" class="stripe-button"
-                        data-key="{{ $service->publishableKey }}"
-                        data-amount="{{ $service->convertPrice($subscription->plan->getBillableAmount(), $subscription->plan->getBillableCurrency()) }}"
-                        data-currency="{{ $subscription->plan->getBillableCurrency() }}"
-                        data-name="{{ \Acelle\Model\Setting::get('site_name') }}"
-                        data-email="{{ $subscription->user->getBillableEmail() }}"
-                        data-description="{{ \Acelle\Model\Setting::get('site_description') }}"
-                        data-image="https://stripe.com/img/documentation/checkout/marketplace.png"
-                        data-locale="{{ language_code() }}"
-                        data-zip-code="true"
-                        data-label="{{ trans('messages.pay_with_strip_label_button') }}">
-                        </script>
-                    </form>
                 @endif
+
+                <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\StripeController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
+                    {{ csrf_field() }}
+                    
+                    <a href="javascript:;" onclick="$(this).closest('form').submit()"
+                        class="text-muted mt-4" style="font-size: 12px; text-decoration: underline; display: block"
+                    >{{ trans('cashier::messages.stripe.cancel_new_subscription') }}</a>
+                </form>
+                
+                <form id="stripe_button" style="display: none" action="{{ action('\Acelle\Cashier\Controllers\StripeController@updateCard', [
+                    '_token' => csrf_token(),
+                    'subscription_id' => $subscription->uid,
+                ]) }}" method="POST">
+                    <input type="hidden" name="redirect" value="{{ action('\Acelle\Cashier\Controllers\StripeController@charge', [
+                        'subscription_id' => $subscription->uid,
+                    ]) }}" />
+
+                    <script
+                    src="https://checkout.stripe.com/checkout.js" class="stripe-button"
+                    data-key="{{ $service->publishableKey }}"
+                    data-amount="{{ $service->convertPrice($subscription->plan->getBillableAmount(), $subscription->plan->getBillableCurrency()) }}"
+                    data-currency="{{ $subscription->plan->getBillableCurrency() }}"
+                    data-name="{{ \Acelle\Model\Setting::get('site_name') }}"
+                    data-email="{{ $subscription->user->getBillableEmail() }}"
+                    data-description="{{ \Acelle\Model\Setting::get('site_description') }}"
+                    data-image="https://stripe.com/img/documentation/checkout/marketplace.png"
+                    data-locale="{{ language_code() }}"
+                    data-zip-code="true"
+                    data-label="{{ trans('messages.pay_with_strip_label_button') }}">
+                    </script>
+                </form>
             </div>
             <div class="col-md-2"></div>
         </div>

@@ -104,9 +104,9 @@
                 <img width="100%" src="{{ url('/vendor/acelle-cashier/image/braintree.png') }}" />
             </div>
             <div class="col-md-4 mt-40 pd-60">
-                <label>{{ $newPlan->getBillableName() }}</label>  
-                <h2 class="mb-40">{{ $newPlan->getBillableFormattedPrice() }}</h2>                   
-    
+                <label>{{ trans('cashier::messages.braintree.change_plan') }}</label>  
+                <h2 class="mb-40">{{ $newPlan->getBillableName() }}</h2>
+
                 <p>{!! trans('cashier::messages.braintree.change_plan.intro', [
                     'plan' => $subscription->plan->getBillableName(),
                     'new_plan' => $newPlan->getBillableName(),
@@ -134,7 +134,7 @@
                             {{ trans('cashier::messages.braintree.amount') }}
                         </div>
                         <div class="lastUnit size1of2">
-                            <mc:flag>{{ $amount }}</mc:flag>
+                            <mc:flag>{{ $amount }} ({{ $newPlan->getBillableCurrency() }})</mc:flag>
                         </div>
                     </li>
                 </ul>
@@ -189,14 +189,14 @@
                     <script src="https://js.braintreegateway.com/web/dropin/1.6.1/js/dropin.js"></script>
                     <div id="dropin-container"></div>
                     
-                    <a id="submit-button" href="javascript:;" class="btn btn-secondary full-width mt-10">{{ trans('cashier::messages.braintree.pay') }}</a>
+                    <a id="submit-button" href="javascript:;" style="width: 100%" class="btn btn-secondary full-width mt-10">{{ trans('cashier::messages.braintree.pay') }}</a>
                         
                     <form id="updateCard" style="display: none" action="{{ action('\Acelle\Cashier\Controllers\BraintreeController@updateCard', [
                         'subscription_id' => $subscription->uid,
                     ]) }}" method="POST">
                         {{ csrf_field() }}
                         <input type="hidden" name="nonce" value="" />
-                        <input type="hidden" name="charge_url" value="{{ action('\Acelle\Cashier\Controllers\BraintreeController@changePlanPending', [
+                        <input type="hidden" name="redirect" value="{{ action('\Acelle\Cashier\Controllers\BraintreeController@changePlanPending', [
                             'subscription_id' => $subscription->uid,
                             'plan_id' => $newPlan->getBillableId(),
                         ]) }}" />

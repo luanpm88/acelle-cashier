@@ -18,7 +18,7 @@
                 <img class="rounded" width="100%" src="{{ url('/vendor/acelle-cashier/image/stripe.png') }}" />
             </div>
             <div class="col-md-4 mt-40 pd-60">                
-                <label>{{ trans('cashier::messages.stripe.new_plan') }}</label>  
+                <label>{{ trans('cashier::messages.stripe.change_plan') }}</label>  
                 <h2 class="mb-40">{{ $newPlan->getBillableName() }}</h2>
 
                 <p>{!! trans('cashier::messages.stripe.change_plan.intro', [
