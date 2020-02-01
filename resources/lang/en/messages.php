@@ -209,9 +209,14 @@
     'transaction.recurring_charge' => 'Recurring Charge for :plan plan',
     'stripe.payment_error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with payment.
         <a href=":url"><strong>Click here</strong></a> to see more details.',
-    'transaction.title' => 'Title',
+    'transaction.title' => 'Action',
     'stripe.transaction.payment' => 'Payment',
     'stripe.fix_payment.intro' => 'You are about to charge <strong>:plan</strong> plan for new period.
         Please check the information below before proceeding.',
     'stripe.payment' => 'Pay with Stripe',
+    'braintree.transaction.payment' => 'Payment',
+    'braintree.payment_error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with payment.
+        <a href=":url"><strong>Click here</strong></a> to see more details.',
+    'braintree.fix_payment.intro' => 'You are about to charge <strong>:plan</strong> plan for new period.
+        Please check the information below before proceeding.',
 ) ?>

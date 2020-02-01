@@ -173,16 +173,6 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
      */
     public function sync($subscription)
     {
-        if ($subscription->isPending() || $subscription->isNew()) {
-            
-        } else if ($subscription->isActive()) {
-            
-        }
-        
-        // current_period_ends_at is always ends_at
-        $subscription->current_period_ends_at = $subscription->ends_at;
-        
-        $subscription->save();
     }
     
     /**

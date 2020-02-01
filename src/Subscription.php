@@ -393,15 +393,15 @@ class Subscription extends Model
 
         switch ($interval) {
             case 'month':
-                $endsAt = $this->current_period_ends_at->addMonthsNoOverflow($intervalCount);
+                $endsAt = $endsAt->addMonthsNoOverflow($intervalCount);
                 break;
             case 'day':
-                $endsAt = $this->current_period_ends_at->addDay($intervalCount);
+                $endsAt = $endsAt->addDay($intervalCount);
             case 'week':
-                $endsAt = $this->current_period_ends_at->addWeek($intervalCount);
+                $endsAt = $endsAt->addWeek($intervalCount);
                 break;
             case 'year':
-                $endsAt = $this->current_period_ends_at->addYearsNoOverflow($intervalCount);
+                $endsAt = $endsAt->addYearsNoOverflow($intervalCount);
                 break;
             default:
                 $endsAt = null;

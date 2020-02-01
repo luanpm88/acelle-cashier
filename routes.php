@@ -19,6 +19,8 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     Route::post('/cashier/paypal/{subscription_id}/checkout', 'PaypalController@checkout');
     Route::get('/cashier/paypal/{subscription_id}/checkout', 'PaypalController@checkout');
 
+    Route::get('/cashier/braintree/payment-redirect', 'BraintreeController@paymentRedirect');
+    Route::match(['get', 'post'], '/cashier/braintree/{subscription_id}/fix-payment', 'BraintreeController@fixPayment');
     Route::get('/cashier/braintree/{subscription_id}/renew/pending', 'BraintreeController@renewPending');
     Route::match(['get', 'post'], '/cashier/braintree/{subscription_id}/renew', 'BraintreeController@renew');
     Route::get('/cashier/braintree/{subscription_id}/change-plan-pending', 'BraintreeController@changePlanPending');

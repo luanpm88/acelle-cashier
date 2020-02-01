@@ -312,14 +312,16 @@ class StripeController extends Controller
             
             // set active
             $transaction->setSuccess();
+            $transaction->description = null;
+            $transaction->save();
 
             // check new states from transaction
             $subscription->ends_at = $transaction->ends_at;
             $subscription->current_period_ends_at = $transaction->current_period_ends_at;
             $subscription->save();
-                    die();
-            // // Redirect to my subscription page
-            // return redirect()->away($this->getReturnUrl($request));
+
+            // Redirect to my subscription page
+            return redirect()->away($this->getReturnUrl($request));
         }
         
         return view('cashier::stripe.fix_payment', [

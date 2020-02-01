@@ -7,6 +7,7 @@ use Acelle\Cashier\Cashier;
 use Carbon\Carbon;
 use Acelle\Cashier\Subscription;
 use Acelle\Cashier\InvoiceParam;
+use Acelle\Cashier\SubscriptionTransaction;
 
 class BraintreePaymentGateway implements PaymentGatewayInterface
 {
@@ -50,7 +51,11 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         return $subscription;
     }
 
-    public function sync($subscription) {}
+    public function sync($subscription) {
+
+        // check recurring
+        $this->recurring($subscription);
+    }
 
     /**
      * Check if service is valid.
@@ -151,6 +156,10 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         $user = $subscription->user;
         $braintreeUser = $this->getBraintreeCustomer($user);
         $card = $this->getCardInformation($user);
+
+        if (!is_object($card)) {
+            throw new \Exception('Can not find card information');
+        }
         
         $result = $this->serviceGateway->transaction()->sale([
             'amount' => $data['amount'],

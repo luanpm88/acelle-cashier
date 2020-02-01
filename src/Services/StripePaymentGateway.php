@@ -112,7 +112,10 @@ class StripePaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
-    public function sync($subscription) {}
+    public function sync($subscription) {
+        // check recurring
+        $this->recurring($subscription);
+    }
 
     public function isSupportRecurring() {
         return true;
