@@ -414,4 +414,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
             'return_url' => $returnUrl,
         ]);
     }
+
+    public function hasError($subscription) {}
+    public function getErrorNotice($subscription) {}
 }

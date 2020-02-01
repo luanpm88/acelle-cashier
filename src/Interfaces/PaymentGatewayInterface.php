@@ -13,6 +13,8 @@ interface PaymentGatewayInterface
     public function isSupportRecurring();
     public function hasPending($subscription);
     public function getPendingNotice($subscription);
+    public function hasError($subscription);
+    public function getErrorNotice($subscription);
     public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/');
     public function getRenewUrl($subscription, $returnUrl='/');
 }

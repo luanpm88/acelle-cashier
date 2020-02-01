@@ -104,7 +104,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
     }
 
     /**
-     * Get first/init transaction
+     * Get last transaction
      *
      * @return boolean
      */
@@ -267,4 +267,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
             'return_url' => $returnUrl,
         ]);
     }
+
+    public function hasError($subscription) {}
+    public function getErrorNotice($subscription) {}
 }

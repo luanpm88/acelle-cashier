@@ -206,4 +206,12 @@
     'direct.payment_is_not_claimed' => 'Payment is not claimed',
     'direct.payment_was_claimed' => 'Payment was claimed',
     'stripe.next_period_day' => 'Next period end day',
+    'transaction.recurring_charge' => 'Recurring Charge for :plan plan',
+    'stripe.payment_error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with payment.
+        <a href=":url"><strong>Click here</strong></a> to see more details.',
+    'transaction.title' => 'Title',
+    'stripe.transaction.payment' => 'Payment',
+    'stripe.fix_payment.intro' => 'You are about to charge <strong>:plan</strong> plan for new period.
+        Please check the information below before proceeding.',
+    'stripe.payment' => 'Pay with Stripe',
 ) ?>

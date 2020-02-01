@@ -387,21 +387,21 @@ class Subscription extends Model
      */
     public function nextPeriod()
     {
-        $endsAt = $this->ends_at;
+        $endsAt = $this->current_period_ends_at;
         $interval = $this->plan->getBillableInterval();
         $intervalCount = $this->plan->getBillableIntervalCount();
 
         switch ($interval) {
             case 'month':
-                $endsAt = $this->ends_at->addMonthsNoOverflow($intervalCount);
+                $endsAt = $this->current_period_ends_at->addMonthsNoOverflow($intervalCount);
                 break;
             case 'day':
-                $endsAt = $this->ends_at->addDay($intervalCount);
+                $endsAt = $this->current_period_ends_at->addDay($intervalCount);
             case 'week':
-                $endsAt = $this->ends_at->addWeek($intervalCount);
+                $endsAt = $this->current_period_ends_at->addWeek($intervalCount);
                 break;
             case 'year':
-                $endsAt = $this->ends_at->addYearsNoOverflow($intervalCount);
+                $endsAt = $this->current_period_ends_at->addYearsNoOverflow($intervalCount);
                 break;
             default:
                 $endsAt = null;

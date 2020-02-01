@@ -44,7 +44,7 @@
                             {{ trans('cashier::messages.braintree.next_period_day') }}
                         </div>
                         <div class="lastUnit size1of2">
-                            <mc:flag>{{ $nextPeriodDay }}</mc:flag>
+                            <mc:flag>{{ $nextPeriodDay->format('d M, Y') }}</mc:flag>
                         </div>
                     </li>
                     <li>

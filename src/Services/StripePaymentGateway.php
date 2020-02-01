@@ -96,13 +96,18 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function charge($subscription, $data) {
         // get or create plan
         $stripeCustomer = $this->getStripeCustomer($subscription->user);
+        $card = $this->getCardInformation($subscription->user);
+
+        if (!is_object($card)) {
+            throw new \Exception('Can not find card information');
+        }
 
         // Charge customter with current card
         \Stripe\Charge::create([
             'amount' => $this->convertPrice($data['amount'], $data['currency']),
             'currency' => $data['currency'],
             'customer' => $stripeCustomer->id,
-            'source' => $this->getCardInformation($subscription->user)->id,
+            'source' => $card->id,
             'description' => $data['description'],
         ]);
     }
@@ -111,14 +116,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
     public function isSupportRecurring() {
         return true;
-    }
-
-    public function hasPending($subscription) {
-        return false;
-    }
-
-    public function getPendingNotice($subscription) {
-        return false;
     }
 
     public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/') {
@@ -251,5 +248,127 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
 
         return $price / $rate;
+    }
+
+    /**
+     * Recurring charge.
+     * 
+     * @return void
+     */
+    public function recurring($subscription=null)
+    {
+        // check if subscription is null
+        if (!$subscription) {
+            return;
+        }
+
+        // check if has pending transaction
+        if (!$subscription->isActive()) {
+            return;
+        }
+
+        // check if subscription is cancelled
+        if ($subscription->cancelled()) {
+            return;
+        }
+
+        // check if has pending transaction
+        if ($this->hasPending($subscription)) {
+            return;
+        }
+
+        // check if has error transaction
+        if ($this->hasError($subscription)) {
+            return;
+        }
+
+        // check if recurring accur
+        if (\Carbon\Carbon::now()->diffInDays($subscription->current_period_ends_at) < 3) {
+            // add transaction
+            $transaction = $subscription->addTransaction([
+                'ends_at' => null,
+                'current_period_ends_at' => $subscription->nextPeriod(),
+                'status' => SubscriptionTransaction::STATUS_PENDING,
+                'title' => trans('cashier::messages.transaction.recurring_charge', [
+                    'plan' => $subscription->plan->getBillableName(),
+                ]),
+                'amount' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+
+            // charge
+            try {
+                $this->charge($subscription, [
+                    'amount' => $subscription->plan->getBillableAmount(),
+                    'currency' => $subscription->plan->getBillableCurrency(),
+                    'description' => trans('cashier::messages.transaction.recurring_charge', [
+                        'plan' => $subscription->plan->getBillableName(),
+                    ]),
+                ]);
+
+                // set active
+                $transaction->setSuccess();
+
+                // check new states from transaction
+                $subscription->ends_at = $transaction->ends_at;
+                $subscription->current_period_ends_at = $transaction->current_period_ends_at;
+                $subscription->save();
+            } catch (\Exception $e) {
+                $transaction->setFailed();
+
+                // update error message
+                $transaction->description = $e->getMessage();
+                $transaction->save();
+            } 
+        }
+    }
+
+    /**
+     * Get last transaction
+     *
+     * @return boolean
+     */
+    public function getLastTransaction($subscription) {
+        // if has only init transaction
+        if ($subscription->subscriptionTransactions()->count() <= 1) {
+            return null;
+        }
+
+        return $subscription->subscriptionTransactions()->orderBy('created_at', 'desc')->first();
+    }
+
+    /**
+     * Check if has pending transaction
+     *
+     * @return boolean
+     */
+    public function hasPending($subscription) {
+        $transaction = $this->getLastTransaction($subscription);
+        return isset($transaction) && $transaction->isPending();
+    }
+
+    public function getPendingNotice($subscription) {
+        return false;
+    }
+
+    /**
+     * Check if has failed transaction
+     *
+     * @return boolean
+     */
+    public function hasError($subscription) {
+        $transaction = $this->getLastTransaction($subscription);
+        return isset($transaction) && $transaction->isFailed();
+    }
+
+    public function getErrorNotice($subscription) {
+        $transaction = $this->getLastTransaction($subscription);
+        
+        return trans('cashier::messages.stripe.payment_error.something_went_wrong', [
+            'description' => $transaction->title,
+            'amount' => $transaction->amount,
+            'url' => action('\Acelle\Cashier\Controllers\StripeController@fixPayment', [
+                'subscription_id' => $subscription->uid,
+            ]),
+        ]);
     }
 }

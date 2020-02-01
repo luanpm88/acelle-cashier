@@ -78,6 +78,17 @@ class SubscriptionTransaction extends Model
     }
 
     /**
+     * Change status to failed.
+     *
+     * @var void
+     */
+    public function setFailed()
+    {
+        $this->status = SubscriptionTransaction::STATUS_FAILED;
+        $this->save();
+    }
+
+    /**
      * Get metadata.
      *
      * @var object | collect
@@ -112,5 +123,15 @@ class SubscriptionTransaction extends Model
     public function isPending()
     {
         return $this->status == subscriptionTransaction::STATUS_PENDING;
+    }
+
+    /**
+     * Check if transaction is failed.
+     *
+     * @var boolean
+     */
+    public function isFailed()
+    {
+        return $this->status == subscriptionTransaction::STATUS_FAILED;
     }
 }

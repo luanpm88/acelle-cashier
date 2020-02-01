@@ -189,13 +189,16 @@ class StripeController extends Controller
         
         if ($request->isMethod('post')) {         
             // charge customer
-            $service->charge($subscription, [
-                'amount' => $result['amount'],
-                'currency' => $newPlan->getBillableCurrency(),
-                'description' => trans('cashier::messages.transaction.change_plan', [
-                    'plan' => $newPlan->getBillableName(),
-                ]),
-            ]);
+            if ($result['amount'] > 0) {
+                // charge customer
+                $service->charge($subscription, [
+                    'amount' => $result['amount'],
+                    'currency' => $newPlan->getBillableCurrency(),
+                    'description' => trans('cashier::messages.transaction.change_plan', [
+                        'plan' => $newPlan->getBillableName(),
+                    ]),
+                ]);
+            }
             
             // change plan
             $subscription->changePlan($newPlan);
@@ -245,6 +248,20 @@ class StripeController extends Controller
     }
     
     /**
+     * Payment redirecting.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     **/
+    public function paymentRedirect(Request $request)
+    {
+        return view('cashier::stripe.payment_redirect', [
+            'redirect' => $request->redirect,
+        ]);
+    }
+    
+    /**
      * Cancel new subscription.
      *
      * @param \Illuminate\Http\Request $request
@@ -267,5 +284,49 @@ class StripeController extends Controller
 
         // Redirect to my subscription page
         return redirect()->away($return_url);
+    }
+
+    /**
+     * Fix transation.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     **/
+    public function fixPayment(Request $request, $subscription_id)
+    {
+        // Get current customer
+        $subscription = Subscription::findByUid($subscription_id);
+        $service = $this->getPaymentService();
+        $transaction = $service->getLastTransaction($subscription);
+        
+        if ($request->isMethod('post')) {
+            // charge customer
+            $service->charge($subscription, [
+                'amount' => $subscription->plan->price,
+                'currency' => $subscription->plan->getBillableCurrency(),
+                'description' => trans('cashier::messages.transaction.change_plan', [
+                    'plan' => $subscription->plan->getBillableName(),
+                ]),
+            ]);
+            
+            // set active
+            $transaction->setSuccess();
+
+            // check new states from transaction
+            $subscription->ends_at = $transaction->ends_at;
+            $subscription->current_period_ends_at = $transaction->current_period_ends_at;
+            $subscription->save();
+                    die();
+            // // Redirect to my subscription page
+            // return redirect()->away($this->getReturnUrl($request));
+        }
+        
+        return view('cashier::stripe.fix_payment', [
+            'subscription' => $subscription,
+            'return_url' => $this->getReturnUrl($request),
+            'transaction' => $transaction,
+            'service' => $service,
+        ]);
     }
 }

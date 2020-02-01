@@ -253,13 +253,15 @@ class BraintreeController extends Controller
         
         if ($request->isMethod('post')) {
             // charge customer
-            $service->charge($subscription, [
-                'amount' => $result['amount'],
-                'currency' => $plan->getBillableCurrency(),
-                'description' => trans('cashier::messages.transaction.change_plan', [
-                    'plan' => $plan->getBillableName(),
-                ]),
-            ]);
+            if ($result['amount'] > 0) {
+                $service->charge($subscription, [
+                    'amount' => $result['amount'],
+                    'currency' => $plan->getBillableCurrency(),
+                    'description' => trans('cashier::messages.transaction.change_plan', [
+                        'plan' => $plan->getBillableName(),
+                    ]),
+                ]);
+            }
             
             // change plan
             $subscription->changePlan($plan);
