@@ -29,7 +29,7 @@
                 <ul class="dotted-list topborder section mb-4">
                     <li>
                         <div class="unit size1of2">
-                            {{ trans('cashier::messages.direct.new_plan') }}
+                            {{ trans('cashier::messages.stripe.new_plan') }}
                         </div>
                         <div class="lastUnit size1of2">
                             <mc:flag>{{ $newPlan->getBillableName() }}</mc:flag>
@@ -37,7 +37,7 @@
                     </li>
                     <li>
                         <div class="unit size1of2">
-                            {{ trans('cashier::messages.direct.next_period_day') }}
+                            {{ trans('cashier::messages.stripe.next_period_day') }}
                         </div>
                         <div class="lastUnit size1of2">
                             <mc:flag>{{ $nextPeriodDay->format('d M, Y') }}</mc:flag>
@@ -45,7 +45,7 @@
                     </li>
                     <li>
                         <div class="unit size1of2">
-                            {{ trans('cashier::messages.direct.amount') }}
+                            {{ trans('cashier::messages.stripe.amount') }}
                         </div>
                         <div class="lastUnit size1of2">
                             <mc:flag>{{ round($amount) }} ({{ $newPlan->getBillableCurrency() }})</mc:flag>

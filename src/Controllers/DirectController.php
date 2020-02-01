@@ -4,6 +4,7 @@ namespace Acelle\Cashier\Controllers;
 
 use Acelle\Http\Controllers\Controller;
 use Acelle\Cashier\Subscription;
+use Acelle\Cashier\SubscriptionTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
@@ -13,6 +14,20 @@ class DirectController extends Controller
     public function __construct()
     {
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
+    }
+
+    /**
+     * Get return url.
+     *
+     * @return string
+     **/
+    public function getReturnUrl(Request $request) {
+        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        if (!$return_url) {
+            $return_url = url('/');
+        }
+
+        return $return_url;
     }
     
     /**
@@ -44,19 +59,13 @@ class DirectController extends Controller
         
         // if subscription is active
         if ($subscription->isActive()) {
-            $return_url = $request->session()->get('checkout_return_url', url('/'));
-            if (!$return_url) {
-                $return_url = url('/');
-            }
-            return redirect()->away($return_url);
+            return redirect()->away($this->getReturnUrl($request));
         }
         
-        $transaction = $service->getTransaction($subscription);
-        
         return view('cashier::direct.checkout', [
-            'gatewayService' => $service,
+            'service' => $service,
             'subscription' => $subscription,
-            'transaction' => $transaction,
+            'transaction' => $service->getInitTransaction($subscription),
         ]);
     }
     
@@ -71,9 +80,9 @@ class DirectController extends Controller
     {
         // subscription and service
         $subscription = Subscription::findByUid($subscription_id);
-        $gatewayService = $this->getPaymentService();
+        $service = $this->getPaymentService();
         
-        $gatewayService->claim($subscription);
+        $service->claim($service->getInitTransaction($subscription));
         
         return redirect()->action('\Acelle\Cashier\Controllers\DirectController@checkout', [
             'subscription_id' => $subscription->uid,
@@ -111,28 +120,22 @@ class DirectController extends Controller
     {
         $service = $this->getPaymentService();
         $subscription = Subscription::findByUid($subscription_id);
-        $transaction = $service->getTransaction($subscription);
+        $transaction = $service->getLastTransaction($subscription);
         
         // Save return url
         if ($request->return_url) {
             $request->session()->put('checkout_return_url', $request->return_url);
         }
         
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
-        if (!$return_url) {
-            $return_url = url('/');
-        }
-        
-        if ($transaction['status'] != 'pending') {            
-            return redirect()->away($return_url);
+        if (!$transaction->isPending()) {            
+            return redirect()->away($this->getReturnUrl($request));
         }
         
         return view('cashier::direct.pending', [
-            'gatewayService' => $service,
+            'service' => $service,
             'subscription' => $subscription,
             'transaction' => $transaction,
-            'data' => json_decode($transaction['data'], true),
-            'return_url' => $return_url,
+            'return_url' => $this->getReturnUrl($request),
         ]);
     }
     
@@ -147,12 +150,12 @@ class DirectController extends Controller
     {
         $subscription = Subscription::findByUid($subscription_id);
         $service = $this->getPaymentService();
-        $transaction = $service->getTransaction($subscription);
+        $transaction = $service->getLastTransaction($subscription);
         
-        $service->pendingClaim($transaction["ID"]);
+        $service->claim($transaction);
         
         return redirect()->action('\Acelle\Cashier\Controllers\DirectController@pending', [
-            'subscription_id' => $transaction['subscription_id'],
+            'subscription_id' => $subscription->uid,
         ]);
     }
     
@@ -167,12 +170,12 @@ class DirectController extends Controller
     {
         $subscription = Subscription::findByUid($subscription_id);
         $service = $this->getPaymentService();
-        $transaction = $service->getTransaction($subscription);
+        $transaction = $service->getLastTransaction($subscription);
         
-        $service->pendingUnclaim($transaction["ID"]);
+        $service->unclaim($transaction);
         
         return redirect()->action('\Acelle\Cashier\Controllers\DirectController@pending', [
-            'subscription_id' => $transaction['subscription_id'],
+            'subscription_id' => $subscription->uid,
         ]);
     }
     
@@ -196,12 +199,21 @@ class DirectController extends Controller
         
         // check if status is not pending
         if ($service->hasPending($subscription)) {
-            return redirect()->away($request->return_url);
+            return redirect()->away($this->getReturnUrl($request));
         }
         
         if ($request->isMethod('post')) {
             // subscribe to plan
-            $service->renew($subscription);
+            $subscription->addTransaction([
+                'ends_at' => $subscription->nextPeriod(),
+                'current_period_ends_at' => $subscription->nextPeriod(),
+                'status' => SubscriptionTransaction::STATUS_PENDING,
+                'title' => trans('cashier::messages.transaction.renew_plan', [
+                    'plan' => $subscription->plan->getBillableName(),
+                ]),
+                'amount' => $subscription->plan->getBillableFormattedPrice(),
+                'description' => trans('cashier::messages.direct.payment_is_not_claimed'),
+            ]);
 
             // Redirect to my subscription page
             return redirect()->action('\Acelle\Cashier\Controllers\DirectController@pending', [
@@ -241,17 +253,7 @@ class DirectController extends Controller
         if ($service->hasPending($subscription)) {
             return redirect()->away($request->return_url);
         }
-        
-        if ($request->isMethod('post')) {
-            // change plan
-            $service->changePlan($subscription, $plan);
 
-            // Redirect to my subscription page
-            return redirect()->action('\Acelle\Cashier\Controllers\DirectController@pending', [
-                'subscription_id' => $subscription->uid,
-            ]);
-        }
-        
         // calc plan before change
         try {
             $result = Cashier::calcChangePlan($subscription, $plan);
@@ -260,7 +262,31 @@ class DirectController extends Controller
             return redirect()->away($request->return_url);
         }
         
-        $plan->price = $result['amount'];
+        if ($request->isMethod('post')) {
+            // subscribe to plan
+            $plan->price = $result['amount'];
+            $transaction = $subscription->addTransaction([
+                'ends_at' => $result['endsAt'],
+                'current_period_ends_at' => $result['endsAt'],
+                'status' => SubscriptionTransaction::STATUS_PENDING,
+                'title' => trans('cashier::messages.transaction.change_plan', [
+                    'plan' => $plan->getBillableName(),
+                ]),
+                'amount' => $plan->getBillableFormattedPrice(),
+                'description' => trans('cashier::messages.direct.payment_is_not_claimed'),
+            ]);
+
+            // save new plan uid
+            $data = $transaction->getMetadata();
+            $data['plan_id'] = $plan->getBillableId();
+            $transaction->updateMetadata($data);
+
+
+            // Redirect to my subscription page
+            return redirect()->action('\Acelle\Cashier\Controllers\DirectController@pending', [
+                'subscription_id' => $subscription->uid,
+            ]);
+        }
         
         return view('cashier::direct.change_plan', [
             'service' => $service,
@@ -268,7 +294,7 @@ class DirectController extends Controller
             'newPlan' => $plan,
             'return_url' => $request->return_url,
             'nextPeriodDay' => $result['endsAt'],
-            'amount' => $plan->getBillableFormattedPrice(),
+            'amount' => $result['amount'],
         ]);
     }
     

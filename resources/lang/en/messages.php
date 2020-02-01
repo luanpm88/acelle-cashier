@@ -17,6 +17,7 @@
     'stripe.return_back' => 'Return back',
     'stripe.change_plan' => 'Change plan',
     'stripe.new_plan' => 'New plan',
+    'stripe.amount' => 'Amount',
     'stripe.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
         <br> Your browser will redirect to next page shortly.',
     'stripe.checkout.processing_payment' => 'Processing your payment... please wait!',
@@ -201,4 +202,8 @@
     'stripe.update_payment_and_proceed' => 'Update payment & Proceed',
     'stripe.payment_outdated.alert' => 'Your payment method is outdated. Click update payment button below
         to re enter your payment information.',
+    'transaction.renew_plan' => 'Renew :plan plan',
+    'direct.payment_is_not_claimed' => 'Payment is not claimed',
+    'direct.payment_was_claimed' => 'Payment was claimed',
+    'stripe.next_period_day' => 'Next period end day',
 ) ?>

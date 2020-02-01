@@ -9,6 +9,7 @@ class SubscriptionTransaction extends Model
 {
     const STATUS_SUCCESS = 'success';
     const STATUS_FAILED = 'failed';
+    const STATUS_PENDING = 'pending';
 
     /**
      * The attributes that are not mass assignable.
@@ -33,7 +34,7 @@ class SubscriptionTransaction extends Model
      * @var array
      */
     protected $fillable = [
-        'ends_at', 'current_period_ends_at', 'status', 'description', 'amount'
+        'ends_at', 'current_period_ends_at', 'status', 'description', 'amount', 'title'
     ];
 
     /**
@@ -63,5 +64,53 @@ class SubscriptionTransaction extends Model
     {
         // @todo dependency injection
         return $this->belongsTo('\Acelle\Cashier\Subscription');
+    }
+
+    /**
+     * Change status to success.
+     *
+     * @var void
+     */
+    public function setSuccess()
+    {
+        $this->status = SubscriptionTransaction::STATUS_SUCCESS;
+        $this->save();
+    }
+
+    /**
+     * Get metadata.
+     *
+     * @var object | collect
+     */
+    public function getMetadata()
+    {
+        if (!$this->metadata) {
+            return json_decode('{}', true);
+        }
+
+        return json_decode($this->metadata, true);
+    }
+
+    /**
+     * Get metadata.
+     *
+     * @var object | collect
+     */
+    public function updateMetadata($data)
+    {
+        $metadata = (object) array_merge((array) $this->getMetadata(), $data);
+        $this->metadata = json_encode($metadata);
+
+        $this->save();
+    }
+
+    /**
+     * Check if transaction is pending.
+     *
+     * @var boolean
+     */
+    public function isPending()
+    {
+        return $this->status == subscriptionTransaction::STATUS_PENDING;
     }
 }

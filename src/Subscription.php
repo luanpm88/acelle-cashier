@@ -560,6 +560,8 @@ class Subscription extends Model
         }
 
         $transaction->save();
+
+        return $transaction;
     }
 
     /**
@@ -608,16 +610,5 @@ class Subscription extends Model
         }
         $this->plan_id = $newPlan->getBillableId();
         $this->save();
-
-        // add transaction
-        $this->addTransaction([
-            'ends_at' => $this->ends_at,
-            'current_period_ends_at' => $this->current_period_ends_at,
-            'status' => SubscriptionTransaction::STATUS_SUCCESS,
-            'description' => trans('cashier::messages.transaction.change_plan', [
-                'plan' => $newPlan->getBillableName(),
-            ]),
-            'amount' => $newPlan->getBillableFormattedPrice()
-        ]);
     }
 }

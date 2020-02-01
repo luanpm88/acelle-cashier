@@ -54,7 +54,7 @@ class StripeController extends Controller
                 'ends_at' => $subscription->ends_at,
                 'current_period_ends_at' => $subscription->current_period_ends_at,
                 'status' => SubscriptionTransaction::STATUS_SUCCESS,
-                'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
                     'plan' => $subscription->plan->getBillableName(),
                 ]),
                 'amount' => $subscription->plan->getBillableFormattedPrice()
@@ -155,7 +155,7 @@ class StripeController extends Controller
                 'ends_at' => $subscription->ends_at,
                 'current_period_ends_at' => $subscription->current_period_ends_at,
                 'status' => SubscriptionTransaction::STATUS_SUCCESS,
-                'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
                     'plan' => $subscription->plan->getBillableName(),
                 ]),
                 'amount' => $subscription->plan->getBillableFormattedPrice()
@@ -199,7 +199,18 @@ class StripeController extends Controller
             ]);
             
             // change plan
-            $subscription->changePlan($newPlan);            
+            $subscription->changePlan($newPlan);
+            
+            // add transaction
+            $subscription->addTransaction([
+                'ends_at' => $subscription->ends_at,
+                'current_period_ends_at' => $subscription->current_period_ends_at,
+                'status' => SubscriptionTransaction::STATUS_SUCCESS,
+                'title' => trans('cashier::messages.transaction.change_plan', [
+                    'plan' => $newPlan->getBillableName(),
+                ]),
+                'amount' => $newPlan->getBillableFormattedPrice()
+            ]);
 
             // Redirect to my subscription page
             return redirect()->away($this->getReturnUrl($request));

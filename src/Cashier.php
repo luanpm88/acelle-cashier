@@ -27,7 +27,10 @@ class Cashier
         
         switch ($config['name']) {
             case 'direct':
-                return new \Acelle\Cashier\Services\DirectPaymentGateway($config['fields']['payment_instruction'], $config['fields']['confirmation_message']);
+                return new \Acelle\Cashier\Services\DirectPaymentGateway(
+                    $config['fields']['payment_instruction'],
+                    $config['fields']['confirmation_message']
+                );
             case 'stripe':
                 return new \Acelle\Cashier\Services\StripePaymentGateway($config['fields']['secret_key'], $config['fields']['publishable_key']);
             case 'braintree':
@@ -96,7 +99,7 @@ class Cashier
         }
 
         return [
-            'amount' => $amount,
+            'amount' => round($amount, 2),
             'endsAt' => $newEndsAt,
         ];
     }
