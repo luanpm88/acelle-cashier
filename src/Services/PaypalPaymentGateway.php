@@ -110,18 +110,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         if ($subscription->plan->price > 0) {
             // check order ID
             $this->checkOrderID($options['orderID']);
-        }            
-
-        // save transaction
-        $this->addTransaction($subscription, [
-            'createdAt' => $subscription->created_at->timestamp,
-            'periodEndsAt' => $subscription->ends_at->timestamp,
-            'amount' => $subscription->plan->getBillableFormattedPrice(),
-            'description' => trans('cashier::messages.paypal.subscribe_to_plan', [
-                'plan' => $subscription->plan->getBillableName(),
-            ]),
-            'status' => 'active'
-        ]);
+        }
     }
 
     /**

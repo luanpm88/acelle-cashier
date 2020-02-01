@@ -3,6 +3,8 @@
 namespace Acelle\Cashier;
 
 use Illuminate\Support\ServiceProvider;
+use Acelle\Cashier\Subscription;
+use Acelle\Cashier\SubscriptionTransaction;
 
 class Cashier
 {
@@ -102,5 +104,40 @@ class Cashier
             'amount' => round($amount, 2),
             'endsAt' => $newEndsAt,
         ];
+    }
+    
+    /**
+     * Assign plan to customer.
+     *
+     * @return void
+     */
+    public static function assignPlan($customer, $plan)
+    {
+        $service = self::getPaymentGateway();
+
+        // update subscription model
+        $subscription = new Subscription();
+        $subscription->user_id = $customer->getBillableId();
+        $subscription->plan_id = $plan->getBillableId();
+        $subscription->status = Subscription::STATUS_ACTIVE;
+
+        // set dates and save        
+        $subscription->current_period_ends_at = $subscription->getPeriodEndsAt(\Carbon\Carbon::now());
+        if (!$service->isSupportRecurring()) {
+            $subscription->ends_at = $subscription->current_period_ends_at;
+        }
+        
+        $subscription->save();
+
+        // add transaction
+        $subscription->addTransaction([
+            'ends_at' => $subscription->ends_at,
+            'current_period_ends_at' => $subscription->current_period_ends_at,
+            'status' => SubscriptionTransaction::STATUS_SUCCESS,
+            'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                'plan' => $subscription->plan->getBillableName(),
+            ]),
+            'amount' => $subscription->plan->getBillableFormattedPrice()
+        ]);
     }
 }
