@@ -101,12 +101,12 @@
             </div>
             <div class="col-md-6 mt-40 pd-60">
                 <label>{{ $subscription->plan->getBillableName() }}</label>  
-                <h2 class="mb-40">{{ $subscription->plan->getBillableFormattedPrice() }}</h2>
+                <h2 class="mb-40">{{ $transaction->title }}</h2>
 
                 <p>{!! trans('cashier::messages.coinpayments.pending.intro', [
-                    'plan' => $subscription->plan->getBillableName(),
+                    'name' => $subscription->plan->getBillableName(),
                 ]) !!}</p>
-                    
+
                 <ul class="dotted-list topborder section mb-4">
                     <li>
                         <div class="unit size1of3 font-weight-bold">
@@ -172,7 +172,14 @@
                             </mc:flag>
                         </div>
                     </li>
-                </ul>                
+                </ul>
+                
+                <hr>
+                <a
+                    href="{{ $return_url }}"
+                        class="btn btn-secondary mr-10"
+                    >{{ trans('cashier::messages.direct.return_back') }}</a>
+                
             </div>
             <div class="col-md-2"></div>
         </div>

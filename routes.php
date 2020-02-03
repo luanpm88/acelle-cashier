@@ -31,6 +31,7 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     Route::post('/cashier/braintree/{subscription_id}/update-card', 'BraintreeController@updateCard');
     Route::get('/cashier/braintree/{subscription_id}/checkout', 'BraintreeController@checkout');
     
+    Route::get('/cashier/coinpayments/{subscription_id}/transaction-pending', 'CoinpaymentsController@transactionPending');
     Route::post('/cashier/coinpayments/{subscription_id}/cancel-now', 'CoinpaymentsController@cancelNow');
     Route::match(['get', 'post'], '/cashier/coinpayments/{subscription_id}/change-plan', 'CoinpaymentsController@changePlan');
     Route::match(['get', 'post'], '/cashier/coinpayments/{subscription_id}/renew', 'CoinpaymentsController@renew');

@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Library\CoinPayment\CoinpaymentsAPI;
 use Acelle\Cashier\InvoiceParam;
+use Acelle\Cashier\SubscriptionTransaction;
 
 class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 {
@@ -38,22 +39,17 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    public function charge($subscription)
+    public function charge($subscription, $data=[])
     {
         $options = [
             'currency1' => $subscription->plan->getBillableCurrency(),
             'currency2' => config('cashier.gateways.coinpayments.fields.receive_currency'),
-            'amount' => $subscription->plan->getBillableAmount(),
-            'item_name' => trans('cashier::messages.coinpayments.subscribe_to_plan', [
-                'plan' => $subscription->plan->getBillableName(),
-            ]),
+            'amount' => $data['amount'],
+            'item_name' => $data['desc'],
             'item_number' => $subscription->uid,
             'buyer_email' => $subscription->user->getBillableEmail(),
             'custom' => json_encode([
-                'createdAt' => $subscription->created_at->timestamp,
-                'periodEndsAt' => $subscription->current_period_ends_at->timestamp,
-                'amount' => $subscription->plan->getBillableFormattedPrice(),
-                'first_transaction' => true,
+                'tranaction_uid' => $data['id'],
             ]),
         ];
         
@@ -61,17 +57,17 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         
         if ($res["error"] !== 'ok') {
             throw new \Exception($res["error"]);
-        }
+        }        
         
         $transaction = $res["result"];
         
-        // update subscription txn_id
-        $subscription->updateMetadata([
-            'txn_id' => $transaction["txn_id"],
-            'checkout_url' => $transaction["checkout_url"],
-            'status_url' => $transaction["status_url"],
-            'qrcode_url' => $transaction["qrcode_url"],
-        ]);
+        // // update subscription txn_id
+        // $subscription->updateMetadata([
+        //     'txn_id' => $transaction["txn_id"],
+        //     'checkout_url' => $transaction["checkout_url"],
+        //     'status_url' => $transaction["status_url"],
+        //     'qrcode_url' => $transaction["qrcode_url"],
+        // ]);
         
         return $transaction;
     }
@@ -102,33 +98,27 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         $subscription->plan_id = $plan->getBillableId();
         $subscription->status = Subscription::STATUS_NEW;
         
-        // dose not support recurring, update ends at column
-        $interval = $plan->getBillableInterval();
-        $intervalCount = $plan->getBillableIntervalCount();
-
-        switch ($interval) {
-            case 'month':
-                $endsAt = \Carbon\Carbon::now()->addMonth($intervalCount)->timestamp;
-                break;
-            case 'day':
-                $endsAt = \Carbon\Carbon::now()->addDay($intervalCount)->timestamp;
-            case 'week':
-                $endsAt = \Carbon\Carbon::now()->addWeek($intervalCount)->timestamp;
-                break;
-            case 'year':
-                $endsAt = \Carbon\Carbon::now()->addYear($intervalCount)->timestamp;
-                break;
-            default:
-                $endsAt = null;
-        }
-        $subscription->ends_at = $endsAt;
+        // set dates and save
+        $subscription->ends_at = $subscription->getPeriodEndsAt(Carbon::now());
+        $subscription->current_period_ends_at = $subscription->ends_at;
+        $subscription->save();
         
         // Free plan
         if ($plan->getBillableAmount() == 0) {
-            $subscription->status = Subscription::STATUS_ACTIVE;
+            // subscription transaction
+            $transaction = $subscription->addTransaction([
+                'ends_at' => $subscription->ends_at,
+                'current_period_ends_at' => $subscription->current_period_ends_at,
+                'status' => SubscriptionTransaction::STATUS_SUCCESS,
+                'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                    'plan' => $subscription->plan->getBillableName(),
+                ]),
+                'amount' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+            
+            // set active
+            $subscription->setActive();
         }
-        
-        $subscription->save();
         
         return $subscription;
     }
@@ -161,20 +151,22 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function getInitTransaction($subscription)
     {
-        $metadata = $subscription->getMetadata();
-        
-        if (!isset($metadata['txn_id'])) {
+        $transaction = $subscription->subscriptionTransactions()->first();
+        return $transaction;
+    }
+
+    /**
+     * Get last transaction
+     *
+     * @return boolean
+     */
+    public function getLastTransaction($subscription) {
+        // if has only init transaction
+        if ($subscription->subscriptionTransactions()->count() <= 1) {
             return null;
         }
-        
-        // get transaction id exists
-        $res = $this->coinPaymentsAPI->GetTxInfoSingle($metadata['txn_id'], 1);
-        
-        if ($res["error"] !== 'ok') {
-            throw new \Exception($res["Can not find remote transaction tnx_id"]);
-        } else {
-            return $res["result"];
-        }
+        $transaction = $subscription->subscriptionTransactions()->orderBy('created_at', 'desc')->first();
+        return $transaction;
     }
     
     /**
@@ -189,7 +181,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         
         return $transactions;
     }
-    
+
     /**
      * Get remote transaction.
      *
@@ -204,6 +196,19 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         }
         
         return $res['result'];
+    }
+    
+    /**
+     * Get remote transaction.
+     *
+     * @return Boolean
+     */
+    public function updateTransactionRemoteInfo($transaction)
+    {
+        $data = $transaction->getMetadata();
+        // get remote information
+        $data['remote'] = $this->getTransactionRemoteInfo($data['txn_id']);
+        $transaction->updateMetadata($data);
     }
     
     /**
@@ -236,45 +241,37 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function sync($subscription)
     {
-        if ($subscription->isPending() || $subscription->isNew()) {
+        // if init transaction
+        if ($subscription->isPending()) {
             $transaction = $this->getInitTransaction($subscription);
-            
-            if ($transaction["status"] >= 0) {
-                $subscription->status = Subscription::STATUS_PENDING;
-            }
-            
-            if ($transaction["status"] == 100) {
-                $subscription->status = Subscription::STATUS_ACTIVE;
-            }
-            
-            // end subscription if transaction is failed
-            if ($transaction["status"] < 0) {
-                $subscription->status = Subscription::STATUS_ENDED;
-                $subscription->ends_at = $found["time_expires"];
-            }
-        } else if ($subscription->isActive()) {
-            // get lastest transaction
-            $transaction = $this->getTransaction($subscription);
-                       
-            if (isset($transaction['force_status']) && $transaction['force_status'] == 'active') {
-                $active = true;
-            } else {
-                $active = $transaction['remote']['status'] == 100; 
-            }
-        
-            if ($active) {
-                $subscription->ends_at = \Carbon\Carbon::createFromTimestamp($transaction['periodEndsAt']);
-                
-                if (isset($transaction["new_plan_id"])) {
-                    $subscription->plan_id = $transaction["new_plan_id"];
-                }
+            $this->updateTransactionRemoteInfo($transaction);
+
+            // update description
+            $transaction->description = $transaction->getMetadata()['remote']['status_text'];
+            $transaction->save();
+
+            if ($transaction->getMetadata()['remote']['status'] == 100) {
+                // set active
+                $transaction->setSuccess();
+                $subscription->setActive();                
             }
         }
-        
-        // current_period_ends_at is always ends_at
-        $subscription->current_period_ends_at = $subscription->ends_at;
-        
-        $subscription->save();
+
+        // if renew/change plan transaction
+        if ($this->hasPending($subscription)) {
+            $transaction = $this->getLastTransaction($subscription);
+            $this->updateTransactionRemoteInfo($transaction);
+
+            // update description
+            $transaction->description = $transaction->getMetadata()['remote']['status_text'];
+            $transaction->save();
+
+            if ($transaction->getMetadata()['remote']['status'] == 100) {
+                // set active
+                $transaction->setSuccess();
+                $this->approvePending($subscription);                
+            }
+        }
     }
     
     /**
@@ -660,17 +657,11 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function setActive($subscription)
     {
-        $subscription->status = Subscription::STATUS_ACTIVE;
-        
-        // set last payment status is arrpoved
-        $transactions = $this->getTransactions($subscription);
-        if (!empty($transactions)) {
-            $transactions[count($transactions) - 1]['force_status'] = 'active';
-            $subscription->updateMetadata(['transactions' => $transactions]);
-        }
-        
-        // sync
-        $this->sync($subscription);
+        $transaction = $this->getInitTransaction($subscription);
+        $transaction->setSuccess();
+
+        // set active subscription
+        $subscription->setActive();
     }
     
     /**
@@ -681,16 +672,13 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function hasPending($subscription)
     {
-        $transaction = $this->getTransaction($subscription);
-        
-        if (isset($transaction['force_status']) && $transaction['force_status'] == 'active') {
-            $active = true;
-        } else {
-            $data = json_decode($transaction['remote']['checkout']['custom'], true);
-            $active = $transaction['remote']['status'] == 100;
+        // if has only init transaction
+        if ($subscription->subscriptionTransactions()->count() <= 1) {
+            return false;
         }
-        
-        return isset($transaction) && !$active;
+
+        $transaction = $this->getLastTransaction($subscription);
+        return $transaction->isPending();
     }
     
     /**
@@ -701,13 +689,12 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function getPendingNotice($subscription)
     {
-        $transaction = $this->getTransaction($subscription);
-        $data = json_decode($transaction['remote']['checkout']['custom'], true);
+        $transaction = $this->getLastTransaction($subscription);
         
         return trans('cashier::messages.direct.has_transaction_pending', [
-            'description' => $transaction['remote']['checkout']['item_name'],
-            'amount' => $data['amount'],
-            'url' => action('\Acelle\Cashier\Controllers\CoinpaymentsController@pending', [
+            'description' => $subscription->plan->name,
+            'amount' => $transaction->amount,
+            'url' => action('\Acelle\Cashier\Controllers\CoinpaymentsController@transactionPending', [
                 'subscription_id' => $subscription->uid,
             ]),
         ]);
@@ -755,4 +742,26 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 
     public function hasError($subscription) {}
     public function getErrorNotice($subscription) {}
+
+    /**
+     * Set subscription active if it is pending.
+     *
+     * @return boolean
+     */
+    public function approvePending($subscription) {
+        $transaction = $this->getLastTransaction($subscription);
+        $transaction->setSuccess();
+
+        // check new states
+        $subscription->ends_at = $transaction->ends_at;
+        $subscription->current_period_ends_at = $transaction->current_period_ends_at;
+
+        // check new plan
+        $data = $transaction->getMetadata();
+        if (isset($data['plan_id'])) {
+            $subscription->plan_id = $data['plan_id'];
+        }
+
+        $subscription->save();
+    }
 }

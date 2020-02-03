@@ -137,7 +137,6 @@
     'coinpayments.renew_plan_desc' => 'Renew <strong>:plan</strong> plan',
     'direct.return_back' => 'Return back',
     'coinpayments.pending_transaction' => 'Transaction',
-    'coinpayments.pending.intro' => 'There is a pending transaction. Please follow the guide below to finish your payment.',
     'coinpayments.change_plan_to' => 'Change from <strong>:current_plan</strong> to <strong>:new_plan</strong> plan',
     'direct.renew_subscription' => 'Renew subscription',
     'direct.renew_proceed' => 'Proceed',
@@ -223,4 +222,11 @@
         <br> Your browser will redirect to next page shortly.',
     'paypal.checkout.processing_payment' => 'Processing your payment... please wait!',
     'paypal.checkout.page_title' => 'Checkout',
+    'coinpayments.pay_with_coinpayments' => 'Pay with Coinpayments',
+    'coinpayments.plan' => 'Plan',
+    'coinpayments.checkout_url' => 'Checkout URL',
+    'coinpayments.status_url' => 'Status URL',
+    'coinpayments.status' => 'Status',
+    'coinpayments.pending.intro' => 'You are subscribing to <strong>:plan</strong> plan.
+        Click on the <strong>checkout url</strong> to pay or <strong>status url</strong> below to pay/check your payment status',
 ) ?>

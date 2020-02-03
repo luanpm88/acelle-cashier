@@ -105,17 +105,43 @@
                 <label>{{ $subscription->plan->getBillableName() }}</label>  
                 <h2 class="mb-40">{{ $subscription->plan->getBillableFormattedPrice() }}</h2>
                 
-                @if (!$transaction)
+                {{-- @if (!$transaction) --}}
                     <p>{!! trans('cashier::messages.coinpayments.checkout.intro', [
                         'plan' => $subscription->plan->getBillableName(),
                         'price' => $subscription->plan->getBillableFormattedPrice(),
                     ]) !!}</p>
-                    <hr>
+
+                    <ul class="dotted-list topborder section mb-4">
+                        <li>
+                            <div class="unit size1of2">
+                                {{ trans('cashier::messages.coinpayments.plan') }}
+                            </div>
+                            <div class="lastUnit size1of2">
+                                <mc:flag>{{ $subscription->plan->getBillableName() }}</mc:flag>
+                            </div>
+                        </li>
+                        <li>
+                            <div class="unit size1of2">
+                                {{ trans('cashier::messages.coinpayments.next_period_day') }}
+                            </div>
+                            <div class="lastUnit size1of2">
+                                <mc:flag>{{ $subscription->current_period_ends_at }}</mc:flag>
+                            </div>
+                        </li>
+                        <li>
+                            <div class="unit size1of2">
+                                {{ trans('cashier::messages.coinpayments.amount') }}
+                            </div>
+                            <div class="lastUnit size1of2">
+                                <mc:flag>{{ $subscription->plan->getBillableFormattedPrice() }}</mc:flag>
+                            </div>
+                        </li>
+                    </ul>
                     
                     <a href="{{ action('\Acelle\Cashier\Controllers\CoinpaymentsController@charge', [
                         'subscription_id' => $subscription->uid,
                     ]) }}" class="btn btn-secondary">{{ trans('cashier::messages.coinpayments.pay_now') }}</a>
-                        
+                    
                     <form class="mt-5" method="POST" action="{{ action('\Acelle\Cashier\Controllers\CoinpaymentsController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
                         {{ csrf_field() }}
                         
@@ -123,7 +149,7 @@
                             class="text-muted" style="font-size: 12px; text-decoration: underline"
                         >{{ trans('cashier::messages.stripe.cancel_new_subscription') }}</a>
                     </form>
-                @else
+                {{-- @else
                     @if ($subscription->isActive())
                         <p>{!! trans('cashier::messages.coinpayments.checkout.complete', [
                             'plan' => $subscription->plan->getBillableName(),
@@ -153,7 +179,7 @@
                         <hr>
                         <a class="btn btn-secondary" href="{{ $return_url }}">{{ trans('cashier::messages.coinpayments.return_back') }}</a>
                     @endif
-                @endif
+                @endif --}}
             </div>
             <div class="col-md-2"></div>
         </div>

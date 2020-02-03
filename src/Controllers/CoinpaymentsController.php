@@ -7,12 +7,27 @@ use Acelle\Cashier\Subscription;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
+use Acelle\Cashier\SubscriptionTransaction;
 
 class CoinpaymentsController extends Controller
 {
     public function __construct()
     {
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
+    }
+
+    /**
+     * Get return url.
+     *
+     * @return string
+     **/
+    public function getReturnUrl(Request $request) {
+        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        if (!$return_url) {
+            $return_url = url('/');
+        }
+
+        return $return_url;
     }
     
     /**
@@ -44,16 +59,14 @@ class CoinpaymentsController extends Controller
         
         // if subscription is active
         if ($subscription->isActive()) {
-            return redirect()->away($request->session()->get('checkout_return_url'));
+            return redirect()->away($this->getReturnUrl($request));
         }
         
         $service->sync($subscription);
-        $transaction = $service->getInitTransaction($subscription);
         
         return view('cashier::coinpayments.checkout', [
             'gatewayService' => $service,
             'subscription' => $subscription,
-            'transaction' => $transaction,
             'return_url' => $request->session()->get('checkout_return_url'),
         ]);
     }
@@ -69,17 +82,41 @@ class CoinpaymentsController extends Controller
     {
         // subscription and service
         $subscription = Subscription::findByUid($subscription_id);
-        $gatewayService = $this->getPaymentService();        
+        $gatewayService = $this->getPaymentService();
 
         if ($request->isMethod('post')) {
-            $transaction = $gatewayService->charge($subscription);
-
-            // Redirect to checkout page
-            //return redirect()->action('\Acelle\Cashier\Controllers\CoinpaymentsController@checkout', [
-            //    'subscription_id' => $subscription->uid,
-            //]);
+            // add transaction
+            $transaction = $subscription->addTransaction([
+                'ends_at' => $subscription->ends_at,
+                'current_period_ends_at' => $subscription->current_period_ends_at,
+                'status' => SubscriptionTransaction::STATUS_PENDING,
+                'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                    'plan' => $subscription->plan->getBillableName(),
+                ]),
+                'amount' => $subscription->plan->getBillableFormattedPrice()
+            ]);
             
-            return redirect()->away($transaction['checkout_url']);
+            // add remote transaction
+            $result = $gatewayService->charge($subscription, [
+                'id' => $transaction->uid,
+                'amount' => $subscription->plan->getBillableAmount(),
+                'desc' => trans('cashier::messages.coinpayments.subscribe_to_plan', [
+                    'plan' => $subscription->plan->getBillableName(),
+                ]),                
+            ]);
+
+            // update remote data
+            $transaction->updateMetadata([
+                'txn_id' => $result["txn_id"],
+                'checkout_url' => $result["checkout_url"],
+                'status_url' => $result["status_url"],
+                'qrcode_url' => $result["qrcode_url"],
+            ]);
+
+            // set subscription is pending
+            $subscription->setPending();
+
+            return redirect()->away($result['checkout_url']);
         }
 
         return view('cashier::coinpayments.charge', [
@@ -99,22 +136,48 @@ class CoinpaymentsController extends Controller
     {
         $service = $this->getPaymentService();
         $subscription = Subscription::findByUid($subscription_id);
-        $transaction = $service->getTransaction($subscription);
+        $transaction = $service->getInitTransaction($subscription);
+
+        // get remote info
+        $service->updateTransactionRemoteInfo($transaction);
         
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
-        if (!$return_url) {
-            $return_url = url('/');
-        }
-        
-        if (!$service->hasPending($subscription)) {
-            return redirect()->away($return_url);
+        if (!$subscription->isPending()) {
+            return redirect()->away($this->getReturnUrl($request));
         }
         
         return view('cashier::coinpayments.pending', [
             'gatewayService' => $service,
             'subscription' => $subscription,
             'transaction' => $transaction,
-            'return_url' => $return_url,
+            'return_url' => $this->getReturnUrl($request),
+        ]);
+    }
+
+    /**
+     * Subscription pending page.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     **/
+    public function transactionPending(Request $request, $subscription_id)
+    {
+        $service = $this->getPaymentService();
+        $subscription = Subscription::findByUid($subscription_id);
+        $transaction = $service->getLastTransaction($subscription);
+
+        // get remote info
+        $service->updateTransactionRemoteInfo($transaction);
+        
+        if (!$service->hasPending($subscription)) {
+            return redirect()->away($this->getReturnUrl($request));
+        }
+        
+        return view('cashier::coinpayments.transactionPending', [
+            'gatewayService' => $service,
+            'subscription' => $subscription,
+            'transaction' => $transaction,
+            'return_url' => $this->getReturnUrl($request),
         ]);
     }
     
@@ -142,13 +205,40 @@ class CoinpaymentsController extends Controller
         }
         
         if ($request->isMethod('post')) {
-            // subscribe to plan
-            $service->renew($subscription);
-
-            // Redirect to my subscription page
-            return redirect()->action('\Acelle\Cashier\Controllers\CoinpaymentsController@pending', [
-                'subscription_id' => $subscription->uid,
+            // add transaction
+            $transaction = $subscription->addTransaction([
+                'ends_at' => $subscription->nextPeriod(),
+                'current_period_ends_at' => $subscription->nextPeriod(),
+                'status' => SubscriptionTransaction::STATUS_PENDING,
+                'title' => trans('cashier::messages.transaction.renew_plan', [
+                    'plan' => $subscription->plan->getBillableName(),
+                ]),
+                'amount' => $subscription->plan->getBillableFormattedPrice(),
             ]);
+
+            if ($subscription->plan->getBillableAmount() > 0) {
+                // add remote transaction
+                $result = $service->charge($subscription, [
+                    'id' => $transaction->uid,
+                    'amount' => $subscription->plan->getBillableAmount(),
+                    'desc' => trans('cashier::messages.transaction.renew_plan', [
+                        'plan' => $subscription->plan->getBillableName(),
+                    ]),                
+                ]);
+
+                // update remote data
+                $transaction->updateMetadata([
+                    'txn_id' => $result["txn_id"],
+                    'checkout_url' => $result["checkout_url"],
+                    'status_url' => $result["status_url"],
+                    'qrcode_url' => $result["qrcode_url"],
+                ]);
+            } elseif (round($result['amount']) == 0) {
+                $service->approvePending($subscription);
+                return redirect()->away($this->getReturnUrl($request));
+            }
+
+            return redirect()->away($result['checkout_url']);
         }
         
         return view('cashier::coinpayments.renew', [
@@ -183,17 +273,7 @@ class CoinpaymentsController extends Controller
         if ($service->hasPending($subscription)) {
             return redirect()->away($request->return_url);
         }
-        
-        if ($request->isMethod('post')) {
-            // change plan
-            $service->changePlan($subscription, $plan);
 
-            // Redirect to my subscription page
-            return redirect()->action('\Acelle\Cashier\Controllers\CoinpaymentsController@pending', [
-                'subscription_id' => $subscription->uid,
-            ]);
-        }
-        
         // calc plan before change
         try {
             $result = Cashier::calcChangePlan($subscription, $plan);
@@ -201,6 +281,51 @@ class CoinpaymentsController extends Controller
             $request->session()->flash('alert-error', 'Can not change plan: ' . $e->getMessage());
             return redirect()->away($request->return_url);
         }
+        
+        if ($request->isMethod('post')) {
+            // add transaction
+            $transaction = $subscription->addTransaction([
+                'ends_at' => $result['endsAt'],
+                'current_period_ends_at' => $result['endsAt'],
+                'status' => SubscriptionTransaction::STATUS_PENDING,
+                'title' => trans('cashier::messages.transaction.change_plan', [
+                    'plan' => $plan->getBillableName(),
+                ]),
+                'amount' => $plan->getBillableFormattedPrice(),
+            ]);
+
+            // save new plan uid
+            $data = $transaction->getMetadata();
+            $data['plan_id'] = $plan->getBillableId();
+            $transaction->updateMetadata($data);
+
+            if ($result['amount'] > 0) {
+                // add remote transaction
+                $result = $service->charge($subscription, [
+                    'id' => $transaction->uid,
+                    'amount' => $result['amount'],
+                    'desc' => trans('cashier::messages.transaction.change_plan', [
+                        'plan' => $plan->getBillableName(),
+                    ]),                
+                ]);
+
+                // update remote data
+                $transaction->updateMetadata([
+                    'txn_id' => $result["txn_id"],
+                    'checkout_url' => $result["checkout_url"],
+                    'status_url' => $result["status_url"],
+                    'qrcode_url' => $result["qrcode_url"],
+                ]);
+            } elseif (round($result['amount']) == 0) {
+                $service->approvePending($subscription);
+
+                return redirect()->away($this->getReturnUrl($request));
+            }
+
+            return redirect()->away($result['checkout_url']);
+        }
+        
+        
         $plan->price = $result['amount'];
         
         return view('cashier::coinpayments.change_plan', [
