@@ -233,7 +233,7 @@ class CoinpaymentsController extends Controller
                     'status_url' => $result["status_url"],
                     'qrcode_url' => $result["qrcode_url"],
                 ]);
-            } elseif (round($result['amount']) == 0) {
+            } elseif ($subscription->plan->getBillableAmount() == 0) {
                 $service->approvePending($subscription);
                 return redirect()->away($this->getReturnUrl($request));
             }
