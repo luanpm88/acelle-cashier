@@ -29,6 +29,33 @@
                     'price' => $subscription->plan->getBillableFormattedPrice(),
                 ]) !!}</p>
 
+                <ul class="dotted-list topborder section mb-4">
+                    <li>
+                        <div class="unit size1of2">
+                            {{ trans('cashier::messages.paypal.plan') }}
+                        </div>
+                        <div class="lastUnit size1of2">
+                            <mc:flag>{{ $subscription->plan->getBillableName() }}</mc:flag>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="unit size1of2">
+                            {{ trans('cashier::messages.paypal.next_period_day') }}
+                        </div>
+                        <div class="lastUnit size1of2">
+                            <mc:flag>{{ $subscription->current_period_ends_at }}</mc:flag>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="unit size1of2">
+                            {{ trans('cashier::messages.paypal.amount') }}
+                        </div>
+                        <div class="lastUnit size1of2">
+                            <mc:flag>{{ $subscription->plan->getBillableFormattedPrice() }}</mc:flag>
+                        </div>
+                    </li>
+                </ul>
+
                 <script
                     src="https://www.paypal.com/sdk/js?client-id={{ $gatewayService->client_id }}&currency={{ $subscription->plan->getBillableCurrency() }}"> // Required. Replace SB_CLIENT_ID with your sandbox client ID.
                 </script>
@@ -37,9 +64,9 @@
 
                 <script>
                     var form = jQuery('<form>', {
-                        'action': '{{ action('\Acelle\Cashier\Controllers\PaypalController@checkout', $subscription->uid) }}',
+                        'action': '{{ action('\Acelle\Cashier\Controllers\PaypalController@paymentRedirect') }}',
                         'target': '_top',
-                        'method': 'POST'
+                        'method': 'GET'
                     }).append(jQuery('<input>', {
                         'name': '_token',
                         'value': '{{ csrf_token() }}',
@@ -62,22 +89,14 @@
                         onApprove: function(data, actions) {
                             // This function captures the funds from the transaction.
                             return actions.order.capture().then(function(details) {
-                                {{-- alert('Transaction completed by ' + details.payer.name.given_name);
-                                    // Call your server to save the transaction
-                                return fetch('{{ action('\Acelle\Cashier\Controllers\PaypalController@checkout', $subscription->uid) }}', {
-                                    method: 'post',
-                                    headers: {
-                                        'content-type': 'application/json'
-                                    },
-                                    body: JSON.stringify({
-                                        orderID: data.orderID,
-                                        _token: '{{ csrf_token() }}',
-                                    })
-                                }); --}}
-
                                 form.append(jQuery('<input>', {
                                     'name': 'orderID',
                                     'value': data.orderID,
+                                    'type': 'hidden'
+                                }));
+                                form.append(jQuery('<input>', {
+                                    'name': 'redirect',
+                                    'value': '{{ action('\Acelle\Cashier\Controllers\PaypalController@checkout', $subscription->uid) }}',
                                     'type': 'hidden'
                                 }));
                                 form.submit();

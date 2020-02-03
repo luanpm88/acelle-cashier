@@ -219,4 +219,8 @@
         <a href=":url"><strong>Click here</strong></a> to see more details.',
     'braintree.fix_payment.intro' => 'You are about to charge <strong>:plan</strong> plan for new period.
         Please check the information below before proceeding.',
+    'paypal.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
+        <br> Your browser will redirect to next page shortly.',
+    'paypal.checkout.processing_payment' => 'Processing your payment... please wait!',
+    'paypal.checkout.page_title' => 'Checkout',
 ) ?>

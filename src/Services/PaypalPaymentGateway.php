@@ -13,6 +13,7 @@ use PayPalCheckoutSdk\Orders\OrdersGetRequest;
 use PayPalCheckoutSdk\Core\PayPalHttpClient;
 use PayPalCheckoutSdk\Core\SandboxEnvironment;
 use PayPalCheckoutSdk\Core\ProductionEnvironment;
+use Acelle\Cashier\SubscriptionTransaction;
 
 class PaypalPaymentGateway implements PaymentGatewayInterface
 {
@@ -66,35 +67,30 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         $subscription = new Subscription();
         $subscription->user_id = $customer->getBillableId();
         $subscription->plan_id = $plan->getBillableId();
-        $subscription->status = Subscription::STATUS_NEW;
+        $subscription->status = Subscription::STATUS_PENDING;
         
-        // dose not support recurring, update ends at column
-        $interval = $plan->getBillableInterval();
-        $intervalCount = $plan->getBillableIntervalCount();
-
-        switch ($interval) {
-            case 'month':
-                $endsAt = \Carbon\Carbon::now()->addMonth($intervalCount)->timestamp;
-                break;
-            case 'day':
-                $endsAt = \Carbon\Carbon::now()->addDay($intervalCount)->timestamp;
-            case 'week':
-                $endsAt = \Carbon\Carbon::now()->addWeek($intervalCount)->timestamp;
-                break;
-            case 'year':
-                $endsAt = \Carbon\Carbon::now()->addYear($intervalCount)->timestamp;
-                break;
-            default:
-                $endsAt = null;
-        }
-        $subscription->ends_at = $endsAt;
+        // set dates and save
+        $subscription->ends_at = $subscription->getPeriodEndsAt(Carbon::now());
+        $subscription->current_period_ends_at = $subscription->ends_at;
+        $subscription->save();
         
-        // Free plan
+        // If plan is free: enable subscription & update transaction
         if ($plan->getBillableAmount() == 0) {
-            $subscription->status = Subscription::STATUS_ACTIVE;
+            // subscription transaction
+            $transaction = $subscription->addTransaction([
+                'ends_at' => $subscription->ends_at,
+                'current_period_ends_at' => $subscription->current_period_ends_at,
+                'status' => SubscriptionTransaction::STATUS_SUCCESS,
+                'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                    'plan' => $subscription->plan->getBillableName(),
+                ]),
+                'amount' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+            
+            // set active
+            $subscription->setActive();
         }
         
-        $subscription->save();        
         return $subscription;
     }
     
@@ -107,10 +103,8 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
      */
     public function charge($subscription, $options=[])
     {
-        if ($subscription->plan->price > 0) {
-            // check order ID
-            $this->checkOrderID($options['orderID']);
-        }
+        // check order ID
+        $this->checkOrderID($options['orderID']);
     }
 
     /**
@@ -227,7 +221,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         // To print the whole response body, uncomment the following line
         // echo json_encode($response->result, JSON_PRETTY_PRINT);
 
-        // if success
+        // if failed
         if ($response->statusCode != 200 || $response->result->status != 'COMPLETED') {
             throw new \Exception('Something went wrong:' . json_encode($response->result));
         }

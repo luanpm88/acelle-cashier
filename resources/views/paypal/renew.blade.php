@@ -83,9 +83,9 @@
 
                     <script>
                         var form = jQuery('<form>', {
-                            'action': '{{ action('\Acelle\Cashier\Controllers\PaypalController@renew', $subscription->uid) }}',
+                            'action': '{{ action('\Acelle\Cashier\Controllers\PaypalController@paymentRedirect') }}',
                             'target': '_top',
-                            'method': 'POST'
+                            'method': 'GET'
                         }).append(jQuery('<input>', {
                             'name': '_token',
                             'value': '{{ csrf_token() }}',
@@ -115,6 +115,11 @@
                                     form.append(jQuery('<input>', {
                                         'name': 'orderID',
                                         'value': data.orderID,
+                                        'type': 'hidden'
+                                    }));
+                                    form.append(jQuery('<input>', {
+                                        'name': 'redirect',
+                                        'value': '{{ action('\Acelle\Cashier\Controllers\PaypalController@renew', $subscription->uid) }}',
                                         'type': 'hidden'
                                     }));
                                     form.submit();

@@ -12,10 +12,10 @@
 */
 
 Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controllers'], function() {
+    Route::get('/cashier/paypal/payment-redirect', 'PaypalController@paymentRedirect');
     Route::post('/cashier/paypal/{subscription_id}/cancel-now', 'PaypalController@cancelNow');
     Route::match(['get', 'post'], '/cashier/paypal/{subscription_id}/change-plan', 'PaypalController@changePlan');
     Route::match(['get', 'post'], '/cashier/paypal/{subscription_id}/renew', 'PaypalController@renew');
-
     Route::post('/cashier/paypal/{subscription_id}/checkout', 'PaypalController@checkout');
     Route::get('/cashier/paypal/{subscription_id}/checkout', 'PaypalController@checkout');
 
