@@ -486,6 +486,12 @@ class Subscription extends Model
     {
         $subscriptions = self::whereNull('ends_at')->orWhere('ends_at', '>=', \Carbon\Carbon::now())->get();
         foreach ($subscriptions as $subscription) {
+            // check expired
+            if (\Carbon\Carbon::now()->endOfDay() < $subscription->ends_at) {
+                $subscription->cancelNow();
+            }
+
+            // check from service: recurring/transaction
             $gateway->sync($subscription);
         }
     }
