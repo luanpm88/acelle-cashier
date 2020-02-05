@@ -11,6 +11,11 @@ class SubscriptionTransaction extends Model
     const STATUS_FAILED = 'failed';
     const STATUS_PENDING = 'pending';
 
+    const TYPE_SUBSCRIBE = 'subscribe';
+    const TYPE_RENEW = 'renew';
+    const TYPE_PLAN_CHANGE = 'plan_change';
+    const TYPE_AUTO_CHARGE = 'plan_change';
+
     /**
      * The attributes that are not mass assignable.
      *

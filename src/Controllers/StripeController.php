@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\SubscriptionTransaction;
+use Acelle\Cashier\SubscriptionLog;
 
 class StripeController extends Controller
 {
@@ -50,7 +51,7 @@ class StripeController extends Controller
             $subscription->start();
 
             // add transaction
-            $subscription->addTransaction([
+            $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
                 'ends_at' => $subscription->ends_at,
                 'current_period_ends_at' => $subscription->current_period_ends_at,
                 'status' => SubscriptionTransaction::STATUS_SUCCESS,
@@ -58,6 +59,12 @@ class StripeController extends Controller
                     'plan' => $subscription->plan->getBillableName(),
                 ]),
                 'amount' => $subscription->plan->getBillableFormattedPrice()
+            ]);
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_PAID, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
             ]);
 
             // Redirect to my subscription page
@@ -150,7 +157,7 @@ class StripeController extends Controller
             $subscription->start();
 
             // add transaction
-            $subscription->addTransaction([
+            $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
                 'ends_at' => $subscription->ends_at,
                 'current_period_ends_at' => $subscription->current_period_ends_at,
                 'status' => SubscriptionTransaction::STATUS_SUCCESS,
@@ -159,6 +166,19 @@ class StripeController extends Controller
                 ]),
                 'amount' => $subscription->plan->getBillableFormattedPrice()
             ]);
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_PAID, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+            sleep(1);
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+
 
             // Redirect to my subscription page
             return redirect()->away($this->getReturnUrl($request));
@@ -204,7 +224,7 @@ class StripeController extends Controller
             $subscription->changePlan($newPlan);
             
             // add transaction
-            $subscription->addTransaction([
+            $subscription->addTransaction(SubscriptionTransaction::TYPE_PLAN_CHANGE, [
                 'ends_at' => $subscription->ends_at,
                 'current_period_ends_at' => $subscription->current_period_ends_at,
                 'status' => SubscriptionTransaction::STATUS_SUCCESS,
@@ -212,6 +232,13 @@ class StripeController extends Controller
                     'plan' => $newPlan->getBillableName(),
                 ]),
                 'amount' => $newPlan->getBillableFormattedPrice()
+            ]);
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGED, [
+                'old_plan' => $subscription->plan->getBillableName(),
+                'plan' => $newPlan->getBillableName(),
+                'price' => $newPlan->getBillableFormattedPrice(),
             ]);
 
             // Redirect to my subscription page

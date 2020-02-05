@@ -9,6 +9,7 @@ use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Library\CoinPayment\CoinpaymentsAPI;
 use Acelle\Cashier\InvoiceParam;
 use Acelle\Cashier\SubscriptionTransaction;
+use Acelle\Cashier\SubscriptionLog;
 
 class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 {
@@ -93,7 +94,12 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     public function create($customer, $plan)
     {
         // update subscription model
-        $subscription = new Subscription();
+        if ($customer->subscription) {
+            $subscription = $customer->subscription;
+        } else {
+            $subscription = new Subscription();
+            $subscription->user_id = $customer->getBillableId();
+        } 
         $subscription->user_id = $customer->getBillableId();
         $subscription->plan_id = $plan->getBillableId();
         $subscription->status = Subscription::STATUS_NEW;
@@ -106,7 +112,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         // Free plan
         if ($plan->getBillableAmount() == 0) {
             // subscription transaction
-            $transaction = $subscription->addTransaction([
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
                 'ends_at' => $subscription->ends_at,
                 'current_period_ends_at' => $subscription->current_period_ends_at,
                 'status' => SubscriptionTransaction::STATUS_SUCCESS,
@@ -118,6 +124,17 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             
             // set active
             $subscription->setActive();
+
+            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
+                'plan' => $plan->getBillableName(),
+                'price' => $plan->getBillableFormattedPrice(),
+            ]);
+        } else {
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
+                'plan' => $plan->getBillableName(),
+                'price' => $plan->getBillableFormattedPrice(),
+            ]);
         }
         
         return $subscription;
@@ -250,10 +267,22 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             $transaction->description = $transaction->getMetadata()['remote']['status_text'];
             $transaction->save();
 
-            if ($transaction->getMetadata()['remote']['status'] == 100) {
+            if ($transaction->getMetadata()['remote']['status'] == 0) {
                 // set active
                 $transaction->setSuccess();
-                $subscription->setActive();                
+                $subscription->setActive();  
+                
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_PAID, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                ]);
+                sleep(1);
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                ]);
             }
         }
 
@@ -266,10 +295,37 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             $transaction->description = $transaction->getMetadata()['remote']['status_text'];
             $transaction->save();
 
-            if ($transaction->getMetadata()['remote']['status'] == 100) {
+            if ($transaction->getMetadata()['remote']['status'] == 0) {
                 // set active
                 $transaction->setSuccess();
                 $this->approvePending($subscription);                
+            }
+            
+            // log
+            if ($transaction->type == SubscriptionTransaction::TYPE_RENEW) {
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_PAID, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                ]);
+                sleep(1);
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_RENEWED, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                ]);
+            } else {
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_PAID, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $transaction->amount,
+                ]);
+                sleep(1);
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGED, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $transaction->amount,
+                ]);
             }
         }
     }
@@ -431,20 +487,6 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function resumeSubscription($subscriptionId)
     {
-    }
-    
-    /**
-     * Resume subscription.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function cancelNow($subscription)
-    {
-        $subscription->ends_at = \Carbon\Carbon::now();
-        $subscription->status = Subscription::STATUS_ENDED;
-        
-        $this->sync($subscription);
     }
     
     /**
@@ -662,6 +704,18 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 
         // set active subscription
         $subscription->setActive();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_ADMIN_APPROVED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
+        sleep(1);
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
     }
     
     /**
@@ -672,13 +726,11 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function hasPending($subscription)
     {
-        // if has only init transaction
-        if ($subscription->subscriptionTransactions()->count() <= 1) {
-            return false;
-        }
-
         $transaction = $this->getLastTransaction($subscription);
-        return $transaction->isPending();
+
+        return $transaction->isPending() && !in_array($transaction->type, [
+            SubscriptionTransaction::TYPE_SUBSCRIBE,
+        ]);
     }
     
     /**
@@ -712,9 +764,21 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             'return_url' => $returnUrl,
         ]);
     }
+
+    /**
+     * Get checkout url.
+     *
+     * @return string
+     */
+    public function getCheckoutUrl($subscription, $returnUrl='/') {
+        return action("\Acelle\Cashier\Controllers\CoinpaymentsController@checkout", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
     
     /**
-     * Get renew url.
+     * Get change plan url.
      *
      * @return string
      */
@@ -763,5 +827,50 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         }
 
         $subscription->save();
+    }
+
+    /**
+     * Cancel subscription.
+     *
+     * @return string
+     */
+    public function cancel($subscription) {
+        $subscription->cancel();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
+    }
+
+    /**
+     * Cancel now subscription.
+     *
+     * @return string
+     */
+    public function cancelNow($subscription) {
+        $subscription->cancelNow();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
+    }
+
+    /**
+     * Resume now subscription.
+     *
+     * @return string
+     */
+    public function resume($subscription) {
+        $subscription->resume();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_RESUMED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
     }
 }

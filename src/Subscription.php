@@ -135,6 +135,17 @@ class Subscription extends Model
     }
 
     /**
+     * Associations.
+     *
+     * @var object | collect
+     */
+    public function subscriptionLogs()
+    {
+        // @todo dependency injection
+        return $this->hasMany('\Acelle\Cashier\SubscriptionLog');
+    }
+
+    /**
      * Determine if the subscription is recurring and not on trial.
      *
      * @return bool
@@ -371,11 +382,13 @@ class Subscription extends Model
      * @param  Subscription    $subscription
      * @return Boolean
      */
-    public function goingToExpire($days)
+    public function goingToExpire()
     {
         if (!$this->ends_at) {
             return false;
         }
+
+        $days = config('cashier.end_period_last_days');
         return $this->ends_at->subDay($days)->lessThanOrEqualTo(\Carbon\Carbon::now());
     }
 
@@ -487,7 +500,7 @@ class Subscription extends Model
         $subscriptions = self::whereNull('ends_at')->orWhere('ends_at', '>=', \Carbon\Carbon::now())->get();
         foreach ($subscriptions as $subscription) {
             // check expired
-            if (\Carbon\Carbon::now()->endOfDay() < $subscription->ends_at) {
+            if (\Carbon\Carbon::now()->endOfDay() > $subscription->ends_at) {
                 $subscription->cancelNow();
             }
 
@@ -545,7 +558,7 @@ class Subscription extends Model
      *
      * @return array
      */
-    public function getInvoices()
+    public function getTransactions()
     {
         return $this->subscriptionTransactions()->orderBy('created_at', 'desc')->get();
     }
@@ -555,10 +568,21 @@ class Subscription extends Model
      *
      * @return array
      */
-    public function addTransaction($data)
+    public function getLogs()
+    {
+        return $this->subscriptionLogs()->orderBy('created_at', 'desc')->get();
+    }
+
+    /**
+     * Subscription transactions.
+     *
+     * @return array
+     */
+    public function addTransaction($type, $data)
     {
         $transaction = new SubscriptionTransaction();
         $transaction->subscription_id = $this->id;
+        $transaction->type = $type;
         $transaction->fill($data);
 
         if (isset($data['metadata'])) {
@@ -568,6 +592,26 @@ class Subscription extends Model
         $transaction->save();
 
         return $transaction;
+    }
+
+    /**
+     * Subscription transactions.
+     *
+     * @return array
+     */
+    public function addLog($type, $data, $transaction_id=null)
+    {
+        $log = new SubscriptionLog();
+        $log->subscription_id = $this->id;
+        $log->type = $type;
+        $log->transaction_id = $transaction_id;
+        $log->save();
+
+        if (isset($data)) {
+            $log->updateData($data);
+        }
+
+        return $log;
     }
 
     /**

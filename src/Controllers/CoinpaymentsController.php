@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\SubscriptionTransaction;
+use Acelle\Cashier\SubscriptionLog;
 
 class CoinpaymentsController extends Controller
 {
@@ -86,7 +87,7 @@ class CoinpaymentsController extends Controller
 
         if ($request->isMethod('post')) {
             // add transaction
-            $transaction = $subscription->addTransaction([
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
                 'ends_at' => $subscription->ends_at,
                 'current_period_ends_at' => $subscription->current_period_ends_at,
                 'status' => SubscriptionTransaction::STATUS_PENDING,
@@ -206,7 +207,7 @@ class CoinpaymentsController extends Controller
         
         if ($request->isMethod('post')) {
             // add transaction
-            $transaction = $subscription->addTransaction([
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_RENEW, [
                 'ends_at' => $subscription->nextPeriod(),
                 'current_period_ends_at' => $subscription->nextPeriod(),
                 'status' => SubscriptionTransaction::STATUS_PENDING,
@@ -233,9 +234,21 @@ class CoinpaymentsController extends Controller
                     'status_url' => $result["status_url"],
                     'qrcode_url' => $result["qrcode_url"],
                 ]);
+
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_RENEW, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                ]);
             } elseif ($subscription->plan->getBillableAmount() == 0) {
                 $service->approvePending($subscription);
                 return redirect()->away($this->getReturnUrl($request));
+
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_RENEWED, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                ]);
             }
 
             return redirect()->away($result['checkout_url']);
@@ -281,10 +294,10 @@ class CoinpaymentsController extends Controller
             $request->session()->flash('alert-error', 'Can not change plan: ' . $e->getMessage());
             return redirect()->away($request->return_url);
         }
-        
+        $plan->price = $result['amount'];
         if ($request->isMethod('post')) {
             // add transaction
-            $transaction = $subscription->addTransaction([
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_PLAN_CHANGE, [
                 'ends_at' => $result['endsAt'],
                 'current_period_ends_at' => $result['endsAt'],
                 'status' => SubscriptionTransaction::STATUS_PENDING,
@@ -316,8 +329,22 @@ class CoinpaymentsController extends Controller
                     'status_url' => $result["status_url"],
                     'qrcode_url' => $result["qrcode_url"],
                 ]);
+
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE, [
+                    'old_plan' => $subscription->plan->getBillableName(),
+                    'plan' => $plan->getBillableName(),
+                    'price' => $plan->getBillableFormattedPrice(),
+                ]);
             } elseif (round($result['amount']) == 0) {
                 $service->approvePending($subscription);
+
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGED, [
+                    'old_plan' => $subscription->plan->getBillableName(),
+                    'plan' => $plan->getBillableName(),
+                    'price' => $plan->getBillableFormattedPrice(),
+                ]);
 
                 return redirect()->away($this->getReturnUrl($request));
             }

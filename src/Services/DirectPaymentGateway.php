@@ -10,6 +10,7 @@ use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
 use Acelle\Cashier\Subscription;
 use Acelle\Cashier\SubscriptionTransaction;
+use Acelle\Cashier\SubscriptionLog;
 use Acelle\Cashier\InvoiceParam;
 use Carbon\Carbon;
 
@@ -60,8 +61,13 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
      */
     public function create($customer, $plan) {
         // update subscription model
-        $subscription = new Subscription();
-        $subscription->user_id = $customer->getBillableId();
+        if ($customer->subscription) {
+            $subscription = $customer->subscription;
+        } else {
+            $subscription = new Subscription();
+            $subscription->user_id = $customer->getBillableId();
+        }        
+        
         $subscription->plan_id = $plan->getBillableId();
         $subscription->status = Subscription::STATUS_PENDING;
         
@@ -71,7 +77,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
         $subscription->save();
 
         // subscription transaction
-        $transaction = $subscription->addTransaction([
+        $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
             'ends_at' => $subscription->ends_at,
             'current_period_ends_at' => $subscription->current_period_ends_at,
             'status' => SubscriptionTransaction::STATUS_PENDING,
@@ -90,6 +96,12 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
             $this->claim($transaction);
             $transaction->setSuccess();
         }
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
+            'plan' => $plan->getBillableName(),
+            'price' => $plan->getBillableFormattedPrice(),
+        ]);
         
         return $subscription;
     }
@@ -100,7 +112,10 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
      * @return boolean
      */
     public function getInitTransaction($subscription) {
-        return $subscription->subscriptionTransactions()->first();
+        return $subscription->subscriptionTransactions()
+            ->where('type', '=', SubscriptionTransaction::TYPE_SUBSCRIBE)
+            ->orderBy('created_at', 'desc')
+            ->first();
     }
 
     /**
@@ -183,6 +198,18 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
 
         // set active subscription
         $subscription->setActive();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_ADMIN_APPROVED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
+        sleep(1);
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
     }
 
     /**
@@ -205,6 +232,21 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
         }
 
         $subscription->save();
+
+        // log
+        if ($transaction->type == SubscriptionTransaction::TYPE_RENEW) {
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_ADMIN_RENEW_APPROVED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+        } else {
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_ADMIN_PLAN_CHANGE_APPROVED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $transaction->amount,
+            ]);
+        }
     }
 
     public function sync($subscription) {}
@@ -215,13 +257,10 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
      * @return boolean
      */
     public function hasPending($subscription) {
-        // if has only init transaction
-        if ($subscription->subscriptionTransactions()->count() <= 1) {
-            return false;
-        }
-
         $transaction = $this->getLastTransaction($subscription);
-        return $transaction->isPending();
+        return $transaction->isPending() && !in_array($transaction->type, [
+            SubscriptionTransaction::TYPE_SUBSCRIBE,
+        ]);
     }
 
     /**
@@ -240,9 +279,34 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
             ]),
         ]);
     }
-    
+
     /**
      * Get renew url.
+     *
+     * @return string
+     */
+    public function getPendingUrl($subscription, $returnUrl='/')
+    {
+        return action("\Acelle\Cashier\Controllers\\DirectController@pending", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
+
+    /**
+     * Get checkout url.
+     *
+     * @return string
+     */
+    public function getCheckoutUrl($subscription, $returnUrl='/') {
+        return action("\Acelle\Cashier\Controllers\DirectController@checkout", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
+    
+    /**
+     * Get change plan url.
      *
      * @return string
      */
@@ -270,4 +334,49 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
 
     public function hasError($subscription) {}
     public function getErrorNotice($subscription) {}
+
+    /**
+     * Cancel subscription.
+     *
+     * @return string
+     */
+    public function cancel($subscription) {
+        $subscription->cancel();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
+    }
+
+    /**
+     * Cancel now subscription.
+     *
+     * @return string
+     */
+    public function cancelNow($subscription) {
+        $subscription->cancelNow();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
+    }
+
+    /**
+     * Resume now subscription.
+     *
+     * @return string
+     */
+    public function resume($subscription) {
+        $subscription->resume();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_RESUMED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
+    }
 }

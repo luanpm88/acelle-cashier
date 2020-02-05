@@ -14,6 +14,7 @@ use Acelle\Cashier\InvoiceParam;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\SubscriptionTransaction;
+use Acelle\Cashier\SubscriptionLog;
 
 class StripePaymentGateway implements PaymentGatewayInterface
 {
@@ -76,12 +77,23 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function create($customer, $plan)
     {
         // update subscription model
-        $subscription = new Subscription();
+        if ($customer->subscription) {
+            $subscription = $customer->subscription;
+        } else {
+            $subscription = new Subscription();
+            $subscription->user_id = $customer->getBillableId();
+        } 
         $subscription->user_id = $customer->getBillableId();
         $subscription->plan_id = $plan->getBillableId();
         $subscription->status = Subscription::STATUS_NEW;
         
         $subscription->save();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
+            'plan' => $plan->getBillableName(),
+            'price' => $plan->getBillableFormattedPrice(),
+        ]);
         
         return $subscription;
     }
@@ -121,6 +133,23 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return true;
     }
 
+    /**
+     * Get checkout url.
+     *
+     * @return string
+     */
+    public function getCheckoutUrl($subscription, $returnUrl='/') {
+        return action("\Acelle\Cashier\Controllers\StripeController@checkout", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
+
+    /**
+     * Get change plan url.
+     *
+     * @return string
+     */
     public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/') {
         return action("\Acelle\Cashier\Controllers\StripeController@changePlan", [
             'subscription_id' => $subscription->uid,
@@ -288,7 +317,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
         // check if recurring accur
         if (\Carbon\Carbon::now()->diffInDays($subscription->current_period_ends_at) < 3) {
             // add transaction
-            $transaction = $subscription->addTransaction([
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_AUTO_CHARGE, [
                 'ends_at' => null,
                 'current_period_ends_at' => $subscription->nextPeriod(),
                 'status' => SubscriptionTransaction::STATUS_PENDING,
@@ -331,12 +360,10 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @return boolean
      */
     public function getLastTransaction($subscription) {
-        // if has only init transaction
-        if ($subscription->subscriptionTransactions()->count() <= 1) {
-            return null;
-        }
-
-        return $subscription->subscriptionTransactions()->orderBy('created_at', 'desc')->first();
+        return $subscription->subscriptionTransactions()
+            ->where('type', '<>', SubscriptionLog::TYPE_SUBSCRIBE)
+            ->orderBy('created_at', 'desc')
+            ->first();
     }
 
     /**
@@ -346,7 +373,9 @@ class StripePaymentGateway implements PaymentGatewayInterface
      */
     public function hasPending($subscription) {
         $transaction = $this->getLastTransaction($subscription);
-        return isset($transaction) && $transaction->isPending();
+        return isset($transaction) && $transaction->isPending() && !in_array($transaction->type, [
+            SubscriptionTransaction::TYPE_SUBSCRIBE,
+        ]);
     }
 
     public function getPendingNotice($subscription) {
@@ -372,6 +401,51 @@ class StripePaymentGateway implements PaymentGatewayInterface
             'url' => action('\Acelle\Cashier\Controllers\StripeController@fixPayment', [
                 'subscription_id' => $subscription->uid,
             ]),
+        ]);
+    }
+
+    /**
+     * Cancel subscription.
+     *
+     * @return string
+     */
+    public function cancel($subscription) {
+        $subscription->cancel();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
+    }
+
+    /**
+     * Cancel now subscription.
+     *
+     * @return string
+     */
+    public function cancelNow($subscription) {
+        $subscription->cancelNow();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
+    }
+
+    /**
+     * Resume now subscription.
+     *
+     * @return string
+     */
+    public function resume($subscription) {
+        $subscription->resume();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_RESUMED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
         ]);
     }
 }

@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Acelle\Cashier\Subscription;
 use Acelle\Cashier\InvoiceParam;
 use Acelle\Cashier\SubscriptionTransaction;
+use Acelle\Cashier\SubscriptionLog;
 
 class BraintreePaymentGateway implements PaymentGatewayInterface
 {
@@ -41,12 +42,23 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
     public function create($customer, $plan)
     {
         // update subscription model
-        $subscription = new Subscription();
+        if ($customer->subscription) {
+            $subscription = $customer->subscription;
+        } else {
+            $subscription = new Subscription();
+            $subscription->user_id = $customer->getBillableId();
+        } 
         $subscription->user_id = $customer->getBillableId();
         $subscription->plan_id = $plan->getBillableId();
         $subscription->status = Subscription::STATUS_NEW;
         
         $subscription->save();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
+            'plan' => $plan->getBillableName(),
+            'price' => $plan->getBillableFormattedPrice(),
+        ]);
         
         return $subscription;
     }
@@ -185,9 +197,21 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
 
     public function hasPending($subscription) {}
     public function getPendingNotice($subscription) {}
+
+    /**
+     * Get checkout url.
+     *
+     * @return string
+     */
+    public function getCheckoutUrl($subscription, $returnUrl='/') {
+        return action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
     
     /**
-     * Get renew url.
+     * Get change plan url.
      *
      * @return string
      */
@@ -237,7 +261,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         // check if recurring accur
         if (\Carbon\Carbon::now()->diffInDays($subscription->current_period_ends_at) < 3) {
             // add transaction
-            $transaction = $subscription->addTransaction([
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_AUTO_CHARGE, [
                 'ends_at' => null,
                 'current_period_ends_at' => $subscription->nextPeriod(),
                 'status' => SubscriptionTransaction::STATUS_PENDING,
@@ -307,6 +331,51 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
             'url' => action('\Acelle\Cashier\Controllers\BraintreeController@fixPayment', [
                 'subscription_id' => $subscription->uid,
             ]),
+        ]);
+    }
+
+    /**
+     * Cancel subscription.
+     *
+     * @return string
+     */
+    public function cancel($subscription) {
+        $subscription->cancel();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
+    }
+
+    /**
+     * Cancel now subscription.
+     *
+     * @return string
+     */
+    public function cancelNow($subscription) {
+        $subscription->cancelNow();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
+    }
+
+    /**
+     * Resume now subscription.
+     *
+     * @return string
+     */
+    public function resume($subscription) {
+        $subscription->resume();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_RESUMED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
         ]);
     }
 }

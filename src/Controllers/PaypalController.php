@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\SubscriptionTransaction;
+use Acelle\Cashier\SubscriptionLog;
 
 class PaypalController extends Controller
 {
@@ -69,10 +70,23 @@ class PaypalController extends Controller
         }
 
         if ($request->isMethod('post')) {
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+
             // throw excaption of failed
             if ($subscription->plan->price > 0) {
                 $service->charge($subscription, [
                     'orderID' => $request->orderID,
+                ]);
+
+                sleep(1);
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_PAID, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
                 ]);
             }
 
@@ -80,7 +94,7 @@ class PaypalController extends Controller
             $subscription->start();
 
             // add transaction
-            $subscription->addTransaction([
+            $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBED, [
                 'ends_at' => $subscription->ends_at,
                 'current_period_ends_at' => $subscription->current_period_ends_at,
                 'status' => SubscriptionTransaction::STATUS_SUCCESS,
@@ -88,6 +102,13 @@ class PaypalController extends Controller
                     'plan' => $subscription->plan->getBillableName(),
                 ]),
                 'amount' => $subscription->plan->getBillableFormattedPrice()
+            ]);
+            
+            sleep(1);
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_RENEWED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
             ]);
 
             // Redirect to my subscription page
@@ -142,10 +163,24 @@ class PaypalController extends Controller
         }
 
         if ($request->isMethod('post')) {
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE, [
+                'old_plan' => $subscription->plan->getBillableName(),
+                'plan' => $plan->getBillableName(),
+                'price' => $plan->getBillableFormattedPrice(),
+            ]);
+
             // charge
             if (round($result['amount']) > 0) {
                 $service->charge($subscription, [
                     'orderID' => $request->orderID,
+                ]);
+
+                sleep(1);
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_PAID, [
+                    'plan' => $plan->getBillableName(),
+                    'price' => $plan->getBillableFormattedPrice(),
                 ]);
             }
             
@@ -153,7 +188,7 @@ class PaypalController extends Controller
             $subscription->changePlan($plan, round($result['amount']));
             
             // add transaction
-            $subscription->addTransaction([
+            $subscription->addTransaction(SubscriptionTransaction::TYPE_PLAN_CHANGE, [
                 'ends_at' => $subscription->ends_at,
                 'current_period_ends_at' => $subscription->current_period_ends_at,
                 'status' => SubscriptionTransaction::STATUS_SUCCESS,
@@ -161,6 +196,13 @@ class PaypalController extends Controller
                     'plan' => $plan->getBillableName(),
                 ]),
                 'amount' => $plan->getBillableFormattedPrice()
+            ]);
+
+            sleep(1);
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGED, [
+                'plan' => $plan->getBillableName(),
+                'price' => $plan->getBillableFormattedPrice(),
             ]);
 
             // Redirect to my subscription page
@@ -209,16 +251,28 @@ class PaypalController extends Controller
         }
         
         if ($request->isMethod('post')) {
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_RENEW, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+
             if ($subscription->plan->price > 0) {
                 // check order ID
                 $service->checkOrderId($request->orderID);
+                
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_PAID, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                ]);
             }
             
             // renew
             $subscription->renew();
 
             // subscribe to plan
-            $subscription->addTransaction([
+            $subscription->addTransaction(SubscriptionTransaction::TYPE_RENEW, [
                 'ends_at' => $subscription->ends_at,
                 'current_period_ends_at' => $subscription->current_period_ends_at,
                 'status' => SubscriptionTransaction::STATUS_SUCCESS,
@@ -226,6 +280,14 @@ class PaypalController extends Controller
                     'plan' => $subscription->plan->getBillableName(),
                 ]),
                 'amount' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+            
+            sleep(1);
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_RENEWED, [
+                'old_plan' => $subscription->plan->getBillableName(),
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
             ]);
 
             // Redirect to my subscription page

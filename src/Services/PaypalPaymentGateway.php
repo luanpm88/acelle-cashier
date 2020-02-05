@@ -14,6 +14,7 @@ use PayPalCheckoutSdk\Core\PayPalHttpClient;
 use PayPalCheckoutSdk\Core\SandboxEnvironment;
 use PayPalCheckoutSdk\Core\ProductionEnvironment;
 use Acelle\Cashier\SubscriptionTransaction;
+use Acelle\Cashier\SubscriptionLog;
 
 class PaypalPaymentGateway implements PaymentGatewayInterface
 {
@@ -64,10 +65,15 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
     public function create($customer, $plan)
     {
         // update subscription model
-        $subscription = new Subscription();
+        if ($customer->subscription) {
+            $subscription = $customer->subscription;
+        } else {
+            $subscription = new Subscription();
+            $subscription->user_id = $customer->getBillableId();
+        }
         $subscription->user_id = $customer->getBillableId();
         $subscription->plan_id = $plan->getBillableId();
-        $subscription->status = Subscription::STATUS_PENDING;
+        $subscription->status = Subscription::STATUS_NEW;
         
         // set dates and save
         $subscription->ends_at = $subscription->getPeriodEndsAt(Carbon::now());
@@ -77,7 +83,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         // If plan is free: enable subscription & update transaction
         if ($plan->getBillableAmount() == 0) {
             // subscription transaction
-            $transaction = $subscription->addTransaction([
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
                 'ends_at' => $subscription->ends_at,
                 'current_period_ends_at' => $subscription->current_period_ends_at,
                 'status' => SubscriptionTransaction::STATUS_SUCCESS,
@@ -89,6 +95,18 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
             
             // set active
             $subscription->setActive();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
+                'plan' => $plan->getBillableName(),
+                'price' => $plan->getBillableFormattedPrice(),
+            ]);
+        } else {
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
+                'plan' => $plan->getBillableName(),
+                'price' => $plan->getBillableFormattedPrice(),
+            ]);
         }
         
         return $subscription;
@@ -118,19 +136,6 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         $transactions = isset($metadata['transactions']) ? $metadata['transactions'] : [];
         
         return $transactions;
-    }
-
-    /**
-     * Get remote transaction.
-     *
-     * @return Boolean
-     */
-    public function addTransaction($subscription, $data)
-    {
-        $transactions = $this->getTransactions($subscription);
-        array_unshift($transactions, $data);
-
-        $subscription->updateMetadata(['transactions' => $transactions]);
     }
 
     /**
@@ -167,17 +172,6 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
      */
     public function sync($subscription)
     {
-    }
-    
-    /**
-     * Resume subscription.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function cancelNow($subscription)
-    {
-        $subscription->setEnded();
     }
     
     /**
@@ -225,70 +219,6 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         if ($response->statusCode != 200 || $response->result->status != 'COMPLETED') {
             throw new \Exception('Something went wrong:' . json_encode($response->result));
         }
-    }
-    
-    /**
-     * Swap subscription plan.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function changePlan($subscription, $newPlan)
-    {
-        // calc result
-        $result = Cashier::calcChangePlan($subscription, $newPlan);
-        $amount = round($result["amount"]);
-        $endsAt = $result["endsAt"];        
-        $newPlan->price = $amount;
-
-        $subscription->plan_id = $newPlan->getBillableId();
-        $subscription->ends_at = $endsAt;
-        $subscription->save();
-        
-        // save transaction
-        $this->addTransaction($subscription, [
-            'createdAt' => $subscription->created_at->timestamp,
-            'periodEndsAt' => $subscription->ends_at->timestamp,
-            'amount' => $newPlan->getBillableFormattedPrice(),
-            'description' => trans('cashier::messages.paypal.change_plan_to', [
-                'current_plan' => $subscription->plan->getBillableName(),
-                'new_plan' => $newPlan->getBillableName(),
-            ]),
-            'status' => 'active'
-        ]);
-        
-        return $subscription;
-    }
-    
-    /**
-     * Renew subscription plan.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function renew($subscription)
-    {
-        // calc result
-        $amount = $subscription->plan->getBillableAmount();
-        $endsAt = $subscription->nextPeriod()->timestamp;
-
-        $subscription->ends_at = $endsAt;
-        $subscription->save();
-        
-        // save transaction
-        $this->addTransaction($subscription, [
-            'createdAt' => $subscription->created_at->timestamp,
-            'periodEndsAt' => $subscription->ends_at->timestamp,
-            'amount' => $subscription->plan->getBillableFormattedPrice(),
-            'description' => trans('cashier::messages.paypal.renew_plan_desc', [
-                'plan' => $subscription->plan->getBillableName(),
-            ]),
-            'status' => 'active'
-        ]);
-        
-        
-        
-        return $subscription;
     }
     
     /**
@@ -371,6 +301,18 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
             'return_url' => $returnUrl,
         ]);
     }
+
+    /**
+     * Get checkout url.
+     *
+     * @return string
+     */
+    public function getCheckoutUrl($subscription, $returnUrl='/') {
+        return action("\Acelle\Cashier\Controllers\PaypalController@checkout", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
     
     /**
      * Get renew url.
@@ -401,4 +343,49 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
 
     public function hasError($subscription) {}
     public function getErrorNotice($subscription) {}
+
+    /**
+     * Cancel subscription.
+     *
+     * @return string
+     */
+    public function cancel($subscription) {
+        $subscription->cancel();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
+    }
+
+    /**
+     * Cancel now subscription.
+     *
+     * @return string
+     */
+    public function cancelNow($subscription) {
+        $subscription->cancelNow();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
+    }
+
+    /**
+     * Resume now subscription.
+     *
+     * @return string
+     */
+    public function resume($subscription) {
+        $subscription->resume();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_RESUMED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
+    }
 }

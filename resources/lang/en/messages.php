@@ -229,4 +229,23 @@
     'coinpayments.status' => 'Status',
     'coinpayments.pending.intro' => 'You are subscribing to <strong>:plan</strong> plan.
         Click on the <strong>checkout url</strong> to pay or <strong>status url</strong> below to pay/check your payment status',
+    'subscription.log.subscribe' => 'Subscribing to <strong>:plan</strong> plan',
+    'subscription.log.claimed' => 'The payment (<strong>:price</strong>) was <strong>claimed</strong> by customer',
+    'subscription.log.admin_approved' => 'Subscription for <strong>:plan</strong> plan was
+        <strong>approved</strong> by Admin',
+    'subscription.log.admin_cancelled_now' => 'Subscription for <strong>:plan</strong> plan was
+        <strong>ended</strong> by Admin',
+    'subscription.log.plan_change' => 'Changing plan from <strong>:old_plan</strong> to
+        <strong>:plan</strong> (<strong>:price</strong>)',
+    'subscription.log.admin_plan_change_approved' => 'Change to <strong>:plan</strong> plan was <strong>approved</strong> by Admin',
+    'subscription.log.admin_renew_approved' => 'Renew <strong>:plan</strong> plan was <strong>approved</strong> by Admin',
+    'subscription.log.renew' => 'Renewing <strong>:plan</strong> plan (<strong>:price</strong>)',
+    'subscription.log.cancelled_now' => 'Subscription for <strong>:plan</strong> plan was <strong>cancelled now</strong>',
+    'subscription.log.paid' => 'Paid for <strong>:plan</strong> plan (<strong>:price</strong>)',
+    'subscription.log.subscribed' => 'Subscribed to <strong>:plan</strong> plan',
+    'subscription.log.cancelled' => 'Subscription for <strong>:plan</strong> plan was <strong>cancelled</strong>',
+    'subscription.log.resumed' => 'Subscription for <strong>:plan</strong> plan was <strong>resumed</strong>',
+    'subscription.log.plan_changed' => 'Changed plan to
+        <strong>:plan</strong> (<strong>:price</strong>)',
+    'subscription.log.renewed' => 'Renewed <strong>:plan</strong> plan (<strong>:price</strong>)',
 ) ?>

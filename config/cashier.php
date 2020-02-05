@@ -2,6 +2,8 @@
 
 return [
     'gateway' => 'direct',
+    'end_period_last_days' => 10,
+    'renew_free_plan' => 'yes',
     'gateways' => [
         'direct' => [
             'name' => 'direct',

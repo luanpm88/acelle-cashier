@@ -130,7 +130,7 @@ class Cashier
         $subscription->save();
 
         // add transaction
-        $subscription->addTransaction([
+        $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
             'ends_at' => $subscription->ends_at,
             'current_period_ends_at' => $subscription->current_period_ends_at,
             'status' => SubscriptionTransaction::STATUS_SUCCESS,

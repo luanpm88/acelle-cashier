@@ -5,6 +5,7 @@ namespace Acelle\Cashier\Controllers;
 use Acelle\Http\Controllers\Controller;
 use Acelle\Cashier\Subscription;
 use Acelle\Cashier\SubscriptionTransaction;
+use Acelle\Cashier\SubscriptionLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
@@ -153,6 +154,12 @@ class DirectController extends Controller
         $transaction = $service->getLastTransaction($subscription);
         
         $service->claim($transaction);
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_CLAIMED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $transaction->amount,
+        ]);
         
         return redirect()->action('\Acelle\Cashier\Controllers\DirectController@pending', [
             'subscription_id' => $subscription->uid,
@@ -173,6 +180,12 @@ class DirectController extends Controller
         $transaction = $service->getLastTransaction($subscription);
         
         $service->unclaim($transaction);
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_UNCLAIMED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
         
         return redirect()->action('\Acelle\Cashier\Controllers\DirectController@pending', [
             'subscription_id' => $subscription->uid,
@@ -204,7 +217,7 @@ class DirectController extends Controller
         
         if ($request->isMethod('post')) {
             // subscribe to plan
-            $subscription->addTransaction([
+            $subscription->addTransaction(SubscriptionTransaction::TYPE_RENEW, [
                 'ends_at' => $subscription->nextPeriod(),
                 'current_period_ends_at' => $subscription->nextPeriod(),
                 'status' => SubscriptionTransaction::STATUS_PENDING,
@@ -213,6 +226,12 @@ class DirectController extends Controller
                 ]),
                 'amount' => $subscription->plan->getBillableFormattedPrice(),
                 'description' => trans('cashier::messages.direct.payment_is_not_claimed'),
+            ]);
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_RENEW, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
             ]);
 
             // Redirect to my subscription page
@@ -265,7 +284,7 @@ class DirectController extends Controller
         if ($request->isMethod('post')) {
             // subscribe to plan
             $plan->price = $result['amount'];
-            $transaction = $subscription->addTransaction([
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_PLAN_CHANGE, [
                 'ends_at' => $result['endsAt'],
                 'current_period_ends_at' => $result['endsAt'],
                 'status' => SubscriptionTransaction::STATUS_PENDING,
@@ -280,7 +299,13 @@ class DirectController extends Controller
             $data = $transaction->getMetadata();
             $data['plan_id'] = $plan->getBillableId();
             $transaction->updateMetadata($data);
-
+            
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE, [
+                'old_plan' => $subscription->plan->getBillableName(),
+                'plan' => $plan->getBillableName(),
+                'price' => $plan->getBillableFormattedPrice(),
+            ]);
 
             // Redirect to my subscription page
             return redirect()->action('\Acelle\Cashier\Controllers\DirectController@pending', [
@@ -312,6 +337,12 @@ class DirectController extends Controller
 
         if ($subscription->isPending()) {
             $subscription->setEnded();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
+                'plan' => $plan->getBillableName(),
+                'price' => $plan->getBillableFormattedPrice(),
+            ]);
         }
 
         $return_url = $request->session()->get('checkout_return_url', url('/'));
