@@ -12,6 +12,8 @@ use Acelle\Cashier\SubscriptionLog;
 
 class BraintreePaymentGateway implements PaymentGatewayInterface
 {
+    const ERROR_RECURRING_CHARGE_FAILED = 'recurring-charge-failed';
+
     public $environment;
     public $merchantId;
     public $publicKey;
@@ -259,42 +261,67 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         }
 
         // check if recurring accur
-        if (\Carbon\Carbon::now()->diffInDays($subscription->current_period_ends_at) < 3) {
-            // add transaction
-            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_AUTO_CHARGE, [
-                'ends_at' => null,
-                'current_period_ends_at' => $subscription->nextPeriod(),
-                'status' => SubscriptionTransaction::STATUS_PENDING,
-                'title' => trans('cashier::messages.transaction.recurring_charge', [
+        if (\Carbon\Carbon::now()->diffInDays($subscription->current_period_ends_at) < config('cashier.recurring_charge_before_days')) {
+            $this->renew($subscription);
+        }
+    }
+
+    public function renew($subscription) {        
+        // add transaction
+        $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_AUTO_CHARGE, [
+            'ends_at' => null,
+            'current_period_ends_at' => $subscription->nextPeriod(),
+            'status' => SubscriptionTransaction::STATUS_PENDING,
+            'title' => trans('cashier::messages.transaction.recurring_charge', [
+                'plan' => $subscription->plan->getBillableName(),
+            ]),
+            'amount' => $subscription->plan->getBillableFormattedPrice(),
+        ]);
+
+        // charge
+        try {
+            $this->charge($subscription, [
+                'amount' => $subscription->plan->getBillableAmount(),
+                'currency' => $subscription->plan->getBillableCurrency(),
+                'description' => trans('cashier::messages.transaction.recurring_charge', [
                     'plan' => $subscription->plan->getBillableName(),
                 ]),
-                'amount' => $subscription->plan->getBillableFormattedPrice(),
             ]);
 
-            // charge
-            try {
-                $this->charge($subscription, [
-                    'amount' => $subscription->plan->getBillableAmount(),
-                    'currency' => $subscription->plan->getBillableCurrency(),
-                    'description' => trans('cashier::messages.transaction.recurring_charge', [
-                        'plan' => $subscription->plan->getBillableName(),
-                    ]),
-                ]);
+            // set active
+            $transaction->setSuccess();
 
-                // set active
-                $transaction->setSuccess();
+            // check new states from transaction
+            $subscription->ends_at = $transaction->ends_at;
+            $subscription->current_period_ends_at = $transaction->current_period_ends_at;
+            $subscription->save();
 
-                // check new states from transaction
-                $subscription->ends_at = $transaction->ends_at;
-                $subscription->current_period_ends_at = $transaction->current_period_ends_at;
-                $subscription->save();
-            } catch (\Exception $e) {
-                $transaction->setFailed();
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_RENEWED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
 
-                // update error message
-                $transaction->description = $e->getMessage();
-                $transaction->save();
-            } 
+            return true;
+        } catch (\Exception $e) {
+            $transaction->setFailed();
+
+            // update error message
+            $transaction->description = $e->getMessage();
+            $transaction->save();
+
+            // set subscription last_error_type
+            $subscription->last_error_type = BraintreePaymentGateway::ERROR_RECURRING_CHARGE_FAILED;
+            $subscription->save();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_RENEW_FAILED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
         }
     }
 
@@ -318,20 +345,22 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      * @return boolean
      */
     public function hasError($subscription) {
-        $transaction = $this->getLastTransaction($subscription);
-        return isset($transaction) && $transaction->isFailed();
+        return isset($subscription->last_error_type);
     }
 
     public function getErrorNotice($subscription) {
-        $transaction = $this->getLastTransaction($subscription);
-        
-        return trans('cashier::messages.braintree.payment_error.something_went_wrong', [
-            'description' => $transaction->title,
-            'amount' => $transaction->amount,
-            'url' => action('\Acelle\Cashier\Controllers\BraintreeController@fixPayment', [
-                'subscription_id' => $subscription->uid,
-            ]),
-        ]);
+        switch ($subscription->last_error_type) {
+            case StripePaymentGateway::ERROR_RECURRING_CHARGE_FAILED:
+                return trans('cashier::messages.stripe.payment_error.recurring_charge_error', [
+                    'url' => action('\Acelle\Cashier\Controllers\BraintreeController@fixPayment', [
+                        'subscription_id' => $subscription->uid,
+                    ]),
+                ]);
+
+                break;
+            default:
+                return trans('cashier::messages.stripe.error.something_went_wrong');
+        }
     }
 
     /**

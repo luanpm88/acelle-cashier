@@ -434,27 +434,16 @@ class BraintreeController extends Controller
         // Get current customer
         $subscription = Subscription::findByUid($subscription_id);
         $service = $this->getPaymentService();
-        $transaction = $service->getLastTransaction($subscription);
         
         if ($request->isMethod('post')) {
-            // charge customer
-            $service->charge($subscription, [
-                'amount' => $subscription->plan->price,
-                'currency' => $subscription->plan->getBillableCurrency(),
-                'description' => trans('cashier::messages.transaction.change_plan', [
-                    'plan' => $subscription->plan->getBillableName(),
-                ]),
-            ]);
-            
-            // set active
-            $transaction->setSuccess();
-            $transaction->description = null;
-            $transaction->save();
+            // try to renew again
+            $ok = $service->renew($subscription);
 
-            // check new states from transaction
-            $subscription->ends_at = $transaction->ends_at;
-            $subscription->current_period_ends_at = $transaction->current_period_ends_at;            
-            $subscription->save();
+            if ($ok) {
+                // remove last_error
+                $subscription->last_error_type = null;
+                $subscription->save();
+            }
 
             // Redirect to my subscription page
             return redirect()->away($this->getReturnUrl($request));
@@ -463,7 +452,6 @@ class BraintreeController extends Controller
         return view('cashier::braintree.fix_payment', [
             'subscription' => $subscription,
             'return_url' => $this->getReturnUrl($request),
-            'transaction' => $transaction,
             'service' => $service,
             'clientToken' => $service->serviceGateway->clientToken()->generate(),
         ]);

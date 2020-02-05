@@ -19,11 +19,11 @@
             </div>
             <div class="col-md-4 mt-40 pd-60">                
                 <label>{{ trans('cashier::messages.stripe.transaction.payment') }}</label>  
-                <h2 class="mb-40">{{ $transaction->title }}</h2>
+                <h2 class="mb-40">{{ $subscription->plan->getBillableName() }}</h2>
 
                 <p>{!! trans('cashier::messages.stripe.fix_payment.intro', [
                     'plan' => $subscription->plan->getBillableName(),
-                    'new_plan' => $transaction->amount,
+                    'new_plan' => $subscription->plan->getBillableFormattedPrice(),
                 ]) !!}</p>   
                 
                 <ul class="dotted-list topborder section mb-4">
@@ -32,7 +32,7 @@
                             {{ trans('cashier::messages.transaction.title') }}
                         </div>
                         <div class="lastUnit size1of2">
-                            <mc:flag>{{ $transaction->title }}</mc:flag>
+                            <mc:flag>{{ $subscription->plan->getBillableName() }}</mc:flag>
                         </div>
                     </li>
                     <li>
@@ -40,7 +40,7 @@
                             {{ trans('cashier::messages.stripe.next_period_day') }}
                         </div>
                         <div class="lastUnit size1of2">
-                            <mc:flag>{{ $transaction->current_period_ends_at->format('d M, Y') }}</mc:flag>
+                            <mc:flag>{{ $subscription->nextPeriod()->format('d M, Y') }}</mc:flag>
                         </div>
                     </li>
                     <li>
@@ -48,7 +48,7 @@
                             {{ trans('cashier::messages.stripe.amount') }}
                         </div>
                         <div class="lastUnit size1of2">
-                            <mc:flag>{{ $transaction->amount }}</mc:flag>
+                            <mc:flag>{{ $subscription->plan->getBillableFormattedPrice() }}</mc:flag>
                         </div>
                     </li>
                 </ul>

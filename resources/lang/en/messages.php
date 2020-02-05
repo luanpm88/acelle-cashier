@@ -206,13 +206,19 @@
     'direct.payment_was_claimed' => 'Payment was claimed',
     'stripe.next_period_day' => 'Next period end day',
     'transaction.recurring_charge' => 'Recurring Charge for :plan plan',
-    'stripe.payment_error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with payment.
-        <a href=":url"><strong>Click here</strong></a> to see more details.',
+    'stripe.payment_error.recurring_charge_error' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong when
+        charging your subscription. <a href=":url"><strong>Click here</strong></a> to update the payment.',
+    'stripe.error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with transaction(s).
+        Please check transactions list for more details.',
     'transaction.title' => 'Action',
     'stripe.transaction.payment' => 'Payment',
     'stripe.fix_payment.intro' => 'You are about to charge <strong>:plan</strong> plan for new period.
         Please check the information below before proceeding.',
     'stripe.payment' => 'Pay with Stripe',
+    'braintree.payment_error.recurring_charge_error' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong when
+        charging your subscription. <a href=":url"><strong>Click here</strong></a> to update the payment.',
+    'braintree.error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with transaction(s).
+        Please check transactions list for more details.',
     'braintree.transaction.payment' => 'Payment',
     'braintree.payment_error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with payment.
         <a href=":url"><strong>Click here</strong></a> to see more details.',
@@ -248,4 +254,5 @@
     'subscription.log.plan_changed' => 'Changed plan to
         <strong>:plan</strong> (<strong>:price</strong>)',
     'subscription.log.renewed' => 'Renewed <strong>:plan</strong> plan (<strong>:price</strong>)',
+    'subscription.log.renew_failed' => 'Can not renew <strong>:plan</strong> plan. Error: :error',
 ) ?>
