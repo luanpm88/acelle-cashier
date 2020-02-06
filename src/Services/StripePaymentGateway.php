@@ -127,8 +127,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
     }
 
     public function sync($subscription) {
-        // check recurring
-        $this->recurring($subscription);
     }
 
     public function isSupportRecurring() {
@@ -282,44 +280,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
 
         return $price / $rate;
-    }
-
-    /**
-     * Recurring charge.
-     * 
-     * @return void
-     */
-    public function recurring($subscription=null)
-    {
-        // check if subscription is null
-        if (!$subscription) {
-            return;
-        }
-
-        // check if has pending transaction
-        if (!$subscription->isActive()) {
-            return;
-        }
-
-        // check if subscription is cancelled
-        if ($subscription->cancelled()) {
-            return;
-        }
-
-        // check if has pending transaction
-        if ($this->hasPending($subscription)) {
-            return;
-        }
-
-        // check if has error transaction
-        if ($this->hasError($subscription)) {
-            return;
-        }
-
-        // check if recurring accur
-        if (\Carbon\Carbon::now()->diffInDays($subscription->current_period_ends_at) < config('cashier.recurring_charge_before_days')) {
-            $this->renew($subscription);
-        }
     }
 
     public function renew($subscription) {

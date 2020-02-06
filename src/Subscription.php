@@ -505,7 +505,9 @@ class Subscription extends Model
             }
 
             // check from service: recurring/transaction
-            $gateway->sync($subscription);
+            if ($subscription->isExpiring($gateway)) {
+                $gateway->renew($subscription);
+            }
         }
     }
 
@@ -669,5 +671,39 @@ class Subscription extends Model
         $this->ends_at = $this->nextPeriod();
         $this->current_period_ends_at = $this->nextPeriod();
         $this->save();
+    }
+
+    public function isExpiring($gateway) {
+        // check if has pending transaction
+        if (!$this->isActive()) {
+            return false;
+        }
+
+        // check if subscription is cancelled
+        if ($this->cancelled()) {
+            return false;
+        }
+
+        // check if has pending transaction
+        if ($gateway->hasPending($this)) {
+            return false;
+        }
+
+        // check if has error transaction
+        if ($gateway->hasError($this)) {
+            return false;
+        }
+
+        // check if has error transaction
+        if (!$gateway->isSupportRecurring()) {
+            return false;
+        }
+
+        // check if recurring accur
+        if (\Carbon\Carbon::now()->diffInDays($this->current_period_ends_at) < config('cashier.recurring_charge_before_days')) {
+            return true;
+        }
+
+        return false;
     }
 }
