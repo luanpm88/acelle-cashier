@@ -505,7 +505,7 @@ class Subscription extends Model
             }
 
             // check from service: recurring/transaction
-            if ($subscription->isExpiring($gateway)) {
+            if ($gateway->isSupportRecurring() && $subscription->isExpiring($gateway)) {
                 $gateway->renew($subscription);
             }
         }
