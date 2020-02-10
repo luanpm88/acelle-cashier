@@ -495,19 +495,30 @@ class Subscription extends Model
      * @param  Int  $subscriptionId
      * @return date
      */
-    public static function check($gateway)
+    public static function checkAll($gateway)
     {
         $subscriptions = self::whereNull('ends_at')->orWhere('ends_at', '>=', \Carbon\Carbon::now())->get();
         foreach ($subscriptions as $subscription) {
-            // check expired
-            if (isset($subscription->ends_at) && \Carbon\Carbon::now()->endOfDay() > $subscription->ends_at) {
-                $subscription->cancelNow();
-            }
+            $subscription->check($gateway);
+        }
+    }
 
-            // check from service: recurring/transaction
-            if ($gateway->isSupportRecurring() && $subscription->isExpiring($gateway)) {
-                $gateway->renew($subscription);
-            }
+    /**
+     * Check subscription status.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function check($gateway)
+    {
+        // check expired
+        if (isset($this->ends_at) && \Carbon\Carbon::now()->endOfDay() > $this->ends_at) {
+            $this->cancelNow();
+        }
+
+        // check from service: recurring/transaction
+        if ($gateway->isSupportRecurring() && $this->isExpiring($gateway)) {
+            $gateway->renew($this);
         }
     }
 
@@ -538,6 +549,7 @@ class Subscription extends Model
             default:
                 $endsAt = null;
         }
+
         return $endsAt;
     }
     

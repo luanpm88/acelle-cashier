@@ -728,7 +728,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     {
         $transaction = $this->getLastTransaction($subscription);
 
-        return $transaction->isPending() && !in_array($transaction->type, [
+        return isset($transaction) && $transaction->isPending() && !in_array($transaction->type, [
             SubscriptionTransaction::TYPE_SUBSCRIBE,
         ]);
     }

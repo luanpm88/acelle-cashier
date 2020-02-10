@@ -340,8 +340,8 @@ class DirectController extends Controller
 
             // add log
             $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
-                'plan' => $plan->getBillableName(),
-                'price' => $plan->getBillableFormattedPrice(),
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
             ]);
         }
 
