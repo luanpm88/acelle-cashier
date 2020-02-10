@@ -81,7 +81,7 @@ class BraintreeController extends Controller
         $request->session()->put('checkout_return_url', $request->return_url);
 
         // if free plan
-        if ($subscription->plan->getBillableAmount() == 0) {
+        if ($subscription->plan->getBillableAmount() == 0 && $service->always_ask_for_valid_card == 'no') {
             // charged successfully. Set subscription to active
             $subscription->start();
 
@@ -152,15 +152,17 @@ class BraintreeController extends Controller
 
             // // Redirect to my subscription page
             // return redirect()->away($return_url);
-
-            // charge customer
-            $service->charge($subscription, [
-                'amount' => $subscription->plan->getBillableAmount(),
-                'currency' => $subscription->plan->getBillableCurrency(),
-                'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
-                    'plan' => $subscription->plan->getBillableName(),
-                ]),
-            ]);
+            
+            if ($subscription->plan->getBillableAmount() > 0) {
+                // charge customer
+                $service->charge($subscription, [
+                    'amount' => $subscription->plan->getBillableAmount(),
+                    'currency' => $subscription->plan->getBillableCurrency(),
+                    'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                        'plan' => $subscription->plan->getBillableName(),
+                    ]),
+                ]);
+            }
 
             // charged successfully. Set subscription to active
             $subscription->start();

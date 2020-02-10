@@ -41,12 +41,13 @@ class StripeController extends Controller
     public function checkout(Request $request, $subscription_id)
     {
         $subscription = Subscription::findByUid($subscription_id);
+        $service = $this->getPaymentService();
         
         // save return url
         $request->session()->put('checkout_return_url', $request->return_url);
 
-        // if free plan
-        if ($subscription->plan->getBillableAmount() == 0) {
+        // if free plan and not always required card
+        if ($subscription->plan->getBillableAmount() == 0 && $service->always_ask_for_valid_card == 'no') {
             // charged successfully. Set subscription to active
             $subscription->start();
 
@@ -144,14 +145,16 @@ class StripeController extends Controller
         $service = $this->getPaymentService();
 
         if ($request->isMethod('post')) {
-            // charge customer
-            $service->charge($subscription, [
-                'amount' => $subscription->plan->getBillableAmount(),
-                'currency' => $subscription->plan->getBillableCurrency(),
-                'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
-                    'plan' => $subscription->plan->getBillableName(),
-                ]),
-            ]);
+            if ($subscription->plan->getBillableAmount() > 0) {
+                // charge customer
+                $service->charge($subscription, [
+                    'amount' => $subscription->plan->getBillableAmount(),
+                    'currency' => $subscription->plan->getBillableCurrency(),
+                    'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                        'plan' => $subscription->plan->getBillableName(),
+                    ]),
+                ]);
+            }
 
             // charged successfully. Set subscription to active
             $subscription->start();

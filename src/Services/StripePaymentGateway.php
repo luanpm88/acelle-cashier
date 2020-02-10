@@ -22,14 +22,16 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
     public $secretKey;
     public $publishableKey;
+    public $always_ask_for_valid_card;
 
     /**
      * Construction
      */
-    public function __construct($secret_key, $publishable_key)
+    public function __construct($secret_key, $publishable_key, $always_ask_for_valid_card)
     {
         $this->secretKey = $secret_key;
         $this->publishableKey = $publishable_key;
+        $this->always_ask_for_valid_card = $always_ask_for_valid_card;
         
         \Stripe\Stripe::setApiKey($secret_key);
         \Stripe\Stripe::setApiVersion("2019-12-03");

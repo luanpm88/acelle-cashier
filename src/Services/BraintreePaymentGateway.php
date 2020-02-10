@@ -18,13 +18,15 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
     public $merchantId;
     public $publicKey;
     public $privateKey;
+    public $always_ask_for_valid_card;
     
-    public function __construct($environment, $merchantId, $publicKey, $privateKey) {
+    public function __construct($environment, $merchantId, $publicKey, $privateKey, $always_ask_for_valid_card) {
         $this->environment = $environment;
         $this->merchantId = $merchantId;
         $this->publicKey = $publicKey;
         $this->publicKey = $publicKey;
         $this->privateKey = $privateKey;
+        $this->always_ask_for_valid_card = $always_ask_for_valid_card;
 
         $this->serviceGateway = new \Braintree_Gateway([
             'environment' => $environment,

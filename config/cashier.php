@@ -18,6 +18,7 @@ return [
             'fields' => [
                 'publishable_key' => null,
                 'secret_key' => null,
+                'always_ask_for_valid_card' => 'no',
             ],
         ],
         'braintree' => [
@@ -27,6 +28,7 @@ return [
                 'merchant_id' => null,
                 'public_key' => null,
                 'private_key' => null,
+                'always_ask_for_valid_card' => 'no',
             ],
         ],
         'coinpayments' => [

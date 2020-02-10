@@ -35,13 +35,18 @@ class Cashier
                     $config['fields']['confirmation_message']
                 );
             case 'stripe':
-                return new \Acelle\Cashier\Services\StripePaymentGateway($config['fields']['secret_key'], $config['fields']['publishable_key']);
+                return new \Acelle\Cashier\Services\StripePaymentGateway(
+                    $config['fields']['secret_key'],
+                    $config['fields']['publishable_key'],
+                    $config['fields']['always_ask_for_valid_card']
+                );
             case 'braintree':
                 return new \Acelle\Cashier\Services\BraintreePaymentGateway(
                     $config['fields']['environment'],
                     $config['fields']['merchant_id'],
                     $config['fields']['public_key'],
-                    $config['fields']['private_key']
+                    $config['fields']['private_key'],
+                    $config['fields']['always_ask_for_valid_card']
                 );
             case 'coinpayments':
                 return new \Acelle\Cashier\Services\CoinpaymentsPaymentGateway(
