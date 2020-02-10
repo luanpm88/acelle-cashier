@@ -213,7 +213,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
     }
 
     /**
-     * Set subscription active if it is pending.
+     * Approve renew/change plan pending.
      *
      * @return boolean
      */
@@ -243,6 +243,31 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
         } else {
             // add log
             $subscription->addLog(SubscriptionLog::TYPE_ADMIN_PLAN_CHANGE_APPROVED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $transaction->amount,
+            ]);
+        }
+    }
+
+    /**
+     * Reject renew/change plan pending.
+     *
+     * @return boolean
+     */
+    public function rejectPending($subscription) {
+        $transaction = $this->getLastTransaction($subscription);
+        $transaction->setFailed();
+
+        // log
+        if ($transaction->type == SubscriptionTransaction::TYPE_RENEW) {
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_ADMIN_RENEW_REJECTED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+        } else {
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_ADMIN_PLAN_CHANGE_REJECTED, [
                 'plan' => $subscription->plan->getBillableName(),
                 'price' => $transaction->amount,
             ]);

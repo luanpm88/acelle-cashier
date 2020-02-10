@@ -23,11 +23,15 @@ class SubscriptionLog extends Model
     const TYPE_CANCELLED = 'cancelled';
     const TYPE_CANCELLED_NOW = 'cancelled_now';
     const TYPE_ADMIN_APPROVED = 'admin_approved';
+    const TYPE_ADMIN_REJECTED = 'admin_rejected';
     const TYPE_ADMIN_RENEW_APPROVED = 'admin_renew_approved';
     const TYPE_ADMIN_PLAN_CHANGE_APPROVED = 'admin_plan_change_approved';
+    const TYPE_ADMIN_RENEW_REJECTED = 'admin_renew_rejected';
+    const TYPE_ADMIN_PLAN_CHANGE_REJECTED = 'admin_plan_change_rejected';
     const TYPE_ADMIN_CANCELLED = 'admin_cancelled';
     const TYPE_ADMIN_CANCELLED_NOW = 'admin_cancelled_now';
     const TYPE_ADMIN_RESUMED = 'admin_resumed';
+    const TYPE_ADMIN_PLAN_ASSIGNED = 'admin_plan_assigned';
     const TYPE_RESUMED = 'resumed';
 
 

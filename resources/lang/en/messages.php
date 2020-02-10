@@ -256,4 +256,7 @@
     'subscription.log.renewed' => 'Renewed <strong>:plan</strong> plan (<strong>:price</strong>)',
     'subscription.log.renew_failed' => 'Can not renew <strong>:plan</strong> plan. Error: :error',
     'subscription.log.expired' => 'Subscription for <strong>:plan</strong> plan was <strong>expired</strong>',
+    'subscription.log.admin_plan_change_rejected' => 'Change to <strong>:plan</strong> plan was <strong>rejected</strong> by Admin',
+    'subscription.log.admin_renew_rejected' => 'Renew <strong>:plan</strong> plan was <strong>rejected</strong> by Admin',
+    'subscription.log.admin_plan_assigned' => '<strong>Assigned</strong> to <strong>:plan</strong> plan by Admin',
 ) ?>

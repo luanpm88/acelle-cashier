@@ -5,6 +5,7 @@ namespace Acelle\Cashier;
 use Illuminate\Support\ServiceProvider;
 use Acelle\Cashier\Subscription;
 use Acelle\Cashier\SubscriptionTransaction;
+use Acelle\Cashier\SubscriptionLog;
 
 class Cashier
 {
@@ -116,7 +117,12 @@ class Cashier
         $service = self::getPaymentGateway();
 
         // update subscription model
-        $subscription = new Subscription();
+        if ($customer->subscription) {
+            $subscription = $customer->subscription;
+        } else {
+            $subscription = new Subscription();
+            $subscription->user_id = $customer->getBillableId();
+        }   
         $subscription->user_id = $customer->getBillableId();
         $subscription->plan_id = $plan->getBillableId();
         $subscription->status = Subscription::STATUS_ACTIVE;
@@ -138,6 +144,12 @@ class Cashier
                 'plan' => $subscription->plan->getBillableName(),
             ]),
             'amount' => $subscription->plan->getBillableFormattedPrice()
+        ]);
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_ADMIN_PLAN_ASSIGNED, [
+            'plan' => $subscription->plan->getBillableName(),
+            'price' => $subscription->plan->getBillableFormattedPrice(),
         ]);
     }
 }
