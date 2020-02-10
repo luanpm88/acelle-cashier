@@ -514,6 +514,12 @@ class Subscription extends Model
         // check expired
         if (isset($this->ends_at) && \Carbon\Carbon::now()->endOfDay() > $this->ends_at) {
             $this->cancelNow();
+
+            // add log
+            $this->addLog(SubscriptionLog::TYPE_EXPIRED, [
+                'plan' => $this->plan->getBillableName(),
+                'price' => $this->plan->getBillableFormattedPrice(),
+            ]);
         }
 
         // check from service: recurring/transaction

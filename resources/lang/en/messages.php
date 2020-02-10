@@ -255,4 +255,5 @@
         <strong>:plan</strong> (<strong>:price</strong>)',
     'subscription.log.renewed' => 'Renewed <strong>:plan</strong> plan (<strong>:price</strong>)',
     'subscription.log.renew_failed' => 'Can not renew <strong>:plan</strong> plan. Error: :error',
+    'subscription.log.expired' => 'Subscription for <strong>:plan</strong> plan was <strong>expired</strong>',
 ) ?>
