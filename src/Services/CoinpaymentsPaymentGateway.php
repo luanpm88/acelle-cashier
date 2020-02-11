@@ -820,7 +820,14 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 
         // check new states
         $subscription->ends_at = $transaction->ends_at;
-        $subscription->current_period_ends_at = $transaction->current_period_ends_at;
+        
+        // period date update
+        if ($subscription->current_period_ends_at != $transaction->current_period_ends_at) {
+            // save last period
+            $subscription->last_period_ends_at = $subscription->current_period_ends_at;
+            // set new current period
+            $subscription->current_period_ends_at = $transaction->current_period_ends_at;
+        }
 
         // check new plan
         $data = $transaction->getMetadata();

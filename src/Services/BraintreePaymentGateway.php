@@ -256,6 +256,9 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
 
             // check new states from transaction
             $subscription->ends_at = $transaction->ends_at;
+            // save last period
+            $subscription->last_period_ends_at = $subscription->current_period_ends_at;
+            // set new current period
             $subscription->current_period_ends_at = $transaction->current_period_ends_at;
             $subscription->save();
 

@@ -29,7 +29,7 @@ class Subscription extends Model
      */
     protected $dates = [
         'trial_ends_at', 'ends_at', 'current_period_ends_at',
-        'created_at', 'updated_at', 'started_at'
+        'created_at', 'updated_at', 'started_at', 'last_period_ends_at'
     ];
 
     /**
@@ -679,7 +679,13 @@ class Subscription extends Model
         }
 
         // update subscription date
-        $this->current_period_ends_at = $result['endsAt'];
+        if ($this->current_period_ends_at != $result['endsAt']) {
+            // save last period
+            $this->last_period_ends_at = $this->current_period_ends_at;
+            // set new current period
+            $this->current_period_ends_at = $result['endsAt'];
+        }
+
         if (isset($this->ends_at) && $this->ends_at < $result['endsAt']) {
             $this->ends_at = $result['endsAt'];
         }
@@ -689,7 +695,12 @@ class Subscription extends Model
 
     public function renew() {
         $this->ends_at = $this->nextPeriod();
+        
+        // save last period
+        $this->last_period_ends_at = $this->current_period_ends_at;
+        // set new current period
         $this->current_period_ends_at = $this->nextPeriod();
+        
         $this->save();
     }
 
