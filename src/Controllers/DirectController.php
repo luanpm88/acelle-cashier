@@ -140,11 +140,14 @@ class DirectController extends Controller
                 'return_url' => $this->getReturnUrl($request),
             ]);
         } elseif ($transaction->type == SubscriptionTransaction::TYPE_PLAN_CHANGE) {
+            $plan = \Acelle\Model\Plan::findByUid($transaction->getMetadata()['plan_id']);
+
             return view('cashier::direct.pending_plan_change', [
                 'service' => $service,
                 'subscription' => $subscription,
                 'transaction' => $transaction,
                 'return_url' => $this->getReturnUrl($request),
+                'plan' => $plan,
             ]);
         } else {
             return view('cashier::direct.pending', [

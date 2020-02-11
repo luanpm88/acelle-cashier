@@ -279,7 +279,7 @@
     'direct.pending_plan_change.claimed.title' => 'Please wait...',
     'direct.pending_plan_change.claimed.please_wait' => 'Changing plan to <strong>:plan</strong> plan is being reviewed, please wait. Read the
         payment details below for more information',
-    'direct.pending_plan_change.intro' => 'You are changing plan <strong>:plan</strong> plan, your billing
+    'direct.pending_plan_change.intro' => 'You are changing to <strong>:plan</strong> plan, your billing
         amount is <strong>:price</strong>. Please make the payment following the guideline bellow and your
         subscription will be renewed quickly.',
 ) ?>

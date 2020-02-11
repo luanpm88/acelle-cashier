@@ -28,8 +28,8 @@
                 <h2>{!! trans('cashier::messages.direct.pending_plan_change.title') !!}</h2>  
 
                 <p>{!! trans('cashier::messages.direct.pending_plan_change.intro', [
-                    'plan' => $subscription->plan->getBillableName(),
-                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                    'plan' => $plan->getBillableName(),
+                    'price' => $transaction->amount,
                 ]) !!}</p>  
 
                 {{-- <ul class="dotted-list topborder section mb-4">
@@ -87,8 +87,8 @@
             @else
                 <h2>{!! trans('cashier::messages.direct.pending_plan_change.claimed.title') !!}</h2>  
                 <p class="mb-4">{!! trans('cashier::messages.direct.pending_plan_change.claimed.please_wait', [
-                    'plan' => $subscription->plan->getBillableName(),
-                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                    'plan' => $plan->getBillableName(),
+                    'price' => $transaction->amount,
                 ]) !!}</p>
 
                 <div class="alert alert-info bg-grey-light">
