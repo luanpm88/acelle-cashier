@@ -29,7 +29,7 @@ class Subscription extends Model
      */
     protected $dates = [
         'trial_ends_at', 'ends_at', 'current_period_ends_at',
-        'created_at', 'updated_at',
+        'created_at', 'updated_at', 'started_at'
     ];
 
     /**
@@ -290,6 +290,7 @@ class Subscription extends Model
     public function setActive()
     {
         $this->status = self::STATUS_ACTIVE;
+        $this->started_at = \Carbon\Carbon::now();
         $this->save();
     }
 
@@ -570,6 +571,7 @@ class Subscription extends Model
         $this->ends_at = null;
         $this->current_period_ends_at = $this->getPeriodEndsAt(\Carbon\Carbon::now());
         $this->status = self::STATUS_ACTIVE;
+        $this->started_at = \Carbon\Carbon::now();
         $this->save();
     }
 
