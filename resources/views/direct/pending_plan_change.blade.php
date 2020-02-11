@@ -25,9 +25,9 @@
     <div class="row">
         <div class="col-md-6">
             @if (!$service->isClaimed($transaction))
-                <h2>{!! trans('cashier::messages.direct.pending.title') !!}</h2>  
+                <h2>{!! trans('cashier::messages.direct.pending_plan_change.title') !!}</h2>  
 
-                <p>{!! trans('cashier::messages.direct.pending.intro', [
+                <p>{!! trans('cashier::messages.direct.pending_plan_change.intro', [
                     'plan' => $subscription->plan->getBillableName(),
                     'price' => $subscription->plan->getBillableFormattedPrice(),
                 ]) !!}</p>  
@@ -78,26 +78,15 @@
                             class="btn btn-primary mr-10 mr-2"
                         >{{ trans('cashier::messages.direct.claim_payment') }}</button>
                         
-                        @if (!$subscription->isPending())
-                            <a
-                            href="{{ $return_url }}"
-                                class="btn btn-secondary mr-10"
-                            >{{ trans('cashier::messages.direct.return_back') }}</a>
-                        @else
-                            <form class="mt-4" method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
-                                {{ csrf_field() }}
-                                
-                                <a href="javascript:;" onclick="$(this).closest('form').submit()"
-                                    class="text-muted ml-4"
-                                    style="font-size: 13px; text-decoration: underline;color:#333"
-                                >{{ trans('cashier::messages.direct.change_mind_cancel_subscription') }}</a>
-                            </form>
-                        @endif
+                        <a
+                        href="{{ $return_url }}"
+                            class="btn btn-primary bg-grey ml-10"
+                        >{{ trans('cashier::messages.direct.return_back') }}</a>
                     </div>
                 </form>
             @else
-                <h2>{!! trans('cashier::messages.direct.pending.claimed.title') !!}</h2>  
-                <p class="mb-4">{!! trans('cashier::messages.direct.pending.claimed.please_wait', [
+                <h2>{!! trans('cashier::messages.direct.pending_plan_change.claimed.title') !!}</h2>  
+                <p class="mb-4">{!! trans('cashier::messages.direct.pending_plan_change.claimed.please_wait', [
                     'plan' => $subscription->plan->getBillableName(),
                     'price' => $subscription->plan->getBillableFormattedPrice(),
                 ]) !!}</p>
@@ -106,7 +95,7 @@
                     {!! $service->getPaymentConfirmationMessage() !!}
                 </div>
                 
-                <h2 class="mt-40">{!! trans('cashier::messages.direct.subscription.details') !!}</h2>  
+                <h2 class="mt-40">{!! trans('cashier::messages.direct.transaction.details') !!}</h2>  
                 <ul class="dotted-list topborder section mb-4">
                     <li>
                         <div class="unit size1of2">
@@ -150,22 +139,12 @@
 
                 </form>
 
-                @if (!$subscription->isPending())
+                <div class="d-flex align-items-center">
                     <a
-                    href="{{ $return_url }}"
-                        class="btn btn-secondary mr-10"
+                        href="{{ $return_url }}"
+                        class="btn btn-primary bg-grey mt-4"
                     >{{ trans('cashier::messages.direct.return_back') }}</a>
-                @else
-                <br>
-                    <form class="mt-4" method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
-                        {{ csrf_field() }}
-                        
-                        <a href="javascript:;" onclick="$(this).closest('form').submit()"
-                            class="text-muted"
-                            style="font-size: 13px; text-decoration: underline;color:#333"
-                        >{{ trans('cashier::messages.direct.change_mind_cancel_subscription') }}</a>
-                    </form>
-                @endif
+                </div>
             @endif
         </div>
         <div class="col-md-2"></div>

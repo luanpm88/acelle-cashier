@@ -125,14 +125,17 @@
     'direct.plan' => 'Plan',
     'direct.description' => 'Description',
     'direct.amount' => 'Amount',
-    'direct.pending.intro' => 'There is a pending transaction. Please follow the guide below to finish your payment',
+    'direct.pending.intro' => 'Thank you for subscribing to our <strong>:plan</strong>, your billing
+        amount is <strong>:price</strong>. Please make the payment following the guideline bellow and your
+        subscription will be activated quickly.',
     'coinpayments.plan' => 'Plan',
     'coinpayments.next_period_day' => 'Next period end day',
     'coinpayments.amount' => 'Amount',
     'direct.next_period_day' => 'Next period end day',
     'direct.pending.claimed.intro' => 'You claimed that you paid for the below transaction.
         Please wait for the payment confirmation.',
-    'direct.pending.claimed.please_wait' => 'Your subscription is being reviewed, please wait...',
+    'direct.pending.claimed.please_wait' => 'Subscription for <strong>:plan</strong> plan is being reviewed, please wait. Read the
+        payment details below for more information',
     'direct.renew_plan_desc' => 'Renew <strong>:plan</strong> plan',
     'coinpayments.renew_plan_desc' => 'Renew <strong>:plan</strong> plan',
     'direct.return_back' => 'Return back',
@@ -259,4 +262,24 @@
     'subscription.log.admin_plan_change_rejected' => 'Change to <strong>:plan</strong> plan was <strong>rejected</strong> by Admin',
     'subscription.log.admin_renew_rejected' => 'Renew <strong>:plan</strong> plan was <strong>rejected</strong> by Admin',
     'subscription.log.admin_plan_assigned' => '<strong>Assigned</strong> to <strong>:plan</strong> plan by Admin',
+    'direct.subscription.details' => 'Subscription details',
+    'direct.pending.title' => 'Pay for subscription',
+    'direct.change_mind_cancel_subscription' => 'Change your mind? Choose another plan',
+    'direct.pending.claimed.title' => 'Please wait...',
+    'direct.subscription.details' => 'Subscription details',
+    'direct.pending_renew.title' => 'Renew subscription',
+    'direct.pending_renew.claimed.title' => 'Please wait...',
+    'direct.pending_renew.claimed.please_wait' => 'Renewing subscription for <strong>:plan</strong> plan is being reviewed, please wait. Read the
+        payment details below for more information',
+    'direct.pending_renew.intro' => 'You are renewing subscription for <strong>:plan</strong> plan, your billing
+        amount is <strong>:price</strong>. Please make the payment following the guideline bellow and your
+        subscription will be renewed quickly.',
+    'direct.transaction.details' => 'Transaction details',
+    'direct.pending_plan_change.title' => 'Change plan',
+    'direct.pending_plan_change.claimed.title' => 'Please wait...',
+    'direct.pending_plan_change.claimed.please_wait' => 'Changing plan to <strong>:plan</strong> plan is being reviewed, please wait. Read the
+        payment details below for more information',
+    'direct.pending_plan_change.intro' => 'You are changing plan <strong>:plan</strong> plan, your billing
+        amount is <strong>:price</strong>. Please make the payment following the guideline bellow and your
+        subscription will be renewed quickly.',
 ) ?>

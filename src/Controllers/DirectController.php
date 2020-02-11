@@ -132,12 +132,28 @@ class DirectController extends Controller
             return redirect()->away($this->getReturnUrl($request));
         }
         
-        return view('cashier::direct.pending', [
-            'service' => $service,
-            'subscription' => $subscription,
-            'transaction' => $transaction,
-            'return_url' => $this->getReturnUrl($request),
-        ]);
+        if ($transaction->type == SubscriptionTransaction::TYPE_RENEW) {
+            return view('cashier::direct.pending_renew', [
+                'service' => $service,
+                'subscription' => $subscription,
+                'transaction' => $transaction,
+                'return_url' => $this->getReturnUrl($request),
+            ]);
+        } elseif ($transaction->type == SubscriptionTransaction::TYPE_PLAN_CHANGE) {
+            return view('cashier::direct.pending_plan_change', [
+                'service' => $service,
+                'subscription' => $subscription,
+                'transaction' => $transaction,
+                'return_url' => $this->getReturnUrl($request),
+            ]);
+        } else {
+            return view('cashier::direct.pending', [
+                'service' => $service,
+                'subscription' => $subscription,
+                'transaction' => $transaction,
+                'return_url' => $this->getReturnUrl($request),
+            ]);
+        }
     }
     
     /**
