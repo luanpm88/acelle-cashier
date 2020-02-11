@@ -66,6 +66,8 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
         } else {
             $subscription = new Subscription();
             $subscription->user_id = $customer->getBillableId();
+            // @todo when is exactly started at?
+            $subscription->started_at = \Carbon\Carbon::now();
         }        
         
         $subscription->plan_id = $plan->getBillableId();
