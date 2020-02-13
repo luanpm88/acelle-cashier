@@ -253,6 +253,11 @@ class DirectController extends Controller
                 'price' => $subscription->plan->getBillableFormattedPrice(),
             ]);
 
+            // if is free
+            if ($subscription->plan->getBillableAmount() == 0) {
+                $service->approvePending($subscription);
+            }
+
             // Redirect to my subscription page
             return redirect()->action('\Acelle\Cashier\Controllers\DirectController@pending', [
                 'subscription_id' => $subscription->uid,
@@ -325,6 +330,11 @@ class DirectController extends Controller
                 'plan' => $plan->getBillableName(),
                 'price' => $plan->getBillableFormattedPrice(),
             ]);
+
+            // if is free
+            if ($result['amount'] == 0) {
+                $service->approvePending($subscription);
+            }
 
             // Redirect to my subscription page
             return redirect()->action('\Acelle\Cashier\Controllers\DirectController@pending', [
