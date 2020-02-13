@@ -13,6 +13,8 @@ use Acelle\Cashier\SubscriptionLog;
 
 class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 {
+    const ERROR_PENDING_REJECTED = 'pending-rejected';
+
     public $coinPaymentsAPI;
     
     // Contruction
@@ -806,8 +808,31 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
-    public function hasError($subscription) {}
-    public function getErrorNotice($subscription) {}
+    public function hasError($subscription) {
+        $error_type = $subscription->last_error_type;
+
+        switch ($error_type) {
+            case CoinpaymentsPaymentGateway::ERROR_PENDING_REJECTED:
+                $transaction = $this->getLastTransaction($subscription);
+
+                return $transaction->isFailed();
+            default:
+                return false;
+        }
+    }
+
+    public function getErrorNotice($subscription) {
+        $error_type = $subscription->last_error_type;
+
+        switch ($error_type) {
+            case CoinpaymentsPaymentGateway::ERROR_PENDING_REJECTED:
+                $transaction = $this->getLastTransaction($subscription);
+                $reason = isset($transaction->getMetadata()['reject-reason']) ? $transaction->getMetadata()['reject-reason'] : '';
+                return trans('cashier::messages.last_payment_failed', ['reason' => $reason]);
+            default:
+                return '';
+        }
+    }
 
     /**
      * Set subscription active if it is pending.
@@ -843,7 +868,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      *
      * @return boolean
      */
-    public function rejectPending($subscription) {
+    public function rejectPending($subscription, $reason) {
         $transaction = $this->getLastTransaction($subscription);
         $transaction->setFailed();
 
@@ -861,6 +886,15 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                 'price' => $transaction->amount,
             ]);
         }
+
+        // set subscription last_error_type
+        $subscription->last_error_type = CoinpaymentsPaymentGateway::ERROR_PENDING_REJECTED;
+        $subscription->save();
+
+        // save reason
+        $data = $transaction->getMetadata();
+        $data['reject-reason'] = $reason;
+        $transaction->updateMetadata($data);
     }
 
     /**

@@ -282,4 +282,5 @@
     'direct.pending_plan_change.intro' => 'You are changing to <strong>:plan</strong> plan, your billing
         amount is <strong>:price</strong>. Please make the payment following the guideline bellow and your
         subscription will be renewed quickly.',
+    'last_payment_failed' => 'Your last payment did not succeed, comment from administrator: ":reason"',
 ) ?>

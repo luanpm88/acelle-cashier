@@ -15,6 +15,8 @@ use Acelle\Cashier\InvoiceParam;
 use Carbon\Carbon;
 
 class DirectPaymentGateway implements PaymentGatewayInterface {
+    const ERROR_PENDING_REJECTED = 'pending-rejected';
+
     public $payment_instruction;
     public $confirmation_message;
 
@@ -263,7 +265,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
      *
      * @return boolean
      */
-    public function rejectPending($subscription) {
+    public function rejectPending($subscription, $reason) {
         $transaction = $this->getLastTransaction($subscription);
         $transaction->setFailed();
 
@@ -281,6 +283,15 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
                 'price' => $transaction->amount,
             ]);
         }
+
+        // set subscription last_error_type
+        $subscription->last_error_type = CoinpaymentsPaymentGateway::ERROR_PENDING_REJECTED;
+        $subscription->save();
+
+        // save reason
+        $data = $transaction->getMetadata();
+        $data['reject-reason'] = $reason;
+        $transaction->updateMetadata($data);
     }
 
     public function sync($subscription) {}
@@ -366,8 +377,30 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
         ]);
     }
 
-    public function hasError($subscription) {}
-    public function getErrorNotice($subscription) {}
+    public function hasError($subscription) {
+        $error_type = $subscription->last_error_type;
+
+        switch ($error_type) {
+            case DirectPaymentGateway::ERROR_PENDING_REJECTED:
+                $transaction = $this->getLastTransaction($subscription);
+
+                return $transaction->isFailed();
+            default:
+                return false;
+        }
+    }
+    public function getErrorNotice($subscription) {
+        $error_type = $subscription->last_error_type;
+
+        switch ($error_type) {
+            case DirectPaymentGateway::ERROR_PENDING_REJECTED:
+                $transaction = $this->getLastTransaction($subscription);
+                $reason = isset($transaction->getMetadata()['reject-reason']) ? $transaction->getMetadata()['reject-reason'] : '';
+                return trans('cashier::messages.last_payment_failed', ['reason' => $reason]);
+            default:
+                return '';
+        }
+    }
 
     /**
      * Cancel subscription.
