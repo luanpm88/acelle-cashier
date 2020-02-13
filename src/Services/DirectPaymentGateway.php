@@ -275,12 +275,14 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
             $subscription->addLog(SubscriptionLog::TYPE_ADMIN_RENEW_REJECTED, [
                 'plan' => $subscription->plan->getBillableName(),
                 'price' => $subscription->plan->getBillableFormattedPrice(),
+                'reason' => $reason,
             ]);
         } else {
             // add log
             $subscription->addLog(SubscriptionLog::TYPE_ADMIN_PLAN_CHANGE_REJECTED, [
                 'plan' => $subscription->plan->getBillableName(),
                 'price' => $transaction->amount,
+                'reason' => $reason,
             ]);
         }
 
