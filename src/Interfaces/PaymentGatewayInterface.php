@@ -11,6 +11,7 @@ interface PaymentGatewayInterface
     public function sync($subscription);
     public function validate();
     public function isSupportRecurring();
+    public function useRemoteSubscription();
     public function hasPending($subscription);
     public function getPendingNotice($subscription);
     public function hasError($subscription);

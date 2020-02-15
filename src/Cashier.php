@@ -61,8 +61,14 @@ class Cashier
                     $config['fields']['client_id'],
                     $config['fields']['secret']
                 );
+            case 'paypal_subscription':
+                return new \Acelle\Cashier\Services\PaypalSubscriptionPaymentGateway(
+                    $config['fields']['environment'],
+                    $config['fields']['client_id'],
+                    $config['fields']['secret']
+                );
             default:
-                return false;
+                throw new \Exception("Can not find payment service: " . $config['name']);
         }
     }
     

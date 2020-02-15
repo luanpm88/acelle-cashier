@@ -12,6 +12,15 @@
 */
 
 Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controllers'], function() {
+    Route::get('/cashier/paypal-subscription/{subscription_id}/change-plan/pending', 'PaypalSubscriptionController@ChangePlanpending');
+    Route::get('/cashier/paypal-subscription/payment-redirect', 'PaypalSubscriptionController@paymentRedirect');
+    Route::post('/cashier/paypal-subscription/{subscription_id}/cancel-now', 'PaypalSubscriptionController@cancelNow');
+    Route::match(['get', 'post'], '/cashier/paypal-subscription/{subscription_id}/change-plan', 'PaypalSubscriptionController@changePlan');
+    Route::match(['get', 'post'], '/cashier/paypal-subscription/{subscription_id}/renew', 'PaypalSubscriptionController@renew');
+    Route::get('/cashier/paypal-subscription/{subscription_id}/pending', 'PaypalSubscriptionController@pending');
+    Route::post('/cashier/paypal-subscription/{subscription_id}/checkout', 'PaypalSubscriptionController@checkout');
+    Route::get('/cashier/paypal-subscription/{subscription_id}/checkout', 'PaypalSubscriptionController@checkout');
+
     Route::get('/cashier/paypal/payment-redirect', 'PaypalController@paymentRedirect');
     Route::post('/cashier/paypal/{subscription_id}/cancel-now', 'PaypalController@cancelNow');
     Route::match(['get', 'post'], '/cashier/paypal/{subscription_id}/change-plan', 'PaypalController@changePlan');

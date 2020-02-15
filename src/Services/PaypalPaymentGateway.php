@@ -390,4 +390,14 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
             'price' => $subscription->plan->getBillableFormattedPrice(),
         ]);
     }
+
+    /**
+     * Check if use remote subscription.
+     *
+     * @return void
+     */
+    public function useRemoteSubscription()
+    {
+        return false;
+    }
 }

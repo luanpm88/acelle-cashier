@@ -373,4 +373,27 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
             'price' => $subscription->plan->getBillableFormattedPrice(),
         ]);
     }
+
+    /**
+     * Gateway check method.
+     *
+     * @return void
+     */
+    public function check($subscription)
+    {
+        // check from service: recurring/transaction
+        if ($subscription->isExpiring($this)) {
+            $this->renew($subscription);
+        }
+    }
+
+    /**
+     * Check if use remote subscription.
+     *
+     * @return void
+     */
+    public function useRemoteSubscription()
+    {
+        return false;
+    }
 }

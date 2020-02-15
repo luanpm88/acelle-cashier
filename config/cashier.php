@@ -49,5 +49,13 @@ return [
                 'secret' => null,
             ],
         ],
+        'paypal_subscription' => [
+            'name' => 'paypal_subscription',
+            'fields' => [
+                'environment' => 'sandbox',
+                'client_id' => null,
+                'secret' => null,
+            ],
+        ],
     ],
 ];

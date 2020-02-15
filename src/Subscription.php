@@ -523,9 +523,9 @@ class Subscription extends Model
             ]);
         }
 
-        // check from service: recurring/transaction
-        if ($gateway->isSupportRecurring() && $this->isExpiring($gateway)) {
-            $gateway->renew($this);
+        // gateway service check
+        if(method_exists ( $gateway , 'check' )) {
+            $gateway->check($this);
         }
     }
 
