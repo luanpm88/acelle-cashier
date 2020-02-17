@@ -372,7 +372,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     public function check($subscription)
     {
         // free plan and local renew
-        if ($subscription->isExpiring($this)) {
+        if ($subscription->plan->getBillableAmount() == 0 && $subscription->isExpiring($this)) {
             $this->renew($subscription);
             return;
         }
