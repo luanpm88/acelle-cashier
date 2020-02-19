@@ -322,4 +322,28 @@
     'paypal.new_amount' => 'New plan price',
     'paypal.not_support_set_active' => 'PayPal subscription service does not support manual set active.',
     'paypal.not_support_asign_plan' => 'PayPal subscription service does not support manual asign plan.',
+
+    'payu.checkout.page_title' => 'Checkout',
+    'payu.checkout_with_payu' => 'Checkout with PayU',
+    'payu.card_list' => 'Your card information',
+    'payu.click_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with PayU with <strong>:price</strong>.
+        Please click the button bellow to proceed with the payment information.',
+    'payu.checkout.tree_plan' => 'You are checking out <strong>:plan</strong> with PayU with <strong>:price</strong>.
+        Please click the button bellow to proceed.',
+    'payu.pay' => 'Pay',
+    'payu.pay_with_new_card' => 'Pay with new card',
+    'payu.pay_with_this_card' => 'Pay with this card',
+    'payu.click_or_choose_card_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with PayU with <strong>:price</strong>.
+        Please choose to pay with exist card or pay with new card.',
+    'payu.change_plan_confirmation' => 'You are about to change current subscription plan to <strong>:plan</strong>.
+        Click the proceed button below to change.',
+    'payu.change_plan_proceed' => 'Proceed',
+    'payu.return_back' => 'Return back',
+    'payu.change_plan' => 'Change plan',
+    'payu.new_plan' => 'New plan',
+    'payu.amount' => 'Amount',
+    'payu.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
+        <br> Your browser will redirect to next page shortly.',
+    'payu.checkout.processing_payment' => 'Processing your payment... please wait!',
+    'payu.cancel_new_subscription' => 'Click here to choose another plan',
 ) ?>

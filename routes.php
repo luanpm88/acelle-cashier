@@ -66,4 +66,13 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     Route::match(['get', 'post'], '/cashier/stripe/{subscription_id}/charge', 'StripeController@charge');
     Route::post('/cashier/stripe/{subscription_id}/update-card', 'StripeController@updateCard');
     Route::get('/cashier/stripe/{subscription_id}/checkout', 'StripeController@checkout');
+
+    Route::get('/cashier/payu/payment-redirect', 'PayuController@paymentRedirect');
+    Route::match(['get', 'post'], '/cashier/payu/{subscription_id}/fix-payment', 'PayuController@fixPayment');
+    Route::post('/cashier/payu/{subscription_id}/cancel-now', 'PayuController@cancelNow');
+    Route::get('/cashier/payu/{subscription_id}/change-plan-pending', 'PayuController@changePlanPending');
+    Route::match(['get', 'post'], '/cashier/payu/{subscription_id}/change-plan', 'PayuController@changePlan');
+    Route::match(['get', 'post'], '/cashier/payu/{subscription_id}/charge', 'PayuController@charge');
+    Route::post('/cashier/payu/{subscription_id}/update-card', 'PayuController@updateCard');
+    Route::get('/cashier/payu/{subscription_id}/checkout', 'PayuController@checkout');
 });

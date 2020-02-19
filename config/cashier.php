@@ -57,5 +57,14 @@ return [
                 'secret' => null,
             ],
         ],
+        'payu' => [
+            'name' => 'payu',
+            'fields' => [                
+                'client_id' => null,
+                'client_secret' => null,
+                'second_key' => null,
+                'always_ask_for_valid_card' => 'no',
+            ],
+        ],
     ],
 ];
