@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\SubscriptionTransaction;
 use Acelle\Cashier\SubscriptionLog;
+use Acelle\Cashier\Services\PaypalPaymentGateway;
 
 class PaypalController extends Controller
 {
@@ -163,6 +164,18 @@ class PaypalController extends Controller
         }
 
         if ($request->isMethod('post')) {
+            // add transaction
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_PLAN_CHANGE, [
+                'ends_at' => $subscription->ends_at,
+                'current_period_ends_at' => $subscription->current_period_ends_at,
+                'status' => SubscriptionTransaction::STATUS_PENDING,
+                'title' => trans('cashier::messages.transaction.change_plan', [
+                    'old_plan' => $subscription->plan->getBillableName(),
+                    'plan' => $plan->getBillableName(),
+                ]),
+                'amount' => $result['amount']
+            ]);
+
             // add log
             $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE, [
                 'old_plan' => $subscription->plan->getBillableName(),
@@ -172,9 +185,33 @@ class PaypalController extends Controller
 
             // charge
             if (round($result['amount']) > 0) {
-                $service->charge($subscription, [
-                    'orderID' => $request->orderID,
-                ]);
+                try {
+                    // charge customer
+                    $service->charge($subscription, [
+                        'orderID' => $request->orderID,
+                    ]);
+                } catch (\Exception $e) {
+                    // set transaction failed
+                    $transaction->description = $e->getMessage();
+                    $transaction->setFailed();
+                    
+                    
+                    // add log
+                    sleep(1);
+                    $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANG_FAILED, [
+                        'old_plan' => $subscription->plan->getBillableName(),
+                        'plan' => $plan->getBillableName(),
+                        'price' => $result['amount'],
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    // set subscription last_error_type
+                    $subscription->last_error_type = PaypalPaymentGateway::ERROR_CHARGE_FAILED;
+                    $subscription->save();
+
+                    // Redirect to my subscription page
+                    return redirect()->away($this->getReturnUrl($request));
+                }                
 
                 sleep(1);
                 // add log
@@ -187,17 +224,8 @@ class PaypalController extends Controller
             // change plan
             $subscription->changePlan($plan, round($result['amount']));
             
-            // add transaction
-            $subscription->addTransaction(SubscriptionTransaction::TYPE_PLAN_CHANGE, [
-                'ends_at' => $subscription->ends_at,
-                'current_period_ends_at' => $subscription->current_period_ends_at,
-                'status' => SubscriptionTransaction::STATUS_SUCCESS,
-                'title' => trans('cashier::messages.transaction.change_plan', [
-                    'old_plan' => $subscription->plan->getBillableName(),
-                    'plan' => $plan->getBillableName(),
-                ]),
-                'amount' => $plan->getBillableFormattedPrice()
-            ]);
+            // set success
+            $transaction->setSuccess();
 
             sleep(1);
             // add log
@@ -252,6 +280,17 @@ class PaypalController extends Controller
         }
         
         if ($request->isMethod('post')) {
+            // add transaction
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_RENEW, [
+                'ends_at' => $subscription->ends_at,
+                'current_period_ends_at' => $subscription->current_period_ends_at,
+                'status' => SubscriptionTransaction::STATUS_PENDING,
+                'title' => trans('cashier::messages.transaction.change_plan', [
+                    'plan' => $subscription->plan->getBillableName(),
+                ]),
+                'amount' => $subscription->plan->getBillableFormattedPrice()
+            ]);
+
             // add log
             $subscription->addLog(SubscriptionLog::TYPE_RENEW, [
                 'plan' => $subscription->plan->getBillableName(),
@@ -259,8 +298,29 @@ class PaypalController extends Controller
             ]);
 
             if ($subscription->plan->price > 0) {
-                // check order ID
-                $service->checkOrderId($request->orderID);
+                try {
+                    // check order ID
+                    $service->checkOrderId($request->orderID);
+                } catch (\Exception $e) {
+                    // set transaction failed
+                    $transaction->description = $e->getMessage();
+                    $transaction->setFailed();                    
+                    
+                    // add log
+                    sleep(1);
+                    $subscription->addLog(SubscriptionLog::TYPE_RENEW_FAILED, [
+                        'plan' => $subscription->plan->getBillableName(),
+                        'price' => $subscription->plan->getBillableFormattedPrice(),
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    // set subscription last_error_type
+                    $subscription->last_error_type = PaypalPaymentGateway::ERROR_CHARGE_FAILED;
+                    $subscription->save();
+
+                    // Redirect to my subscription page
+                    return redirect()->away($this->getReturnUrl($request));
+                }                
                 
                 // add log
                 $subscription->addLog(SubscriptionLog::TYPE_PAID, [
@@ -272,16 +332,8 @@ class PaypalController extends Controller
             // renew
             $subscription->renew();
 
-            // subscribe to plan
-            $subscription->addTransaction(SubscriptionTransaction::TYPE_RENEW, [
-                'ends_at' => $subscription->ends_at,
-                'current_period_ends_at' => $subscription->current_period_ends_at,
-                'status' => SubscriptionTransaction::STATUS_SUCCESS,
-                'title' => trans('cashier::messages.transaction.renew_plan', [
-                    'plan' => $subscription->plan->getBillableName(),
-                ]),
-                'amount' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
+            // set success
+            $transaction->setSuccess();
             
             sleep(1);
             // add log

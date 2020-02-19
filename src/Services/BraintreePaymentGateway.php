@@ -13,6 +13,7 @@ use Acelle\Cashier\SubscriptionLog;
 class BraintreePaymentGateway implements PaymentGatewayInterface
 {
     const ERROR_RECURRING_CHARGE_FAILED = 'recurring-charge-failed';
+    const ERROR_CHARGE_FAILED = 'charge-failed';
 
     public $environment;
     public $merchantId;
@@ -297,12 +298,10 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      * @return boolean
      */
     public function getLastTransaction($subscription) {
-        // if has only init transaction
-        if ($subscription->subscriptionTransactions()->count() <= 1) {
-            return null;
-        }
-
-        return $subscription->subscriptionTransactions()->orderBy('created_at', 'desc')->first();
+        return $subscription->subscriptionTransactions()
+            ->where('type', '<>', SubscriptionLog::TYPE_SUBSCRIBE)
+            ->orderBy('created_at', 'desc')
+            ->first();
     }
 
     /**
@@ -311,13 +310,15 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      * @return boolean
      */
     public function hasError($subscription) {
-        return isset($subscription->last_error_type);
+        $transaction = $this->getLastTransaction($subscription);
+
+        return isset($subscription->last_error_type) && $transaction->isFailed();
     }
 
     public function getErrorNotice($subscription) {
         switch ($subscription->last_error_type) {
             case StripePaymentGateway::ERROR_RECURRING_CHARGE_FAILED:
-                return trans('cashier::messages.stripe.payment_error.recurring_charge_error', [
+                return trans('cashier::messages.braintree.payment_error.recurring_charge_error', [
                     'url' => action('\Acelle\Cashier\Controllers\BraintreeController@fixPayment', [
                         'subscription_id' => $subscription->uid,
                     ]),
@@ -325,7 +326,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
 
                 break;
             default:
-                return trans('cashier::messages.stripe.error.something_went_wrong');
+                return trans('cashier::messages.braintree.error.something_went_wrong');
         }
     }
 

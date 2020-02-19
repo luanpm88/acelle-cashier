@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\SubscriptionTransaction;
 use Acelle\Cashier\SubscriptionLog;
+use Acelle\Cashier\Services\StripePaymentGateway;
 
 class StripeController extends Controller
 {
@@ -211,31 +212,55 @@ class StripeController extends Controller
         $result = Cashier::calcChangePlan($subscription, $newPlan);
         
         if ($request->isMethod('post')) {         
+            // add transaction
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_PLAN_CHANGE, [
+                'ends_at' => $subscription->ends_at,
+                'current_period_ends_at' => $subscription->current_period_ends_at,
+                'status' => SubscriptionTransaction::STATUS_PENDING,
+                'title' => trans('cashier::messages.transaction.change_plan', [
+                    'plan' => $newPlan->getBillableName(),
+                ]),
+                'amount' => $result['amount'],
+            ]);
+
             // charge customer
             if ($result['amount'] > 0) {
-                // charge customer
-                $service->charge($subscription, [
-                    'amount' => $result['amount'],
-                    'currency' => $newPlan->getBillableCurrency(),
-                    'description' => trans('cashier::messages.transaction.change_plan', [
+                try {
+                    // charge customer
+                    $service->charge($subscription, [
+                        'amount' => $result['amount'],
+                        'currency' => $newPlan->getBillableCurrency(),
+                        'description' => trans('cashier::messages.transaction.change_plan', [
+                            'plan' => $newPlan->getBillableName(),
+                        ]),
+                    ]);
+                } catch (\Exception $e) {
+                    // set transaction failed
+                    $transaction->description = $e->getMessage();
+                    $transaction->setFailed();
+
+                    // add log
+                    $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANG_FAILED, [
+                        'old_plan' => $subscription->plan->getBillableName(),
                         'plan' => $newPlan->getBillableName(),
-                    ]),
-                ]);
+                        'price' => $result['amount'],
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    // set subscription last_error_type
+                    $subscription->last_error_type = StripePaymentGateway::ERROR_CHARGE_FAILED;
+                    $subscription->save();
+
+                    // Redirect to my subscription page
+                    return redirect()->away($this->getReturnUrl($request));
+                }
             }
             
             // change plan
             $subscription->changePlan($newPlan);
-            
-            // add transaction
-            $subscription->addTransaction(SubscriptionTransaction::TYPE_PLAN_CHANGE, [
-                'ends_at' => $subscription->ends_at,
-                'current_period_ends_at' => $subscription->current_period_ends_at,
-                'status' => SubscriptionTransaction::STATUS_SUCCESS,
-                'title' => trans('cashier::messages.transaction.change_plan', [
-                    'plan' => $newPlan->getBillableName(),
-                ]),
-                'amount' => $newPlan->getBillableFormattedPrice()
-            ]);
+
+            // set success
+            $transaction->setSuccess();
 
             // add log
             $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGED, [

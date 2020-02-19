@@ -212,7 +212,7 @@
     'stripe.payment_error.recurring_charge_error' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong when
         charging your subscription. <a href=":url"><strong>Click here</strong></a> to update the payment.',
     'stripe.error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with transaction(s).
-        Please check transactions list for more details.',
+        Please check the logs/transactions below for more details.',
     'transaction.title' => 'Action',
     'stripe.transaction.payment' => 'Payment',
     'stripe.fix_payment.intro' => 'You are about to charge <strong>:plan</strong> plan for new period.
@@ -221,7 +221,7 @@
     'braintree.payment_error.recurring_charge_error' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong when
         charging your subscription. <a href=":url"><strong>Click here</strong></a> to update the payment.',
     'braintree.error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with transaction(s).
-        Please check transactions list for more details.',
+        Please check the logs/transactions below for more details.',
     'braintree.transaction.payment' => 'Payment',
     'braintree.payment_error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with payment.
         <a href=":url"><strong>Click here</strong></a> to see more details.',
@@ -322,4 +322,11 @@
     'paypal.new_amount' => 'New plan price',
     'paypal.not_support_set_active' => 'PayPal subscription service does not support manual set active.',
     'paypal.not_support_asign_plan' => 'PayPal subscription service does not support manual asign plan.',
+    'subscription.log.plan_change_failed' => 'Can not change to <strong>:plan</strong> plan. Error: :error',
+    'stripe.payment_error.charge_error' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with the payment.
+        <a href=":url"><strong>Click here</strong></a> to update the payment.',
+    'braintree.payment_error.charge_error' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with the payment.
+        <a href=":url"><strong>Click here</strong></a> to update the payment.',
+    'paypal.error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with transaction(s).
+        Please check the logs/transactions below for more details.',
 ) ?>
