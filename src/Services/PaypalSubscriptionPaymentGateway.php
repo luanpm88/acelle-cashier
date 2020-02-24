@@ -1029,6 +1029,13 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function findPlanConnection($plan)
     {
+        if ($plan->getBillableAmount() == 0) {
+            return [
+                'uid' => $plan,
+                'paypal_id' => null,
+            ];
+        }
+
         $data = $this->getData();
         // $key = array_search($plan->getBillableId(), array_column($data['plans'], 'uid'));
 
@@ -1075,6 +1082,10 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function connectPlan($plan)
     {
+        if ($plan->getBillableAmount() == 0) {
+            return false;
+        }
+
         $paypalProduct = $this->getPaypalProduct();
 
         // Get new one if not exist
