@@ -400,7 +400,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
                 break;
             default:
-                return trans('cashier::messages.braintree.error.something_went_wrong');
+                return trans('cashier::messages.stripe.error.something_went_wrong');
         }
     }
 

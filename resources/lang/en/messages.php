@@ -329,4 +329,6 @@
         <a href=":url"><strong>Click here</strong></a> to update the payment.',
     'paypal.error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with transaction(s).
         Please check the logs/transactions below for more details.',
+    'paypal_subscription.error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with transaction(s).
+        Please check the logs/transactions below for more details.',
 ) ?>

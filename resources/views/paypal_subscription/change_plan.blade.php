@@ -87,11 +87,9 @@
                         >{{ trans('cashier::messages.paypal.return_back') }}</a>
                     </form>
                 @else
-                    <script
-                        src="https://www.paypal.com/sdk/js?client-id={{ $service->client_id }}&vault=true">
-                    </script>
-
-                    <div id="paypal-button-container"></div>
+                    <button
+                        class="btn btn-primary mr-10 mr-2 confirm-change-plan-but"
+                    >{{ trans('cashier::messages.paypal.change_plan_proceed') }}</button>
 
                     <script>
                         var form = jQuery('<form>', {
@@ -104,28 +102,23 @@
                             'type': 'hidden'
                         }));
 
+                        form.append(jQuery('<input>', {
+                            'name': 'redirect',
+                            'value': '{{ action('\Acelle\Cashier\Controllers\PaypalSubscriptionController@changePlan', $subscription->uid) }}',
+                            'type': 'hidden'
+                        }));
+
+                        form.append(jQuery('<input>', {
+                            'name': 'plan_id',
+                            'value': '{{ $newPlan->uid }}',
+                            'type': 'hidden'
+                        }));
+
                         $('body').append(form);
 
-                        paypal.Buttons({
-                            createSubscription: function(data, actions) {
-                                return actions.subscription.create({
-                                    'plan_id': '{{ $paypalPlan['id'] }}'
-                                });
-                            },
-                            onApprove: function(data, actions) {
-                                form.append(jQuery('<input>', {
-                                    'name': 'subscriptionID',
-                                    'value': data.subscriptionID,
-                                    'type': 'hidden'
-                                }));
-                                form.append(jQuery('<input>', {
-                                    'name': 'redirect',
-                                    'value': '{{ action('\Acelle\Cashier\Controllers\PaypalSubscriptionController@changePlan', $subscription->uid) }}',
-                                    'type': 'hidden'
-                                }));
-                                form.submit();
-                            }
-                        }).render('#paypal-button-container');
+                        $('.confirm-change-plan-but').click(function() {
+                            form.submit();
+                        });
                     </script>
                     
                     <hr>

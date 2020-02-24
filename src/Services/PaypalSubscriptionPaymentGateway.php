@@ -13,12 +13,16 @@ use Acelle\Cashier\SubscriptionLog;
 
 class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
 {
+    const ERROR_CHARGE_FAILED = 'charge-failed';
+
     public $client_id;
     public $secret;
     public $client;
     public $environment;
     public $accessToken;
     public $baseUri;
+    public $paypalProduct;
+    public $path = 'integrations/paypal.json';
     
     public function __construct($environment, $client_id, $secret)
     {
@@ -31,6 +35,61 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         } else {
             $this->baseUri = 'https://api.paypal.com';
         }
+
+        // $this->initPayPalProduct();
+    }
+
+    /**
+     * Get Paypal product.
+     *
+     * @return void
+     */
+    public function initPayPalProduct()
+    {
+        $productId = $this->getData()['product_id'];
+
+        if ($productId) {
+            return;
+        }
+        
+        // Get new one if not exist
+        $uri = $this->baseUri . '/v1/catalogs/products';
+        $client = new \GuzzleHttp\Client();
+
+        $response = $client->request('POST', $uri, [
+            'headers' =>
+                [
+                    'Content-Type' => 'application/json',
+                    'Authorization' => 'Bearer ' . $this->getAccessToken(),
+                ],
+            'body' => json_encode([
+                "name" => 'ACELLE_' . uniqid(),
+                "description" => 'Acelle-PayPal',
+                "type" => "SERVICE",
+                "category" => "SOFTWARE",
+                "image_url" => "https://previews.customer.envatousercontent.com/files/224717199/Square80.png",
+                "home_url" => 'https://acellemail.com',
+            ]),
+        ]);
+        $result = json_decode($response->getBody(), true);
+        
+        // update data
+        $data = $this->getData();
+        $data['product_id'] = $result['id'];
+        $this->updateData($data);
+    }
+
+    /**
+     * Get Paypal product.
+     *
+     * @return void
+     */
+    public function removePayPalProduct()
+    {
+        // update data
+        $data = $this->getData();
+        $data['product_id'] = '';
+        $this->updateData($data);
     }
 
     /**
@@ -66,65 +125,26 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    public function getPaypalPlan($subscription)
+    public function getPaypalPlan($plan)
     {
-        $paypalProduct = $this->getPaypalProduct($subscription);
+        $connection = $this->findPlanConnection($plan);
+
+        // check connection exists
+        if (!$connection) {
+            throw new \Exception('The plan is not connected: ' . $plan->getBillableName() . ' / ' . $plan->getBillableId());
+        }
 
         // Get new one if not exist
-        $uri = $this->baseUri . '/v1/billing/plans';
+        $uri = $this->baseUri . '/v1/billing/plans/' . $connection['paypal_id'];
         $client = new \GuzzleHttp\Client();
-        $response = $client->request('POST', $uri, [
+        $response = $client->request('GET', $uri, [
             'headers' =>
                 [
-                    'Accept' => 'application/json',
-                    'Prefer' => 'return=representation',
                     'Content-Type' => 'application/json',
                     'Authorization' => 'Bearer ' . $this->getAccessToken(),
                 ],
-            'body' => '
-            {
-                "product_id": "' . $paypalProduct['id'] . '",
-                "name": "' . $subscription->plan->getBillableName() . '",
-                "description": "' . $subscription->plan->description . '",
-                "billing_cycles": [
-                  {
-                    "frequency": {
-                        "interval_unit": "' . strtoupper($subscription->plan->getBillableInterval()) . '",
-                        "interval_count": ' . $subscription->plan->getBillableIntervalCount() . '
-                    },
-                    "tenure_type": "REGULAR",
-                    "sequence": 1,
-                    "total_cycles": 12,
-                    "pricing_scheme": {
-                        "fixed_price": {
-                            "value": "' . $subscription->plan->getBillableAmount() . '",
-                            "currency_code": "' . $subscription->plan->getBillableCurrency() . '"
-                        }
-                    }
-                  }
-                ],
-                "payment_preferences": {
-                  "auto_bill_outstanding": true,
-                  "setup_fee": {
-                    "value": "0",
-                    "currency_code": "' . $subscription->plan->getBillableCurrency() . '"
-                  },
-                  "setup_fee_failure_action": "CONTINUE",
-                  "payment_failure_threshold": 3
-                },
-                "taxes": {
-                  "percentage": "0",
-                  "inclusive": false
-                }
-              }
-            ',
         ]);
         $data = json_decode($response->getBody(), true);
-
-        // update plan metadata
-        $metadata = $subscription->getMetadata();
-        $metadata['plan'] = $data;
-        $subscription->updateMetadata($metadata);
 
         return $data;
     }
@@ -136,7 +156,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function createPaypalPlan($subscription, $plan, $setup_fee)
     {
-        $paypalProduct = $this->getPaypalProduct($subscription);
+        $paypalProduct = $this->getPaypalProduct();
 
         // Get new one if not exist
         $uri = $this->baseUri . '/v1/billing/plans';
@@ -193,36 +213,50 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     }
 
     /**
+     * Get storage data.
+     *
+     * @return void
+     */
+    public function getData()
+    {
+        if (!\Storage::exists($this->path)) {
+            \Storage::put($this->path, json_encode([
+                'product_id' => '',
+                'plans' => [],
+            ]));
+        }
+
+        return json_decode(\Storage::get($this->path), true);
+    }
+
+    /**
+     * Get storage data.
+     *
+     * @return void
+     */
+    public function updateData($data)
+    {
+        \Storage::put($this->path, json_encode($data));
+    }
+
+    /**
      * Get Paypal product.
      *
      * @return void
      */
-    public function getPaypalProduct($subscription)
+    public function getPaypalProduct()
     {
         // Get new one if not exist
-        $uri = $this->baseUri . '/v1/catalogs/products';
+        $uri = $this->baseUri . '/v1/catalogs/products/' . $this->getData()['product_id'];
         $client = new \GuzzleHttp\Client();
-        $response = $client->request('POST', $uri, [
+        $response = $client->request('GET', $uri, [
             'headers' =>
                 [
                     'Content-Type' => 'application/json',
                     'Authorization' => 'Bearer ' . $this->getAccessToken(),
                 ],
-            'body' => json_encode([
-                "name" => $subscription->plan->getBillableName(),
-                "description" => $subscription->plan->description,
-                "type" => "SERVICE",
-                "category" => "SOFTWARE",
-                "image_url" => "https://previews.customer.envatousercontent.com/files/224717199/Square80.png",
-                "home_url" => url('/'),
-            ]),
         ]);
         $data = json_decode($response->getBody(), true);
-
-        // update product metadata
-        $metadata = $subscription->getMetadata();
-        $metadata['product'] = $data;
-        $subscription->updateMetadata($metadata);
 
         return $data;
     }
@@ -234,6 +268,8 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function createPaypalSubscription($subscription, $requestId)
     {
+        $paypalPlan = $this->getPaypalPlan($subscription->plan);
+
         // Get new one if not exist
         $uri = $this->baseUri . '/v1/billing/subscriptions';
         $client = new \GuzzleHttp\Client();
@@ -247,7 +283,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
                     'Content-Type' => 'application/json',
                 ],
             'body' => '{
-                "plan_id": "' . $subscription->getMetadata()['plan']['id'] . '",
+                "plan_id": "' . $paypalPlan['id'] . '",
                 "start_time": "' . Carbon::now()->addDay(1)->toAtomString() . '",
                 "subscriber": {
                   "name": {
@@ -512,12 +548,9 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     public function validate()
     {
         try {
-            $response = $this->client->execute(new OrdersGetRequest('ssssss'));
+            $response = $this->getAccessToken();
         } catch (\Exception $e) {
-            $result = json_decode($e->getMessage(), true);
-            if (isset($result['error']) && $result['error'] == 'invalid_client') {
-                throw new \Exception($e->getMessage());
-            }            
+            throw new \Exception($e->getMessage());           
         }
         
         return true;
@@ -824,8 +857,32 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
-    public function hasError($subscription) {}
-    public function getErrorNotice($subscription) {}
+    /**
+     * Get last transaction
+     *
+     * @return boolean
+     */
+    public function getLastTransaction($subscription) {
+        return $subscription->subscriptionTransactions()
+            ->where('type', '<>', SubscriptionLog::TYPE_SUBSCRIBE)
+            ->orderBy('created_at', 'desc')
+            ->first();
+    }
+
+    /**
+     * Check if has failed transaction
+     *
+     * @return boolean
+     */
+    public function hasError($subscription) {
+        $transaction = $this->getLastTransaction($subscription);
+
+        return isset($subscription->last_error_type) && $transaction->isFailed();
+    }
+
+    public function getErrorNotice($subscription) {
+        return trans('cashier::messages.paypal_subscription.error.something_went_wrong');
+    }
 
     /**
      * Cancel subscription.
@@ -851,9 +908,9 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      * @return string
      */
     public function cancelNow($subscription) {
-        $subscription->cancelNow();
-
         $this->cancelPaypalSubscription($subscription);
+
+        $subscription->cancelNow();
 
         // add log
         $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
@@ -940,7 +997,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         $newAmount = $plan->getBillableAmount();
 
         // discount not use amount
-        $amount = $newAmount + $remainAmount;
+        $amount = $newAmount - $remainAmount;
         
         // if amount < 0
         if ($amount <= 0) {
@@ -963,5 +1020,177 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     public function useRemoteSubscription()
     {
         return true;
+    }
+
+    /**
+     * Find plan connection.
+     *
+     * @return void
+     */
+    public function findPlanConnection($plan)
+    {
+        $data = $this->getData();
+        // $key = array_search($plan->getBillableId(), array_column($data['plans'], 'uid'));
+
+        // if ($key !== false) {
+        //     return $data['plans'][$key];
+        // }
+
+        foreach ($data['plans'] as $key => $item) {
+            if ($item['uid'] == $plan->getBillableId()) {
+                return $item;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Find plan connection.
+     *
+     * @return void
+     */
+    public function removePlanConnection($plan)
+    {
+        $data = $this->getData();
+        // $key = array_search($plan->getBillableId(), array_column($data['plans'], 'uid'));
+        
+        // if ($key !== false) {
+        //     unset($data['plans'][$key]);
+        // }
+
+        foreach ($data['plans'] as $key => $item) {
+            if ($item['uid'] == $plan->getBillableId()) {
+                unset($data['plans'][$key]);
+            }
+        }
+
+        $this->updateData($data);
+    }
+    
+    /**
+     * Connect plan.
+     *
+     * @return void
+     */
+    public function connectPlan($plan)
+    {
+        $paypalProduct = $this->getPaypalProduct();
+
+        // Get new one if not exist
+        $uri = $this->baseUri . '/v1/billing/plans';
+        $client = new \GuzzleHttp\Client();
+        $response = $client->request('POST', $uri, [
+            'headers' =>
+                [
+                    'Accept' => 'application/json',
+                    'Prefer' => 'return=representation',
+                    'Content-Type' => 'application/json',
+                    'Authorization' => 'Bearer ' . $this->getAccessToken(),
+                ],
+            'body' => '
+            {
+                "product_id": "' . $paypalProduct['id'] . '",
+                "name": "' . $plan->getBillableName() . '",
+                "description": "' . $plan->description . '",
+                "billing_cycles": [
+                  {
+                    "frequency": {
+                        "interval_unit": "' . strtoupper($plan->getBillableInterval()) . '",
+                        "interval_count": ' . $plan->getBillableIntervalCount() . '
+                    },
+                    "tenure_type": "REGULAR",
+                    "sequence": 1,
+                    "total_cycles": 12,
+                    "pricing_scheme": {
+                        "fixed_price": {
+                            "value": "' . $plan->getBillableAmount() . '",
+                            "currency_code": "' . $plan->getBillableCurrency() . '"
+                        }
+                    }
+                  }
+                ],
+                "payment_preferences": {
+                  "auto_bill_outstanding": true,
+                  "setup_fee": {
+                    "value": "0",
+                    "currency_code": "' . $plan->getBillableCurrency() . '"
+                  },
+                  "setup_fee_failure_action": "CONTINUE",
+                  "payment_failure_threshold": 3
+                },
+                "taxes": {
+                  "percentage": "0",
+                  "inclusive": false
+                }
+              }
+            ',
+        ]);
+        $data = json_decode($response->getBody(), true);
+
+        // connection
+        $connection = [
+            'uid' => $plan->getBillableId(),
+            'paypal_id' => $data['id'],
+        ];
+
+        // save
+        $data = $this->getData();
+        $data['plans'][] = $connection;
+        $this->updateData($data);
+    }
+
+    /**
+     * Connect plan.
+     *
+     * @return void
+     */
+    public function disconnectPlan($plan)
+    {
+        $connection = $this->findPlanConnection($plan);
+
+        // Deactive remote plan
+        $uri = $this->baseUri . '/v1/billing/plans/' . $connection['paypal_id'] . '/deactivate';
+        $client = new \GuzzleHttp\Client();
+        $response = $client->request('POST', $uri, [
+            'headers' =>
+                [
+                    'Content-Type' => 'application/json',
+                    'Authorization' => 'Bearer ' . $this->getAccessToken(),
+                ],
+        ]);
+
+        // remove connection local
+        $this->removePlanConnection($plan);
+    }
+
+    /**
+     * Change plan.
+     *
+     * @return array
+     */
+    public function changePlan($subscription, $plan, $fee)
+    {
+        $paypalPlan = $this->getPaypalPlan($plan);
+
+        // Get new one if not exist
+        $uri = $this->baseUri . '/v1/billing/subscriptions/' . $subscription->getMetadata()['requestId'] . '/revise';
+        $client = new \GuzzleHttp\Client();
+        $response = $client->request('POST', $uri, [
+            'headers' =>
+                [
+                    'Content-Type' => 'application/json',
+                    'Authorization' => 'Bearer ' . $this->getAccessToken(),
+                ],
+            'body' => '{
+                "plan_id": "' . $paypalPlan['id'] . '",
+                "shipping_amount": {
+                  "currency_code": "USD",
+                  "value": "' . $fee . '"
+                }
+            }',
+        ]);
+        $data = json_decode($response->getBody(), true);
+        return $data;
     }
 }

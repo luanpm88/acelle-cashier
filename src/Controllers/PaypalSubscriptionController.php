@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\SubscriptionTransaction;
 use Acelle\Cashier\SubscriptionLog;
+use Acelle\Cashier\Services\PaypalSubscriptionPaymentGateway;
 
 class PaypalSubscriptionController extends Controller
 {
@@ -68,7 +69,7 @@ class PaypalSubscriptionController extends Controller
 
         // get access token
         $accessToken = $service->getAccessToken();
-        $paypalPlan = $service->getPaypalPlan($subscription);
+        $paypalPlan = $service->getPaypalPlan($subscription->plan);
 
         if ($request->isMethod('post')) {
             // create subscription
@@ -174,30 +175,60 @@ class PaypalSubscriptionController extends Controller
         $paypalPlan = $service->createPaypalPlan($subscription, $plan, $result['remain_amount']);
 
         if ($request->isMethod('post')) {
-            // // create subscription
-            // $paypalSubscription = $service->createPaypalSubscription($subscription, $request->subscriptionID);
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE, [
+                'old_plan' => $subscription->plan->getBillableName(),
+                'plan' => $plan->getBillableName(),
+                'price' => $result['amount'],
+            ]);
+            
+            // add transaction
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_PLAN_CHANGE, [
+                'ends_at' => $subscription->ends_at,
+                'current_period_ends_at' => $subscription->current_period_ends_at,
+                'status' => SubscriptionTransaction::STATUS_PENDING,
+                'title' => trans('cashier::messages.transaction.change_plan', [
+                    'old_plan' => $subscription->plan->getBillableName(),
+                    'plan' => $plan->getBillableName(),
+                ]),
+                'amount' => $result['amount'],
+            ]);
 
-            // // add log
-            // $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE, [
-            //     'old_plan' => $subscription->plan->getBillableName(),
-            //     'plan' => $plan->getBillableName(),
-            //     'price' => $plan->getBillableFormattedPrice(),
-            // ]);
+            try {
+                // create subscription
+                $paypalSubscription = $service->changePlan($subscription, $plan, $result['amount']);
+            } catch (\Exception $e) {
+                // set transaction failed
+                $transaction->description = $e->getMessage();
+                $transaction->setFailed();
 
-            // // add transaction
-            // $subscription->addTransaction(SubscriptionTransaction::TYPE_PLAN_CHANGE, [
-            //     'ends_at' => $subscription->ends_at,
-            //     'current_period_ends_at' => $subscription->current_period_ends_at,
-            //     'status' => SubscriptionTransaction::STATUS_PENDING,
-            //     'title' => trans('cashier::messages.transaction.change_plan', [
-            //         'old_plan' => $subscription->plan->getBillableName(),
-            //         'plan' => $subscription->plan->getBillableName(),
-            //     ]),
-            //     'amount' => $result['amount'],
-            // ]);
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANG_FAILED, [
+                    'old_plan' => $subscription->plan->getBillableName(),
+                    'plan' => $plan->getBillableName(),
+                    'price' => $result['amount'],
+                    'error' => $e->getMessage(),
+                ]);
 
-            // // Redirect to my subscription page
-            // return redirect()->away($service->getChangePlanPendingUrl($subscription, $request));
+                // set subscription last_error_type
+                $subscription->last_error_type = PaypalSubscriptionPaymentGateway::ERROR_CHARGE_FAILED;
+                $subscription->save();
+
+                // Redirect to my subscription page
+                return redirect()->away($this->getReturnUrl($request));
+            }
+
+            // save new plan uid
+            $data = $transaction->getMetadata();
+            $data['plan_id'] = $plan->getBillableId();
+            $data['approve'] = $paypalSubscription;
+            $transaction->updateMetadata($data);
+
+            var_dump($paypalSubscription);
+            die();
+
+            // Redirect to my subscription page
+            return $this->getReturnUrl($request);
         }
         
         return view('cashier::paypal_subscription.change_plan', [
