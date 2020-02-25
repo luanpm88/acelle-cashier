@@ -266,7 +266,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    public function createPaypalSubscription($subscription, $requestId)
+    public function createPaypalSubscription($subscription, $subscriptionID)
     {
         $paypalPlan = $this->getPaypalPlan($subscription->plan);
 
@@ -278,7 +278,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
                 [
                     'Accept' => 'application/json',
                     'Authorization' => 'Bearer ' . $this->getAccessToken(),
-                    'PayPal-Request-Id' => $requestId,
+                    'PayPal-Request-Id' => $subscriptionID,
                     'Prefer' => 'return=representation',
                     'Content-Type' => 'application/json',
                 ],
@@ -311,7 +311,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         // update subscription
         $metadata = $subscription->getMetadata();
         $metadata['subscription'] = $data;
-        $metadata['requestId'] = $requestId;
+        $metadata['subscriptionID'] = $subscriptionID;
         $subscription->updateMetadata($metadata);
 
         return $data;
@@ -329,7 +329,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         }
 
         // Get new one if not exist
-        $uri = $this->baseUri . '/v1/billing/subscriptions/' . $subscription->getMetadata()['requestId'] . '/suspend';
+        $uri = $this->baseUri . '/v1/billing/subscriptions/' . $subscription->getMetadata()['subscriptionID'] . '/suspend';
         $client = new \GuzzleHttp\Client();
         $response = $client->request('POST', $uri, [
             'headers' =>
@@ -352,7 +352,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         }
 
         // Get new one if not exist
-        $uri = $this->baseUri . '/v1/billing/subscriptions/' . $subscription->getMetadata()['requestId'] . '/activate';
+        $uri = $this->baseUri . '/v1/billing/subscriptions/' . $subscription->getMetadata()['subscriptionID'] . '/activate';
         $client = new \GuzzleHttp\Client();
         $response = $client->request('POST', $uri, [
             'headers' =>
@@ -375,7 +375,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         }
         
         // Get new one if not exist
-        $uri = $this->baseUri . '/v1/billing/subscriptions/' . $subscription->getMetadata()['requestId'] . '/cancel';
+        $uri = $this->baseUri . '/v1/billing/subscriptions/' . $subscription->getMetadata()['subscriptionID'] . '/cancel';
         $client = new \GuzzleHttp\Client();
         $response = $client->request('POST', $uri, [
             'headers' =>
@@ -401,11 +401,11 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Gateway check method.
+     * Gateway check subscription method.
      *
      * @return void
      */
-    public function check($subscription)
+    public function checkSubscription($subscription)
     {
         // free plan and local renew
         if ($subscription->plan->getBillableAmount() == 0 && $subscription->isExpiring($this)) {
@@ -510,6 +510,134 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     }
 
     /**
+     * Gateway check subscription method.
+     *
+     * @return void
+     */
+    public function checkLastTransaction($transaction)
+    {
+        $subscription = $transaction->subscription;
+
+        // free plan and local renew
+        if (!isset($transaction) || !$transaction->isPending()) {
+            return;
+        }
+
+        // APPROVAL_PENDING. The subscription is created but not yet approved by the buyer.
+        // APPROVED. The buyer has approved the subscription.
+        // ACTIVE. The subscription is active.
+        // SUSPENDED. The subscription is suspended.
+        // CANCELLED. The subscription is cancelled.
+        // EXPIRED. The subscription is expired.
+
+        $paypalSubscription = $this->syncPaypalSubscriptionById($transaction->getMetadata()['subscriptionID']);
+
+        switch ($paypalSubscription['status']) {
+            case 'APPROVAL_PENDING':
+                break;
+
+            case 'APPROVED':
+                break;
+
+            case 'ACTIVE':
+                // log
+                if ($transaction->type == SubscriptionTransaction::TYPE_PLAN_CHANGE) {
+                    $transaction->setSuccess();
+
+                    // check new states
+                    $subscription->ends_at = null;
+
+                    // period date update
+                    if ($subscription->current_period_ends_at != $transaction->current_period_ends_at) {
+                        // save last period
+                        $subscription->last_period_ends_at = $subscription->current_period_ends_at;
+                        // set new current period
+                        $subscription->current_period_ends_at = $transaction->current_period_ends_at;
+                    }
+
+                    // check new plan
+                    $transactionData = $transaction->getMetadata();
+                    $oldPlan = $subscription->plan;
+                    if (isset($transactionData['plan_id'])) {
+                        $subscription->plan_id = $transactionData['plan_id'];
+                    }
+
+                    // cancel old subscription
+                    $this->cancelPaypalSubscription($subscription);
+                    // add new subscription data
+                    $data = $subscription->getMetadata();
+                    $data['subscriptionID'] = $transactionData['subscriptionID'];
+                    $data['subscription'] = $transactionData['paypal_subscription'];
+                    $subscription->updateMetadata($data);
+
+                    // save all
+                    $subscription->save();
+
+                    $subscription = Subscription::find($subscription->id);
+                    // add log
+                    $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGED, [
+                        'old_plan' => $oldPlan->getBillableName(),
+                        'plan' => $subscription->plan->getBillableName(),
+                        'price' => $subscription->plan->getBillableFormattedPrice(),
+                    ]);
+                }
+
+                break;
+
+            case 'SUSPENDED':
+                $transaction->setFailed();
+                break;
+
+            case 'CANCELLED':
+                $transaction->setFailed();
+                break;
+
+            case 'EXPIRED':
+                $transaction->setFailed();
+                break;
+
+            default:
+                throw new \Exception('Status is invalid: ' . $paypalSubscription['status']);
+        }
+    }
+
+    /**
+     * Gateway check method.
+     *
+     * @return void
+     */
+    public function check($subscription)
+    {
+        // check subscription status
+        $this->checkSubscription($subscription);
+
+        // Check last pending transaction
+        if ($subscription->isActive()) {
+            $this->checkLastTransaction($this->getLastTransaction($subscription));
+        }
+    }
+
+    /**
+     * Get Paypal subscription.
+     *
+     * @return void
+     */
+    public function syncPaypalSubscriptionById($subscriptionID)
+    {
+        // Get new one if not exist
+        $uri = $this->baseUri . '/v1/billing/subscriptions/' . $subscriptionID;
+        $client = new \GuzzleHttp\Client();
+        $response = $client->request('GET', $uri, [
+            'headers' =>
+            [
+                'Authorization' => 'Bearer ' . $this->getAccessToken(),
+                'Content-Type' => 'application/json',
+            ],
+        ]);
+        return json_decode($response->getBody(), true);
+    }
+
+    /**
      * Get Paypal subscription.
      *
      * @return void
@@ -521,16 +649,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         }
 
         // Get new one if not exist
-        $uri = $this->baseUri . '/v1/billing/subscriptions/' . $subscription->getMetadata()['requestId'];
-        $client = new \GuzzleHttp\Client();
-        $response = $client->request('GET', $uri, [
-            'headers' =>
-            [
-                'Authorization' => 'Bearer ' . $this->getAccessToken(),
-                'Content-Type' => 'application/json',
-            ],
-        ]);
-        $data = json_decode($response->getBody(), true);
+        $data = $this->syncPaypalSubscriptionById($subscription->getMetadata()['subscriptionID']);
 
         // update subscription
         $metadata = $subscription->getMetadata();
@@ -582,6 +701,12 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         $subscription->ends_at = null;
         $subscription->current_period_ends_at = $subscription->getPeriodEndsAt(Carbon::now());
         $subscription->save();
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
+            'plan' => $plan->getBillableName(),
+            'price' => $plan->getBillableFormattedPrice(),
+        ]);
         
         // If plan is free: enable subscription & update transaction
         if ($plan->getBillableAmount() == 0) {
@@ -598,15 +723,10 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
             
             // set active
             $subscription->setActive();
-
+            
+            sleep(1);
             // add log
             $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
-                'plan' => $plan->getBillableName(),
-                'price' => $plan->getBillableFormattedPrice(),
-            ]);
-        } else {
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
                 'plan' => $plan->getBillableName(),
                 'price' => $plan->getBillableFormattedPrice(),
             ]);
@@ -778,7 +898,10 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function hasPending($subscription)
     {
-        return false;
+        $transaction = $this->getLastTransaction($subscription);
+        return $transaction && $transaction->isPending() && !in_array($transaction->type, [
+            SubscriptionTransaction::TYPE_SUBSCRIBE,
+        ]);
     }
     
     /**
@@ -789,7 +912,13 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function getPendingNotice($subscription)
     {
-        return false;
+        $transaction = $this->getLastTransaction($subscription);
+        
+        return trans('cashier::messages.paypal_subscription.has_transaction_pending', [
+            'description' => $transaction->title,
+            'amount' => $transaction->amount,
+            'url' => $this->getTransactionPendingUrl($subscription, action('AccountSubscriptionController@index')),
+        ]);
     }
     
     /**
@@ -839,6 +968,19 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     public function getPendingUrl($subscription, $returnUrl='/')
     {
         return action("\Acelle\Cashier\Controllers\\PaypalSubscriptionController@pending", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
+
+    /**
+     * Get renew url.
+     *
+     * @return string
+     */
+    public function getTransactionPendingUrl($subscription, $returnUrl='/')
+    {
+        return action("\Acelle\Cashier\Controllers\\PaypalSubscriptionController@transactionPending", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);
@@ -1031,7 +1173,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     {
         if ($plan->getBillableAmount() == 0) {
             return [
-                'uid' => $plan,
+                'uid' => $plan->uid,
                 'paypal_id' => null,
             ];
         }
@@ -1180,28 +1322,46 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      *
      * @return array
      */
-    public function changePlan($subscription, $plan, $fee)
+    public function changePlan($subscription, $plan, $subscriptionID)
     {
         $paypalPlan = $this->getPaypalPlan($plan);
 
         // Get new one if not exist
-        $uri = $this->baseUri . '/v1/billing/subscriptions/' . $subscription->getMetadata()['requestId'] . '/revise';
+        $uri = $this->baseUri . '/v1/billing/subscriptions';
         $client = new \GuzzleHttp\Client();
         $response = $client->request('POST', $uri, [
             'headers' =>
                 [
-                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
                     'Authorization' => 'Bearer ' . $this->getAccessToken(),
+                    'PayPal-Request-Id' => $subscriptionID,
+                    'Prefer' => 'return=representation',
+                    'Content-Type' => 'application/json',
                 ],
             'body' => '{
                 "plan_id": "' . $paypalPlan['id'] . '",
-                "shipping_amount": {
-                  "currency_code": "USD",
-                  "value": "' . $fee . '"
+                "start_time": "' . Carbon::now()->addDay(1)->toAtomString() . '",
+                "subscriber": {
+                  "name": {
+                    "given_name": "' . $subscription->user->displayName() . '",
+                    "surname": ""
+                  },
+                  "email_address": "' . $subscription->user->getBillableEmail() . '"
+                },
+                "application_context": {
+                  "brand_name": "Acelle/Cashier",
+                  "locale": "en-US",
+                  "shipping_preference": "SET_PROVIDED_ADDRESS",
+                  "user_action": "SUBSCRIBE_NOW",
+                  "payment_method": {
+                    "payer_selected": "PAYPAL",
+                    "payee_preferred": "IMMEDIATE_PAYMENT_REQUIRED"
+                  },
+                  "return_url": "' . action('\Acelle\Cashier\Controllers\PaypalSubscriptionController@checkout', $subscription->uid) . '",
+                  "cancel_url": "' . action('\Acelle\Cashier\Controllers\PaypalSubscriptionController@checkout', $subscription->uid) . '"
                 }
             }',
         ]);
-        $data = json_decode($response->getBody(), true);
-        return $data;
+        return json_decode($response->getBody(), true);
     }
 }

@@ -91,6 +91,12 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
             'amount' => $subscription->plan->getBillableFormattedPrice(),
             'description' => trans('cashier::messages.direct.payment_is_not_claimed'),
         ]);
+
+        // add log
+        $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
+            'plan' => $plan->getBillableName(),
+            'price' => $plan->getBillableFormattedPrice(),
+        ]);
         
         // If plan is free: enable subscription & update transaction
         if ($plan->getBillableAmount() == 0) {
@@ -99,13 +105,14 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
             // set transaction
             $this->claim($transaction);
             $transaction->setSuccess();
-        }
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
-            'plan' => $plan->getBillableName(),
-            'price' => $plan->getBillableFormattedPrice(),
-        ]);
+            
+            sleep(1);
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
+                'plan' => $plan->getBillableName(),
+                'price' => $plan->getBillableFormattedPrice(),
+            ]);
+        }       
         
         return $subscription;
     }
@@ -305,7 +312,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
      */
     public function hasPending($subscription) {
         $transaction = $this->getLastTransaction($subscription);
-        return $transaction->isPending() && !in_array($transaction->type, [
+        return $transaction && $transaction->isPending() && !in_array($transaction->type, [
             SubscriptionTransaction::TYPE_SUBSCRIBE,
         ]);
     }

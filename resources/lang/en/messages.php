@@ -331,4 +331,11 @@
         Please check the logs/transactions below for more details.',
     'paypal_subscription.error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with transaction(s).
         Please check the logs/transactions below for more details.',
+    'paypal_subscription.transaction.pending.title' => 'There is a transaction which is currently reviewing...',
+    'paypal_subscription.transaction.pending.intro' => 'The transaction `:message` is waiting for approval, your billing
+        amount is <strong>:price</strong>. Your subscription is currently reviewing by PayPal. It is going to be approved soon.
+        Please wait.',
+    'paypal_subscription.transaction.period_ends_at' => 'End date',
+    'paypal_subscription.has_transaction_pending' => 'There are pending transaction.
+        <a href=":url"><strong>Click here</strong></a> to see more details.',
 ) ?>
