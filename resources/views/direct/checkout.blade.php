@@ -49,7 +49,7 @@
                     
                     <a href="javascript:;" onclick="$(this).closest('form').submit()"
                         class="text-muted" style="font-size: 12px; text-decoration: underline"
-                    >{{ trans('cashier::messages.stripe.cancel_new_subscription') }}</a>
+                    >{{ trans('cashier::messages.direct.cancel_new_subscription') }}</a>
                 </form>
             </div>
             <div class="col-md-2"></div>

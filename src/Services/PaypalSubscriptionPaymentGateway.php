@@ -784,7 +784,18 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function setActive($subscription)
     {
-        throw new \Exception(trans('cashier::messages.paypal.not_support_set_active'));
+        throw new \Exception(trans('cashier::messages.paypal_subscription.not_support_set_active'));
+    }
+
+    /**
+     * Allow admin approve pending transaction.
+     *
+     * @param  Int  $subscriptionId
+     * @return date
+     */
+    public function approvePending($subscription)
+    {
+        throw new \Exception(trans('cashier::messages.paypal_subscription.not_support_approve'));
     }
     
     /**

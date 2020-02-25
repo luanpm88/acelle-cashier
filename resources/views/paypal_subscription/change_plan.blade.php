@@ -56,51 +56,66 @@
                     </li>
                 </ul>
 
-                <script
-                    src="https://www.paypal.com/sdk/js?client-id={{ $service->client_id }}&vault=true">
-                </script>
+                @if ($newPlan->getBillableAmount() == 0)
+                    <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\PaypalController@changePlan', ['subscription_id' => $subscription->uid]) }}">
+                        {{ csrf_field() }}
+                        <input type='hidden' name='plan_id' value='{{ $newPlan->getBillableId() }}' />
+                        
+                        <button
+                            class="btn btn-primary mr-10 mr-2"
+                        >{{ trans('cashier::messages.paypal.change_plan_proceed') }}</button>
+                            
+                        <a
+                        href="{{ $return_url }}"
+                            class="btn btn-secondary mr-10"
+                        >{{ trans('cashier::messages.paypal.return_back') }}</a>
+                    </form>
+                @else
+                    <script
+                        src="https://www.paypal.com/sdk/js?client-id={{ $service->client_id }}&vault=true">
+                    </script>
 
-                <div id="paypal-button-container"></div>
+                    <div id="paypal-button-container"></div>
 
-                <script>
-                    var form = jQuery('<form>', {
-                        'action': '{{ action('\Acelle\Cashier\Controllers\PaypalSubscriptionController@paymentRedirect') }}',
-                        'target': '_top',
-                        'method': 'GET'
-                    }).append(jQuery('<input>', {
-                        'name': '_token',
-                        'value': '{{ csrf_token() }}',
-                        'type': 'hidden'
-                    })).append(jQuery('<input>', {
-                        'name': 'plan_id',
-                        'value': '{{ $newPlan->getBillableId() }}',
-                        'type': 'hidden'
-                    }));
+                    <script>
+                        var form = jQuery('<form>', {
+                            'action': '{{ action('\Acelle\Cashier\Controllers\PaypalSubscriptionController@paymentRedirect') }}',
+                            'target': '_top',
+                            'method': 'GET'
+                        }).append(jQuery('<input>', {
+                            'name': '_token',
+                            'value': '{{ csrf_token() }}',
+                            'type': 'hidden'
+                        })).append(jQuery('<input>', {
+                            'name': 'plan_id',
+                            'value': '{{ $newPlan->getBillableId() }}',
+                            'type': 'hidden'
+                        }));
 
-                    $('body').append(form);
+                        $('body').append(form);
 
-                    paypal.Buttons({
-                        createSubscription: function(data, actions) {
-                            return actions.subscription.create({
-                                'plan_id': '{{ $paypalPlan['id'] }}'
-                            });
-                        },
-                        onApprove: function(data, actions) {
-                            form.append(jQuery('<input>', {
-                                'name': 'subscriptionID',
-                                'value': data.subscriptionID,
-                                'type': 'hidden'
-                            }));
-                            form.append(jQuery('<input>', {
-                                'name': 'redirect',
-                                'value': '{{ action('\Acelle\Cashier\Controllers\PaypalSubscriptionController@changePlan', $subscription->uid) }}',
-                                'type': 'hidden'
-                            }));
-                            form.submit();
-                        }
-                    }).render('#paypal-button-container');
-                </script>
-                
+                        paypal.Buttons({
+                            createSubscription: function(data, actions) {
+                                return actions.subscription.create({
+                                    'plan_id': '{{ $paypalPlan['id'] }}'
+                                });
+                            },
+                            onApprove: function(data, actions) {
+                                form.append(jQuery('<input>', {
+                                    'name': 'subscriptionID',
+                                    'value': data.subscriptionID,
+                                    'type': 'hidden'
+                                }));
+                                form.append(jQuery('<input>', {
+                                    'name': 'redirect',
+                                    'value': '{{ action('\Acelle\Cashier\Controllers\PaypalSubscriptionController@changePlan', $subscription->uid) }}',
+                                    'type': 'hidden'
+                                }));
+                                form.submit();
+                            }
+                        }).render('#paypal-button-container');
+                    </script>
+                @endif
             </div>
             <div class="col-md-2"></div>
         </div>

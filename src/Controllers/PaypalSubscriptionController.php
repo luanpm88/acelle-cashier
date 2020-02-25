@@ -186,6 +186,52 @@ class PaypalSubscriptionController extends Controller
                 'amount' => $plan->getBillableAmount(),
             ]);
 
+            // in case free plan (price == 0)
+            if ($plan->getBillableAmount() == 0) {
+                $transaction->setSuccess();
+
+                // check new states
+                $subscription->ends_at = null;
+
+                // period date update
+                if ($subscription->current_period_ends_at != $transaction->current_period_ends_at) {
+                    // save last period
+                    $subscription->last_period_ends_at = $subscription->current_period_ends_at;
+                    // set new current period
+                    $subscription->current_period_ends_at = $transaction->current_period_ends_at;
+                }
+
+                // check new plan
+                $transactionData = $transaction->getMetadata();
+                $oldPlan = $subscription->plan;
+                if (isset($transactionData['plan_id'])) {
+                    $subscription->plan_id = $transactionData['plan_id'];
+                }
+
+                // cancel old subscription
+                $service->cancelPaypalSubscription($subscription);
+                // add new subscription data
+                $data = $subscription->getMetadata();
+                $data['subscriptionID'] = null;
+                $data['subscription'] = null;
+                $subscription->updateMetadata($data);
+
+                // save all
+                $subscription->save();
+
+                $subscription = Subscription::find($subscription->id);
+                // add log
+                aleep(10);
+                $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGED, [
+                    'old_plan' => $oldPlan->getBillableName(),
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                ]);
+
+                // Redirect to my subscription page
+                return redirect()->away($this->getReturnUrl($request));
+            }            
+
             // save new plan uid
             $data = $transaction->getMetadata();
             $data['plan_id'] = $plan->getBillableId();
@@ -275,5 +321,31 @@ class PaypalSubscriptionController extends Controller
             'paypalSubscription' => $transaction->getMetadata()['paypal_subscription'],
             'return_url' => $this->getReturnUrl($request),
         ]);
+    }
+
+    /**
+     * Cancel new subscription.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function cancelNow(Request $request, $subscription_id)
+    {
+        $subscription = Subscription::findByUid($subscription_id);
+        $service = $this->getPaymentService();
+
+        if ($subscription->isNew()) {
+            $subscription->setEnded();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+        }
+
+        // Redirect to my subscription page
+        return redirect()->away($this->getReturnUrl($request));
     }
 }

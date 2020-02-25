@@ -90,6 +90,7 @@
         
         <p class="text-danger" style="color: red">* Above is sample confirmation message, you can change it in your payment gateway setting page</p>
     ',
+    'direct.cancel_new_subscription' => 'Click here to choose another plan',
     'direct.claim_payment' => 'I paid already!',
     'direct.unclaim_payment' => 'Sorry! I claimed by mistake. Click to undo.',
     'direct.subscribed_to_plan' => 'Subscribe to plan <strong>:plan</strong>',
@@ -338,4 +339,7 @@
     'paypal_subscription.transaction.period_ends_at' => 'End date',
     'paypal_subscription.has_transaction_pending' => 'There are pending transaction.
         <a href=":url"><strong>Click here</strong></a> to see more details.',
+    'paypal_subscription.cancel_new_subscription' => 'Click here to choose another plan',
+    'paypal_subscription.not_support_set_active' => 'PayPal subscription service does not support manual set active.',
+    'paypal_subscription.not_support_approve' => 'PayPal subscription service does not support manual approve pending transaction.',
 ) ?>
