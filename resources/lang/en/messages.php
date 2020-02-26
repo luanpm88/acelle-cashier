@@ -342,4 +342,5 @@
     'paypal_subscription.cancel_new_subscription' => 'Click here to choose another plan',
     'paypal_subscription.not_support_set_active' => 'PayPal subscription service does not support manual set active.',
     'paypal_subscription.not_support_approve' => 'PayPal subscription service does not support manual approve pending transaction.',
+    'transaction.paypal_subscription.remote_transaction' => '[REMOTE] Synced from remote PayPal Subscription server.',
 ) ?>

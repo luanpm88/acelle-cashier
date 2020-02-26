@@ -602,6 +602,59 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     }
 
     /**
+     * Gateway check subscription method.
+     *
+     * @return void
+     */
+    public function updateSubscriptionTransactions($subscription)
+    {
+        if (!isset($subscription->getMetadata()['subscriptionID'])) {
+            return false;
+        }
+
+        $subscriptionID = $subscription->getMetadata()['subscriptionID'];
+
+        // Get new one if not exist
+        $uri = $this->baseUri . '/v1/billing/subscriptions/' . $subscriptionID . '/transactions?start_time=' . Carbon::now()->subMonth(1)->toISOString() . '&end_time=' . Carbon::now()->toISOString();
+        $client = new \GuzzleHttp\Client();
+        $response = $client->request('GET', $uri, [
+            'headers' =>
+                [
+                    'Content-Type' => 'application/json',
+                    'Authorization' => 'Bearer ' . $this->getAccessToken(),
+                ],
+        ]);
+        $data = json_decode($response->getBody(), true);
+        
+        if ($data && isset($data["transactions"])) {
+            foreach ($data["transactions"] as $transaction) {
+                $exist = $subscription->subscriptionTransactions()
+                    ->where('description','=', 'RemoteID: ' . $transaction['id'])
+                    ->first();
+
+                if (!is_object($exist)) {
+                    // subscription transaction
+                    $exist = $subscription->addTransaction(SubscriptionTransaction::TYPE_AUTO_CHARGE, [
+                        'ends_at' => null,
+                        'current_period_ends_at' => null,
+                        'status' => $transaction['status'],
+                        'title' => trans('cashier::messages.transaction.paypal_subscription.remote_transaction'),
+                        'amount' => $transaction['amount_with_breakdown']['gross_amount']['value'],
+                        'description' => 'RemoteID: ' . $transaction['id'],
+                        'created_at' => Carbon::parse($transaction['time']),
+                    ]);
+                    $exist->created_at = Carbon::parse($transaction['time']);
+                    $exist->save();
+                } else {
+                    $exist->status =  $transaction['status'];
+                    $exist->amount =  $transaction['amount_with_breakdown']['gross_amount']['value'];
+                    $exist->save();
+                }
+            }
+        }
+    }
+
+    /**
      * Gateway check method.
      *
      * @return void
@@ -610,6 +663,9 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     {
         // check subscription status
         $this->checkSubscription($subscription);
+
+        // check subscription status
+        $this->updateSubscriptionTransactions($subscription);
 
         // Check last pending transaction
         if ($subscription->isActive()) {
