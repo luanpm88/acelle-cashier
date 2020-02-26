@@ -1313,6 +1313,10 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     {
         $connection = $this->findPlanConnection($plan);
 
+        if (!$connection) {
+            return false;
+        }
+
         // Deactive remote plan
         $uri = $this->baseUri . '/v1/billing/plans/' . $connection['paypal_id'] . '/deactivate';
         $client = new \GuzzleHttp\Client();
@@ -1374,5 +1378,56 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
             }',
         ]);
         return json_decode($response->getBody(), true);
+    }
+    
+    /**
+     * Change plan.
+     *
+     * @return array
+     */
+    public function syncPlan($plan, $oldPlan)
+    {
+        $connection = $this->findPlanConnection($plan);
+
+        // return if not connected
+        if (!$connection || !$connection['paypal_id']) {
+            return false;
+        }
+
+        // find changed fields
+        $amountChanged = ($plan->getBillableAmount() != $oldPlan->getBillableAmount());
+        $currencyChanged = ($plan->getBillableCurrency() != $oldPlan->getBillableCurrency());
+        $intervalChanged = ($plan->getBillableInterval() != $oldPlan->getBillableInterval());
+        $intervalCountChanged = ($plan->getBillableIntervalCount() != $oldPlan->getBillableIntervalCount());
+
+        if ($intervalChanged || $intervalCountChanged) {
+            throw new \Exception('The connected plan can not be updated: can not change billing cycle of remote plan');
+        }
+
+        if ($amountChanged || $currencyChanged) {
+            // Get new one if not exist
+            $uri = $this->baseUri . '/v1/billing/plans/' . $connection['paypal_id'] . '/update-pricing-schemes';
+            $client = new \GuzzleHttp\Client();
+            $response = $client->request('POST', $uri, [
+                'headers' =>
+                    [
+                        'Content-Type' => 'application/json',
+                        'Authorization' => 'Bearer ' . $this->getAccessToken(),
+                    ],
+                'body' => '{
+                    "pricing_schemes": [{
+                      "billing_cycle_sequence": 1,
+                      "pricing_scheme": {
+                        "fixed_price": {
+                            "value": "' . $plan->getBillableAmount() . '",
+                            "currency_code": "' . $plan->getBillableCurrency() . '"
+                          }
+                        }
+                      }
+                    ]
+                }',
+            ]);
+            $result = json_decode($response->getBody(), true);
+        }
     }
 }
