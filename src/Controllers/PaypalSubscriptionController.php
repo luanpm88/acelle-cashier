@@ -72,8 +72,17 @@ class PaypalSubscriptionController extends Controller
         $paypalPlan = $service->getPaypalPlan($subscription->plan);
 
         if ($request->isMethod('post')) {
-            // create subscription
-            $paypalSubscription = $service->createPaypalSubscription($subscription, $request->subscriptionID);
+            try {
+                // create subscription
+                $paypalSubscription = $service->createPaypalSubscription($subscription, $request->subscriptionID);
+            } catch(\Exception $e) {
+                $request->session()->flash('alert-error', 
+                    trans('cashier::messages.paypal_subscription.create_paypal_subscription_error', [
+                        'error' => $e->getMessage()
+                    ]
+                ));
+                return redirect()->away($service->getCheckoutUrl($subscription, $request));
+            }   
 
             // add transaction
             $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [

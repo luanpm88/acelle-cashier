@@ -86,9 +86,22 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function removePayPalProduct()
     {
-        // update data
+        // disconnect all plans
         $data = $this->getData();
+        foreach ($data['plans'] as $key => $connection) {
+            // Deactive remote plan
+            if ($connection['paypal_id']) {
+                $plan = \Acelle\Model\Plan::findByUid($connection['uid']);
+
+                $this->disconnectPlan($plan);
+            }
+        }
+        $data['plans'] = [];
+
+        // remove local product id. API can not remove PayPal product
         $data['product_id'] = '';
+
+        // update data
         $this->updateData($data);
     }
 
@@ -300,9 +313,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
                   "payment_method": {
                     "payer_selected": "PAYPAL",
                     "payee_preferred": "IMMEDIATE_PAYMENT_REQUIRED"
-                  },
-                  "return_url": "' . action('\Acelle\Cashier\Controllers\PaypalSubscriptionController@checkout', $subscription->uid) . '",
-                  "cancel_url": "' . action('\Acelle\Cashier\Controllers\PaypalSubscriptionController@checkout', $subscription->uid) . '"
+                  }
                 }
             }',
         ]);
@@ -530,7 +541,28 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         // CANCELLED. The subscription is cancelled.
         // EXPIRED. The subscription is expired.
 
-        $paypalSubscription = $this->syncPaypalSubscriptionById($transaction->getMetadata()['subscriptionID']);
+        // Get new one if not exist
+        try {
+            $paypalSubscription = $this->getPaypalSubscriptionById($transaction->getMetadata()['subscriptionID']);
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            $response = json_decode($e->getResponse()->getBody()->getContents(), true);
+            
+            if ($response['name'] == 'RESOURCE_NOT_FOUND') {
+                // set failed
+                $transaction->setFailed();
+                
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
+                    'message' => trans('cashier::messages.paypal_subscription.remote_sub_not_found', [
+                        'id' => $transaction->getMetadata()['subscriptionID']
+                    ]),
+                ]);
+            } else {
+                throw new \Exception($e->getMessage());
+            }
+
+            return false;
+        }
 
         switch ($paypalSubscription['status']) {
             case 'APPROVAL_PENDING':
@@ -655,17 +687,58 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     }
 
     /**
+     * Gateway check subscription method.
+     *
+     * @return void
+     */
+    public function checkPlans()
+    {
+        $data = $this->getData();
+        foreach ($data['plans'] as $key => $connection) {
+            try {
+                // Get new one if not exist
+                $uri = $this->baseUri . '/v1/billing/plans/' . $connection['paypal_id'];
+                $client = new \GuzzleHttp\Client();
+                $response = $client->request('GET', $uri, [
+                    'headers' =>
+                        [
+                            'Content-Type' => 'application/json',
+                            'Authorization' => 'Bearer ' . $this->getAccessToken(),
+                        ],
+                ]);
+                $data = json_decode($response->getBody(), true);
+            } catch (\GuzzleHttp\Exception\ClientException $e) {
+                $response = json_decode($e->getResponse()->getBody()->getContents(), true);
+                
+                if ($response['name'] == 'RESOURCE_NOT_FOUND') {
+                    $plan = \Acelle\Model\Plan::findByUid($connection['uid']);
+
+                    // disconnect
+                    $this->removePlanConnection($plan);
+                    
+                    // disable local plan
+                    $plan->disable();
+                } else {
+                    throw new \Exception($e->getMessage());
+                }
+            }
+        }
+    }
+
+    /**
      * Gateway check method.
      *
      * @return void
      */
     public function check($subscription)
     {
-        // check subscription status
-        $this->checkSubscription($subscription);
+        if (!$subscription->isEnded()) {
+            // check subscription status
+            $this->checkSubscription($subscription);
 
-        // check subscription status
-        $this->updateSubscriptionTransactions($subscription);
+            // check subscription status
+            $this->updateSubscriptionTransactions($subscription);
+        }
 
         // Check last pending transaction
         if ($subscription->isActive()) {
@@ -674,12 +747,22 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     }
 
     /**
+     * Gateway check all.
+     *
+     * @return void
+     */
+    public function checkAll()
+    {
+        $this->checkPlans();
+    }
+
+    /**
      * Get Paypal subscription.
      *
      * @return void
      */
-    public function syncPaypalSubscriptionById($subscriptionID)
-    {
+    public function getPaypalSubscriptionById($subscriptionID)
+    {        
         // Get new one if not exist
         $uri = $this->baseUri . '/v1/billing/subscriptions/' . $subscriptionID;
         $client = new \GuzzleHttp\Client();
@@ -690,7 +773,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
                 'Content-Type' => 'application/json',
             ],
         ]);
-        return json_decode($response->getBody(), true);
+        return json_decode($response->getBody(), true);        
     }
 
     /**
@@ -705,7 +788,33 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         }
 
         // Get new one if not exist
-        $data = $this->syncPaypalSubscriptionById($subscription->getMetadata()['subscriptionID']);
+        try {
+            $data = $this->getPaypalSubscriptionById($subscription->getMetadata()['subscriptionID']);
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            $response = json_decode($e->getResponse()->getBody()->getContents(), true);
+            
+            if ($response['name'] == 'RESOURCE_NOT_FOUND') {
+                // cancel subscription
+                $subscription->cancelNow();
+                
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
+                    'message' => trans('cashier::messages.paypal_subscription.remote_sub_not_found', [
+                        'id' => $subscription->getMetadata()['subscriptionID']
+                    ]),
+                ]);
+                sleep(1);
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                ]);
+            } else {
+                throw new \Exception($e->getMessage());
+            }
+
+            return false;
+        }
 
         // update subscription
         $metadata = $subscription->getMetadata();
@@ -1373,19 +1482,40 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
             return false;
         }
 
-        // Deactive remote plan
-        $uri = $this->baseUri . '/v1/billing/plans/' . $connection['paypal_id'] . '/deactivate';
-        $client = new \GuzzleHttp\Client();
-        $response = $client->request('POST', $uri, [
-            'headers' =>
-                [
-                    'Content-Type' => 'application/json',
-                    'Authorization' => 'Bearer ' . $this->getAccessToken(),
-                ],
-        ]);
-
         // remove connection local
         $this->removePlanConnection($plan);
+
+        // Deactive remote plan
+        $this->deactivatePayPalPlan($connection['paypal_id']);
+    }
+
+    /**
+     * Connect plan.
+     *
+     * @return void
+     */
+    public function deactivatePayPalPlan($planId)
+    {
+        try {
+            // Deactive remote plan
+            $uri = $this->baseUri . '/v1/billing/plans/' . $planId . '/deactivate';
+            $client = new \GuzzleHttp\Client();
+            $response = $client->request('POST', $uri, [
+                'headers' =>
+                    [
+                        'Content-Type' => 'application/json',
+                        'Authorization' => 'Bearer ' . $this->getAccessToken(),
+                    ],
+            ]);
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            $response = json_decode($e->getResponse()->getBody()->getContents(), true);
+            
+            if ($response['name'] == 'RESOURCE_NOT_FOUND') {
+                // already deactivated
+            } else {
+                throw new \Exception($e->getMessage());
+            }
+        }
     }
 
     /**
@@ -1427,9 +1557,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
                   "payment_method": {
                     "payer_selected": "PAYPAL",
                     "payee_preferred": "IMMEDIATE_PAYMENT_REQUIRED"
-                  },
-                  "return_url": "' . action('\Acelle\Cashier\Controllers\PaypalSubscriptionController@checkout', $subscription->uid) . '",
-                  "cancel_url": "' . action('\Acelle\Cashier\Controllers\PaypalSubscriptionController@checkout', $subscription->uid) . '"
+                  }
                 }
             }',
         ]);

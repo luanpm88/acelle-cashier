@@ -343,4 +343,7 @@
     'paypal_subscription.not_support_set_active' => 'PayPal subscription service does not support manual set active.',
     'paypal_subscription.not_support_approve' => 'PayPal subscription service does not support manual approve pending transaction.',
     'transaction.paypal_subscription.remote_transaction' => '[REMOTE] Synced from remote PayPal Subscription server.',
+    'paypal_subscription.create_paypal_subscription_error' => 'Can not create PayPal subscription. Error: :error',
+    'paypal_subscription.remote_sub_not_found' => 'Could not found PayPal subscription with id: :id',
+    'subscription.log.error' => 'Something went wrong. Error: :message',
 ) ?>
