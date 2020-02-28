@@ -695,6 +695,8 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     {
         $data = $this->getData();
         foreach ($data['plans'] as $key => $connection) {
+            $plan = \Acelle\Model\Plan::findByUid($connection['uid']);
+
             try {
                 // Get new one if not exist
                 $uri = $this->baseUri . '/v1/billing/plans/' . $connection['paypal_id'];
@@ -707,12 +709,17 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
                         ],
                 ]);
                 $data = json_decode($response->getBody(), true);
+
+                // update price
+                if($data['billing_cycles'][0]['pricing_scheme']['fixed_price']['value']) {
+                    $plan->price = $data['billing_cycles'][0]['pricing_scheme']['fixed_price']['value'];
+                    $plan->save();
+                }
+
             } catch (\GuzzleHttp\Exception\ClientException $e) {
                 $response = json_decode($e->getResponse()->getBody()->getContents(), true);
                 
                 if ($response['name'] == 'RESOURCE_NOT_FOUND') {
-                    $plan = \Acelle\Model\Plan::findByUid($connection['uid']);
-
                     // disconnect
                     $this->removePlanConnection($plan);
                     
