@@ -1407,10 +1407,6 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function connectPlan($plan)
     {
-        if ($plan->getBillableAmount() == 0) {
-            return false;
-        }
-
         $paypalProduct = $this->getPaypalProduct();
 
         // Get new one if not exist
