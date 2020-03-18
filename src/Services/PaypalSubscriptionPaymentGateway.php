@@ -527,12 +527,12 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function checkLastTransaction($transaction)
     {
-        $subscription = $transaction->subscription;
-
         // free plan and local renew
         if (!isset($transaction) || !$transaction->isPending()) {
             return;
         }
+
+        $subscription = $transaction->subscription;
 
         // APPROVAL_PENDING. The subscription is created but not yet approved by the buyer.
         // APPROVED. The buyer has approved the subscription.
@@ -791,28 +791,49 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     public function syncPaypalSubscription($subscription)
     {
         if (empty($subscription->getMetadata())) {
+            $subscriptionID = null;
+        } else {
+            $subscriptionID = $subscription->getMetadata()['subscriptionID'];
+        }
+
+        // subscription does not exist
+        if (!$subscriptionID) {
+            // cancel subscription
+            $subscription->cancel();
+                    
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
+                'message' => trans('cashier::messages.paypal_subscription.remote_subscription_not_found'),
+            ]);
+            sleep(1);
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_CANCELLED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+
             return false;
         }
 
         // Get new one if not exist
         try {
-            $data = $this->getPaypalSubscriptionById($subscription->getMetadata()['subscriptionID']);
+            $data = $this->getPaypalSubscriptionById($subscriptionID);
         } catch (\GuzzleHttp\Exception\ClientException $e) {
             $response = json_decode($e->getResponse()->getBody()->getContents(), true);
             
             if ($response['name'] == 'RESOURCE_NOT_FOUND') {
                 // cancel subscription
-                $subscription->cancelNow();
+                $subscription->cancel();
                 
                 // add log
                 $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
                     'message' => trans('cashier::messages.paypal_subscription.remote_sub_not_found', [
-                        'id' => $subscription->getMetadata()['subscriptionID']
+                        'id' => $subscriptionID
                     ]),
                 ]);
                 sleep(1);
                 // add log
-                $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
+                $subscription->addLog(SubscriptionLog::TYPE_CANCELLED, [
                     'plan' => $subscription->plan->getBillableName(),
                     'price' => $subscription->plan->getBillableFormattedPrice(),
                 ]);

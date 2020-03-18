@@ -346,4 +346,5 @@
     'paypal_subscription.create_paypal_subscription_error' => 'Can not create PayPal subscription. Error: :error',
     'paypal_subscription.remote_sub_not_found' => 'Could not found PayPal subscription with id: :id',
     'subscription.log.error' => 'Something went wrong. Error: :message',
+    'paypal_subscription.remote_subscription_not_found' => 'Paypal subscription does not exist!',
 ) ?>
