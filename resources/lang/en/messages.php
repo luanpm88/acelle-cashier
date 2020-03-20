@@ -340,7 +340,7 @@
     'paypal_subscription.has_transaction_pending' => 'There are pending transaction.
         <a href=":url"><strong>Click here</strong></a> to see more details.',
     'paypal_subscription.cancel_new_subscription' => 'Click here to choose another plan',
-    'paypal_subscription.not_support_set_active' => 'PayPal subscription service does not support manual set active.',
+    'paypal_subscription.not_support_set_active' => 'Cannot activate subscription. User needs to complete PayPal payment process first.',
     'paypal_subscription.not_support_approve' => 'PayPal subscription service does not support manual approve pending transaction.',
     'transaction.paypal_subscription.remote_transaction' => '[REMOTE] Synced from remote PayPal Subscription server.',
     'paypal_subscription.create_paypal_subscription_error' => 'Can not create PayPal subscription. Error: :error',
