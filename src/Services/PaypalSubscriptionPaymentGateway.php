@@ -807,7 +807,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
             ]);
             sleep(1);
             // add log
-            $subscription->addLog(SubscriptionLog::TYPE_CANCELLED, [
+            $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
                 'plan' => $subscription->plan->getBillableName(),
                 'price' => $subscription->plan->getBillableFormattedPrice(),
             ]);
@@ -833,7 +833,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
                 ]);
                 sleep(1);
                 // add log
-                $subscription->addLog(SubscriptionLog::TYPE_CANCELLED, [
+                $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
                     'plan' => $subscription->plan->getBillableName(),
                     'price' => $subscription->plan->getBillableFormattedPrice(),
                 ]);
