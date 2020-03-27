@@ -59,7 +59,7 @@ class CoinpaymentsController extends Controller
         }
         
         // if subscription is active
-        if ($subscription->isActive()) {
+        if ($subscription->isActive() || $subscription->isEnded()) {
             return redirect()->away($this->getReturnUrl($request));
         }
         

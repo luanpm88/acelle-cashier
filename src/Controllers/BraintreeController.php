@@ -81,6 +81,11 @@ class BraintreeController extends Controller
         // save return url
         $request->session()->put('checkout_return_url', $request->return_url);
 
+        // if subscription is active
+        if ($subscription->isActive() || $subscription->isEnded()) {
+            return redirect()->away($this->getReturnUrl($request));
+        }
+
         // if free plan
         if ($subscription->plan->getBillableAmount() == 0 && $service->always_ask_for_valid_card == 'no') {
             // charged successfully. Set subscription to active
