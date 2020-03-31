@@ -46,12 +46,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
     public function validate()
     {
         try {
-            // Use Stripe's library to make requests...
-            $ch = \Stripe\Charge::retrieve(
-                "ch_1EFe6rCMj8fc6a7IsF1uWqBW"
-            );
-
-            $ch->capture(); // Uses the same API Key.
+            \Stripe\Customer::all(['limit' => 1]);
         } catch(\Stripe\Error\Card $e) {
             // Since it's a decline, \Stripe\Error\Card will be caught
         } catch (\Stripe\Error\RateLimit $e) {
