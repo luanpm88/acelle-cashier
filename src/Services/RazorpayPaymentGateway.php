@@ -12,25 +12,20 @@ use Acelle\Cashier\Cashier;
 use Acelle\Cashier\SubscriptionTransaction;
 use Acelle\Cashier\SubscriptionLog;
 
-class PayuPaymentGateway implements PaymentGatewayInterface
+class RazorpayPaymentGateway implements PaymentGatewayInterface
 {
     const ERROR_RECURRING_CHARGE_FAILED = 'recurring-charge-failed';
 
-    public $client_id;
-    public $client_secret;
-    public $second_key;
-    public $always_ask_for_valid_card;
-    public $accessToken;
+    public $key_id;
+    public $key_secret;
 
     /**
      * Construction
      */
-    public function __construct($client_id, $client_secret, $second_key, $always_ask_for_valid_card)
+    public function __construct($key_id, $key_secret)
     {
-        $this->client_id = $client_id;
-        $this->client_secret = $client_secret;
-        $this->second_key = $second_key;
-        $this->always_ask_for_valid_card = $always_ask_for_valid_card;
+        $this->key_id = $key_id;
+        $this->key_secret = $key_secret;
     }
 
     /**

@@ -10,7 +10,7 @@ use Acelle\Cashier\Cashier;
 use Acelle\Cashier\SubscriptionTransaction;
 use Acelle\Cashier\SubscriptionLog;
 
-class PayuController extends Controller
+class RazorpayController extends Controller
 {
     public function getReturnUrl(Request $request) {
         $return_url = $request->session()->get('checkout_return_url', url('/'));

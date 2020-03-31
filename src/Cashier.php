@@ -67,12 +67,10 @@ class Cashier
                     $config['fields']['client_id'],
                     $config['fields']['secret']
                 );
-            case 'payu':
-                return new \Acelle\Cashier\Services\PayuPaymentGateway(
-                    $config['fields']['client_id'],
-                    $config['fields']['client_secret'],
-                    $config['fields']['second_key'],
-                    $config['fields']['always_ask_for_valid_card']
+            case 'razorpay':
+                return new \Acelle\Cashier\Services\RazorpayPaymentGateway(
+                    $config['fields']['key_id'],
+                    $config['fields']['key_secret']
                 );
             default:
                 throw new \Exception("Can not find payment service: " . $config['name']);

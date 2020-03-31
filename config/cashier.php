@@ -57,13 +57,11 @@ return [
                 'secret' => null,
             ],
         ],
-        'payu' => [
-            'name' => 'payu',
+        'razorpay' => [
+            'name' => 'razorpay',
             'fields' => [                
-                'client_id' => null,
-                'client_secret' => null,
-                'second_key' => null,
-                'always_ask_for_valid_card' => 'no',
+                'key_id' => null,
+                'key_secret' => null,
             ],
         ],
     ],
