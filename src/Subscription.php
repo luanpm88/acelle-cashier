@@ -498,6 +498,11 @@ class Subscription extends Model
      */
     public static function checkAll($gateway)
     {
+        // check plans
+        if (method_exists($gateway, 'checkAll')) {
+            $gateway->checkAll();
+        }
+        
         $subscriptions = self::whereNull('ends_at')->orWhere('ends_at', '>=', \Carbon\Carbon::now())->get();
         foreach ($subscriptions as $subscription) {
             $subscription->check($gateway);
@@ -523,7 +528,7 @@ class Subscription extends Model
             ]);
         }
 
-        // gateway service check
+        // gateway service check subscription
         if(method_exists ( $gateway , 'check' )) {
             $gateway->check($this);
         }

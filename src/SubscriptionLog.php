@@ -33,6 +33,7 @@ class SubscriptionLog extends Model
     const TYPE_ADMIN_RESUMED = 'admin_resumed';
     const TYPE_ADMIN_PLAN_ASSIGNED = 'admin_plan_assigned';
     const TYPE_RESUMED = 'resumed';
+    const TYPE_ERROR = 'error';
 
 
     /**

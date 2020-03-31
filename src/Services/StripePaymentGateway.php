@@ -19,6 +19,7 @@ use Acelle\Cashier\SubscriptionLog;
 class StripePaymentGateway implements PaymentGatewayInterface
 {
     const ERROR_RECURRING_CHARGE_FAILED = 'recurring-charge-failed';
+    const ERROR_CHARGE_FAILED = 'charge-failed';
 
     public $secretKey;
     public $publishableKey;
@@ -382,14 +383,16 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @return boolean
      */
     public function hasError($subscription) {
-        return isset($subscription->last_error_type);
+        $transaction = $this->getLastTransaction($subscription);
+
+        return isset($subscription->last_error_type) && $transaction->isFailed();
     }
 
     public function getErrorNotice($subscription) {
 
         switch ($subscription->last_error_type) {
             case StripePaymentGateway::ERROR_RECURRING_CHARGE_FAILED:
-                return trans('cashier::messages.braintree.payment_error.recurring_charge_error', [
+                return trans('cashier::messages.stripe.payment_error.recurring_charge_error', [
                     'url' => action('\Acelle\Cashier\Controllers\StripeController@fixPayment', [
                         'subscription_id' => $subscription->uid,
                     ]),
@@ -397,7 +400,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
                 break;
             default:
-                return trans('cashier::messages.braintree.error.something_went_wrong');
+                return trans('cashier::messages.stripe.error.something_went_wrong');
         }
     }
 

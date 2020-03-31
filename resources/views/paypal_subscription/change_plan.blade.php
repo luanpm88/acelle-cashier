@@ -48,22 +48,6 @@
                     </li>
                     <li>
                         <div class="unit size1of2">
-                            {{ trans('cashier::messages.paypal.remain_amount') }}
-                        </div>
-                        <div class="lastUnit size1of2">
-                            <mc:flag>{{ $remainAmount }}</mc:flag>
-                        </div>
-                    </li>
-                    <li>
-                        <div class="unit size1of2">
-                            {{ trans('cashier::messages.paypal.new_amount') }}
-                        </div>
-                        <div class="lastUnit size1of2">
-                            <mc:flag>{{ $newAmount }}</mc:flag>
-                        </div>
-                    </li>
-                    <li>
-                        <div class="unit size1of2">
                             {{ trans('cashier::messages.paypal.amount') }}
                         </div>
                         <div class="lastUnit size1of2">
@@ -72,7 +56,7 @@
                     </li>
                 </ul>
 
-                @if ($newPlan->price == 0)
+                @if ($newPlan->getBillableAmount() == 0)
                     <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\PaypalController@changePlan', ['subscription_id' => $subscription->uid]) }}">
                         {{ csrf_field() }}
                         <input type='hidden' name='plan_id' value='{{ $newPlan->getBillableId() }}' />
@@ -102,6 +86,10 @@
                             'name': '_token',
                             'value': '{{ csrf_token() }}',
                             'type': 'hidden'
+                        })).append(jQuery('<input>', {
+                            'name': 'plan_id',
+                            'value': '{{ $newPlan->getBillableId() }}',
+                            'type': 'hidden'
                         }));
 
                         $('body').append(form);
@@ -127,14 +115,7 @@
                             }
                         }).render('#paypal-button-container');
                     </script>
-                    
-                    <hr>
-                    <a
-                        href="{{ $return_url }}"
-                            class="btn btn-secondary mr-10 mt-4"
-                        >{{ trans('cashier::messages.paypal.return_back') }}</a>
                 @endif
-                
             </div>
             <div class="col-md-2"></div>
         </div>

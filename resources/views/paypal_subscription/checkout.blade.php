@@ -21,6 +21,26 @@
                 </div>
             </div>
             <div class="col-md-4 mt-40 pd-60">
+                @foreach (['danger', 'warning', 'info', 'error'] as $msg)
+                    @php
+                        $class = $msg;
+                        if ($msg == 'error') {
+                            $class = 'danger';
+                        }
+                    @endphp
+                    @if(Session::has('alert-' . $msg))
+                        <!-- Form Error List -->
+                        <div class="alert alert-{{ $class }} alert-noborder">
+                            <button data-dismiss="alert" class="close" type="button"><span>×</span><span class="sr-only">Close</span></button>
+                            <strong>{{ trans('messages.' . $msg) }}</strong>
+
+                            <br>
+
+                            <p>{!! preg_replace('/[\r\n]+/', ' ', Session::get('alert-' . $msg)) !!}</p>
+                        </div>
+                    @endif    
+                @endforeach
+
                 <label>{{ $subscription->plan->getBillableName() }}</label>               
                 <h2 class="mb-40">{{ $subscription->plan->getBillableFormattedPrice() }}</h2>   
 
@@ -106,6 +126,14 @@
                         }
                     }).render('#paypal-button-container');
                 </script>
+
+                <form class="mt-5" method="POST" action="{{ action('\Acelle\Cashier\Controllers\PaypalSubscriptionController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
+                    {{ csrf_field() }}
+                    
+                    <a href="javascript:;" onclick="$(this).closest('form').submit()"
+                        class="text-muted" style="font-size: 12px; text-decoration: underline"
+                    >{{ trans('cashier::messages.paypal_subscription.cancel_new_subscription') }}</a>
+                </form>
             </div>
             <div class="col-md-2"></div>
         </div>

@@ -90,6 +90,7 @@
         
         <p class="text-danger" style="color: red">* Above is sample confirmation message, you can change it in your payment gateway setting page</p>
     ',
+    'direct.cancel_new_subscription' => 'Click here to choose another plan',
     'direct.claim_payment' => 'I paid already!',
     'direct.unclaim_payment' => 'Sorry! I claimed by mistake. Click to undo.',
     'direct.subscribed_to_plan' => 'Subscribe to plan <strong>:plan</strong>',
@@ -212,7 +213,7 @@
     'stripe.payment_error.recurring_charge_error' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong when
         charging your subscription. <a href=":url"><strong>Click here</strong></a> to update the payment.',
     'stripe.error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with transaction(s).
-        Please check transactions list for more details.',
+        Please check the logs/transactions below for more details.',
     'transaction.title' => 'Action',
     'stripe.transaction.payment' => 'Payment',
     'stripe.fix_payment.intro' => 'You are about to charge <strong>:plan</strong> plan for new period.
@@ -221,7 +222,7 @@
     'braintree.payment_error.recurring_charge_error' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong when
         charging your subscription. <a href=":url"><strong>Click here</strong></a> to update the payment.',
     'braintree.error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with transaction(s).
-        Please check transactions list for more details.',
+        Please check the logs/transactions below for more details.',
     'braintree.transaction.payment' => 'Payment',
     'braintree.payment_error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with payment.
         <a href=":url"><strong>Click here</strong></a> to see more details.',
@@ -322,7 +323,6 @@
     'paypal.new_amount' => 'New plan price',
     'paypal.not_support_set_active' => 'PayPal subscription service does not support manual set active.',
     'paypal.not_support_asign_plan' => 'PayPal subscription service does not support manual asign plan.',
-
     'payu.checkout.page_title' => 'Checkout',
     'payu.checkout_with_payu' => 'Checkout with PayU',
     'payu.card_list' => 'Your card information',
@@ -346,4 +346,28 @@
         <br> Your browser will redirect to next page shortly.',
     'payu.checkout.processing_payment' => 'Processing your payment... please wait!',
     'payu.cancel_new_subscription' => 'Click here to choose another plan',
+    'subscription.log.plan_change_failed' => 'Can not change to <strong>:plan</strong> plan. Error: :error',
+    'stripe.payment_error.charge_error' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with the payment.
+        <a href=":url"><strong>Click here</strong></a> to update the payment.',
+    'braintree.payment_error.charge_error' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with the payment.
+        <a href=":url"><strong>Click here</strong></a> to update the payment.',
+    'paypal.error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with transaction(s).
+        Please check the logs/transactions below for more details.',
+    'paypal_subscription.error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with transaction(s).
+        Please check the logs/transactions below for more details.',
+    'paypal_subscription.transaction.pending.title' => 'There is a transaction which is currently reviewing...',
+    'paypal_subscription.transaction.pending.intro' => 'The transaction `:message` is waiting for approval, your billing
+        amount is <strong>:price</strong>. Your subscription is currently reviewing by PayPal. It is going to be approved soon.
+        Please wait.',
+    'paypal_subscription.transaction.period_ends_at' => 'End date',
+    'paypal_subscription.has_transaction_pending' => 'There are pending transaction.
+        <a href=":url"><strong>Click here</strong></a> to see more details.',
+    'paypal_subscription.cancel_new_subscription' => 'Click here to choose another plan',
+    'paypal_subscription.not_support_set_active' => 'Cannot activate subscription. User needs to complete PayPal payment process first.',
+    'paypal_subscription.not_support_approve' => 'PayPal subscription service does not support manual approve pending transaction.',
+    'transaction.paypal_subscription.remote_transaction' => '[REMOTE] Synced from remote PayPal Subscription server.',
+    'paypal_subscription.create_paypal_subscription_error' => 'Can not create PayPal subscription. Error: :error',
+    'paypal_subscription.remote_sub_not_found' => 'Could not found PayPal subscription with id: :id',
+    'subscription.log.error' => 'Something went wrong. Error: :message',
+    'paypal_subscription.remote_subscription_not_found' => 'Paypal subscription does not exist!',
 ) ?>

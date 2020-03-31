@@ -18,6 +18,8 @@ use Acelle\Cashier\SubscriptionLog;
 
 class PaypalPaymentGateway implements PaymentGatewayInterface
 {
+    const ERROR_CHARGE_FAILED = 'charge-failed';
+
     public $client_id;
     public $secret;
     public $client;
@@ -343,8 +345,36 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
-    public function hasError($subscription) {}
-    public function getErrorNotice($subscription) {}
+    /**
+     * Get last transaction
+     *
+     * @return boolean
+     */
+    public function getLastTransaction($subscription) {
+        return $subscription->subscriptionTransactions()
+            ->where('type', '<>', SubscriptionLog::TYPE_SUBSCRIBE)
+            ->orderBy('created_at', 'desc')
+            ->first();
+    }
+
+    /**
+     * Check if has failed transaction
+     *
+     * @return boolean
+     */
+    public function hasError($subscription) {
+        $transaction = $this->getLastTransaction($subscription);
+
+        return isset($subscription->last_error_type) && $transaction->isFailed();
+    }
+
+    public function getErrorNotice($subscription) {
+        switch ($subscription->last_error_type) {
+
+            default:
+                return trans('cashier::messages.paypal.error.something_went_wrong');
+        }
+    }
 
     /**
      * Cancel subscription.

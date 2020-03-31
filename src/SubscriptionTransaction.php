@@ -14,7 +14,7 @@ class SubscriptionTransaction extends Model
     const TYPE_SUBSCRIBE = 'subscribe';
     const TYPE_RENEW = 'renew';
     const TYPE_PLAN_CHANGE = 'plan_change';
-    const TYPE_AUTO_CHARGE = 'plan_change';
+    const TYPE_AUTO_CHARGE = 'auto_charge';
 
     /**
      * The attributes that are not mass assignable.
