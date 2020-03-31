@@ -26,31 +26,24 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
     {
         $this->key_id = $key_id;
         $this->key_secret = $key_secret;
+        $this->baseUri = 'https://api.razorpay.com/v1/';
     }
 
     /**
-     * Get access token.
+     * Request PayPal service.
      *
      * @return void
      */
-    public function getAccessToken()
+    private function request($type = 'GET', $uri, $headers = [], $body = '')
     {
-        if (!isset($this->accessToken)) {
-            // Get new one if not exist
-            $uri = 'https://secure.payu.com/pl/standard/user/oauth/authorize';
-            $client = new \GuzzleHttp\Client();
-            $response = $client->request('POST', $uri, [
-                'headers' =>
-                    [
-                        'Content-Type' => 'application/x-www-form-urlencoded',
-                    ],
-                'body' => 'grant_type=client_credentials&client_id=' . $this->client_id . '&client_secret=' . $this->client_secret,
-            ]);
-            $data = json_decode($response->getBody(), true);
-            $this->accessToken = $data['access_token'];
-        }
-
-        return $this->accessToken;
+        $client = new \GuzzleHttp\Client();
+        $uri = $this->baseUri . $uri;
+        $response = $client->request($type, $uri, [
+            'headers' => $headers,
+            'body' => is_array($body) ? json_encode($body) : $body,
+            'auth' => [$this->key_id, $this->key_secret],
+        ]);
+        return json_decode($response->getBody(), true);
     }
 
     /**
@@ -60,7 +53,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      */
     public function validate()
     {
-        $this->getAccessToken();
+        $this->request('GET', 'customers');
     }
 
     /**
@@ -95,6 +88,197 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         
         return $subscription;
     }
+
+    /**
+     * Get checkout url.
+     *
+     * @return string
+     */
+    public function getCheckoutUrl($subscription, $returnUrl='/') {
+        return action("\Acelle\Cashier\Controllers\RazorpayController@checkout", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
+
+    /**
+     * Current rate for convert/revert Stripe price.
+     *
+     * @param  mixed    $price
+     * @param  string    $currency
+     * @return integer
+     */
+    public function currencyRates()
+    {
+        return [
+            'CLP' => 1,
+            'DJF' => 1,
+            'JPY' => 1,
+            'KMF' => 1,
+            'RWF' => 1,
+            'VUV' => 1,
+            'XAF' => 1,
+            'XOF' => 1,
+            'BIF' => 1,
+            'GNF' => 1,
+            'KRW' => 1,
+            'MGA' => 1,
+            'PYG' => 1,
+            'VND' => 1,
+            'XPF' => 1,
+        ];
+    }
+
+    /**
+     * Convert price to Stripe price.
+     *
+     * @param  mixed    $price
+     * @param  string    $currency
+     * @return integer
+     */
+    public function convertPrice($price, $currency)
+    {
+        $currencyRates = $this->currencyRates();
+
+        $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
+
+        return round($price * $rate);
+    }
+
+    /**
+     * Get Razorpay Order.
+     *
+     * @param  mixed    $price
+     * @param  string    $currency
+     * @return integer
+     */
+    public function createRazorpayOrder($subscription)
+    {
+        return $this->request('POST', 'orders', [
+            "content-type" => "application/json"
+        ], [
+            "amount" => $this->convertPrice($subscription->plan->getBillableAmount(), $subscription->plan->getBillableCurrency()),
+            "currency" => $subscription->plan->getBillableCurrency(),
+            "receipt" => "rcptid_" . $subscription->uid,
+            "payment_capture" => 1,
+        ]);
+    }
+    
+    /**
+     * Get Razorpay Order.
+     *
+     * @param  mixed    $price
+     * @param  string    $currency
+     * @return integer
+     */
+    public function createRazorpayCustomer($subscription)
+    {
+        $data = $subscription->getMetadata();
+
+        // get customer
+        if (isset($data["customer"])) {
+            $customer = $this->request('GET', 'customers/' . $data["customer"]["id"]);
+        } else {
+            $customer = $this->request('POST', 'customers', [
+                "Content-Type" => "application/json"
+            ], [
+                "name" => $subscription->user->displayName(),
+                "email" => $subscription->user->getBillableEmail(),
+                "contact" => "",
+                "fail_existing" => "0",
+                "notes" => [
+                    "uid" => $subscription->user->getBillableId()
+                ]
+            ]);
+        }
+        
+        // save customer        
+        $data['customer'] = $customer;
+        $subscription->updateMetadata($data);
+
+        return $customer;
+    }
+    
+    /**
+     * Get Razorpay Plan.
+     *
+     * @param  mixed    $price
+     * @param  string    $currency
+     * @return integer
+     */
+    public function createRazorpayPlan($subscription)
+    {
+        $plan = $this->request('POST', 'plans', [
+            "Content-Type" => "application/json"
+        ], [
+            "period" => $subscription->plan->getBillableInterval() . 'ly',
+            "interval" => $subscription->plan->getBillableIntervalCount(),
+            "item" => [
+                "name" => $subscription->plan->getBillableName(),
+                "amount" => $this->convertPrice($subscription->plan->getBillableAmount(), $subscription->plan->getBillableCurrency()),
+                "currency" => $subscription->plan->getBillableCurrency(),
+                "description" => $subscription->plan->description
+            ],
+            "notes" => [
+                "uid" => $subscription->plan->getBillableId()
+            ]
+        ]);
+
+        return $plan;
+    }
+
+    /**
+     * Get Razorpay Subscription.
+     *
+     * @param  mixed    $price
+     * @param  string    $currency
+     * @return integer
+     */
+    public function createRazorpaySubscription($subscription)
+    {        
+        $plan = $this->createRazorpayPlan($subscription);
+
+        $sub = $this->request('POST', 'subscriptions', [
+            "Content-Type" => "application/json"
+        ], [
+            "plan_id" => $plan["id"],
+            "total_count" => 300,
+            "quantity" => 1,
+            "customer_notify" => 1,
+            "start_at" => \Carbon\Carbon::now()->timestamp,
+            "expire_by" => \Carbon\Carbon::now()->addYears(10)->timestamp,
+            "notes" => [
+                "notes_key_1" => $subscription->uid
+            ]
+        ]);
+        var_dump($sub);
+        die();
+    }
+
+    /**
+     * Get access token.
+     *
+     * @return void
+     */
+    public function getAccessToken()
+    {
+        if (!isset($this->accessToken)) {
+            // Get new one if not exist
+            $uri = 'https://secure.payu.com/pl/standard/user/oauth/authorize';
+            $client = new \GuzzleHttp\Client();
+            $response = $client->request('POST', $uri, [
+                'headers' =>
+                    [
+                        'Content-Type' => 'application/x-www-form-urlencoded',
+                    ],
+                'body' => 'grant_type=client_credentials&client_id=' . $this->client_id . '&client_secret=' . $this->client_secret,
+            ]);
+            $data = json_decode($response->getBody(), true);
+            $this->accessToken = $data['access_token'];
+        }
+
+        return $this->accessToken;
+    }
     
     /**
      * Charge customer with subscription.
@@ -128,18 +312,6 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
 
     public function isSupportRecurring() {
         return true;
-    }
-
-    /**
-     * Get checkout url.
-     *
-     * @return string
-     */
-    public function getCheckoutUrl($subscription, $returnUrl='/') {
-        return action("\Acelle\Cashier\Controllers\PayuController@checkout", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-        ]);
     }
 
     /**
@@ -234,50 +406,6 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         $card = $stripeCustomer->sources->create(['source' => $params['stripeToken']]);
         $stripeCustomer->default_source = $card->id;
         $stripeCustomer->save();
-    }
-
-    /**
-     * Current rate for convert/revert Stripe price.
-     *
-     * @param  mixed    $price
-     * @param  string    $currency
-     * @return integer
-     */
-    public function currencyRates()
-    {
-        return [
-            'CLP' => 1,
-            'DJF' => 1,
-            'JPY' => 1,
-            'KMF' => 1,
-            'RWF' => 1,
-            'VUV' => 1,
-            'XAF' => 1,
-            'XOF' => 1,
-            'BIF' => 1,
-            'GNF' => 1,
-            'KRW' => 1,
-            'MGA' => 1,
-            'PYG' => 1,
-            'VND' => 1,
-            'XPF' => 1,
-        ];
-    }
-
-    /**
-     * Convert price to Stripe price.
-     *
-     * @param  mixed    $price
-     * @param  string    $currency
-     * @return integer
-     */
-    public function convertPrice($price, $currency)
-    {
-        $currencyRates = $this->currencyRates();
-
-        $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
-
-        return round($price * $rate);
     }
 
     /**

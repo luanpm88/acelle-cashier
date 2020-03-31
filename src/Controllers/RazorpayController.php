@@ -12,6 +12,11 @@ use Acelle\Cashier\SubscriptionLog;
 
 class RazorpayController extends Controller
 {
+    public function __construct()
+    {
+        \Carbon\Carbon::setToStringFormat('jS \o\f F');
+    }
+
     public function getReturnUrl(Request $request) {
         $return_url = $request->session()->get('checkout_return_url', url('/'));
         if (!$return_url) {
@@ -28,7 +33,7 @@ class RazorpayController extends Controller
      **/
     public function getPaymentService()
     {
-        return Cashier::getPaymentGateway('payu');
+        return Cashier::getPaymentGateway('razorpay');
     }
     
     /**
@@ -46,8 +51,22 @@ class RazorpayController extends Controller
         // save return url
         $request->session()->put('checkout_return_url', $request->return_url);
 
-        // if free plan and not always required card
-        if ($subscription->plan->getBillableAmount() == 0 && $service->always_ask_for_valid_card == 'no') {
+        $sub = $service->createRazorpaySubscription($subscription);
+        var_dump($sub);
+        die();
+
+
+        // create order
+        $order = $service->createRazorpayOrder($subscription);
+        $customer = $service->createRazorpayCustomer($subscription);
+
+        // if subscription is active
+        if (!$subscription->isNew()) {
+            return redirect()->away($this->getReturnUrl($request));
+        }
+
+        // if free plan
+        if ($subscription->plan->getBillableAmount() == 0) {
             // charged successfully. Set subscription to active
             $subscription->start();
 
@@ -72,9 +91,41 @@ class RazorpayController extends Controller
             return redirect()->away($this->getReturnUrl($request));
         }
 
-        return view('cashier::payu.checkout', [
+        // check payment
+        if ($request->isMethod('post')) {            
+            $sig = hash_hmac('sha256', $request->razorpay_order_id . "|" . $request->razorpay_payment_id, $service->key_secret);
+            if ($sig == $request->razorpay_signature) {
+                // charged successfully. Set subscription to active
+                $subscription->start();
+
+                // add transaction
+                $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
+                    'ends_at' => $subscription->ends_at,
+                    'current_period_ends_at' => $subscription->current_period_ends_at,
+                    'status' => SubscriptionTransaction::STATUS_SUCCESS,
+                    'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                        'plan' => $subscription->plan->getBillableName(),
+                    ]),
+                    'amount' => $subscription->plan->getBillableFormattedPrice()
+                ]);
+                
+                sleep(1);
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                ]);
+
+                // Redirect to my subscription page
+                return redirect()->away($this->getReturnUrl($request));
+            }
+        }
+
+        return view('cashier::razorpay.checkout', [
             'service' => $this->getPaymentService(),
             'subscription' => $subscription,
+            'order' => $order,
+            'customer' => $customer,
         ]);
     }
     
@@ -156,46 +207,32 @@ class RazorpayController extends Controller
         $service = $this->getPaymentService();
 
         if ($request->isMethod('post')) {
-            if ($subscription->plan->getBillableAmount() > 0) {
-                // charge customer
-                $service->charge($subscription, [
-                    'amount' => $subscription->plan->getBillableAmount(),
-                    'currency' => $subscription->plan->getBillableCurrency(),
-                    'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
+            $sig = hash_hmac('sha256', $request->razorpay_order_id . "|" . $request->razorpay_payment_id, $service->key_secret);
+            if ($sig == $request->razorpay_signature) {
+                // charged successfully. Set subscription to active
+                $subscription->start();
+
+                // add transaction
+                $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
+                    'ends_at' => $subscription->ends_at,
+                    'current_period_ends_at' => $subscription->current_period_ends_at,
+                    'status' => SubscriptionTransaction::STATUS_SUCCESS,
+                    'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
                         'plan' => $subscription->plan->getBillableName(),
                     ]),
+                    'amount' => $subscription->plan->getBillableFormattedPrice()
                 ]);
-            }
-
-            // charged successfully. Set subscription to active
-            $subscription->start();
-
-            // add transaction
-            $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
-                'ends_at' => $subscription->ends_at,
-                'current_period_ends_at' => $subscription->current_period_ends_at,
-                'status' => SubscriptionTransaction::STATUS_SUCCESS,
-                'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                
+                sleep(1);
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
                     'plan' => $subscription->plan->getBillableName(),
-                ]),
-                'amount' => $subscription->plan->getBillableFormattedPrice()
-            ]);
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                ]);
 
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_PAID, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-            sleep(1);
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-
-
-            // Redirect to my subscription page
-            return redirect()->away($this->getReturnUrl($request));
+                // Redirect to my subscription page
+                return redirect()->away($this->getReturnUrl($request));
+            }
         }
 
         return view('cashier::payu.charge', [

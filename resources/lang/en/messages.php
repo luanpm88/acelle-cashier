@@ -370,4 +370,35 @@
     'paypal_subscription.remote_sub_not_found' => 'Could not found PayPal subscription with id: :id',
     'subscription.log.error' => 'Something went wrong. Error: :message',
     'paypal_subscription.remote_subscription_not_found' => 'Paypal subscription does not exist!',
+
+    'razorpay.checkout.page_title' => 'Checkout',
+    'razorpay.checkout_with_razorpay' => 'Checkout with Razorpay',
+    'razorpay.card_list' => 'Your card information',
+    'razorpay.click_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with Razorpay with <strong>:price</strong>.
+        Please click the button bellow to proceed with the payment information.',
+    'razorpay.checkout.tree_plan' => 'You are checking out <strong>:plan</strong> with Razorpay with <strong>:price</strong>.
+        Please click the button bellow to proceed.',
+    'razorpay.pay' => 'Pay',
+    'razorpay.pay_with_new_card' => 'Pay with new card',
+    'razorpay.pay_with_this_card' => 'Pay with this card',
+    'razorpay.click_or_choose_card_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with Razorpay with <strong>:price</strong>.
+        Please choose to pay with exist card or pay with new card.',
+    'razorpay.change_plan_confirmation' => 'You are about to change current subscription plan to <strong>:plan</strong>.
+        Click the proceed button below to change.',
+    'razorpay.change_plan_proceed' => 'Proceed',
+    'razorpay.return_back' => 'Return back',
+    'razorpay.change_plan' => 'Change plan',
+    'razorpay.new_plan' => 'New plan',
+    'razorpay.amount' => 'Amount',
+    'razorpay.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
+        <br> Your browser will redirect to next page shortly.',
+    'razorpay.checkout.processing_payment' => 'Processing your payment... please wait!',
+    'razorpay.cancel_new_subscription' => 'Click here to choose another plan',
+    'razorpay.plan' => 'Plan',
+    'razorpay.next_period_day' => 'Next period end day',
+    'razorpay.amount' => 'Amount',
+    'razorpay.next_period_day' => 'Next period end day',
+    'razorpay.checkout.intro' => 'You are checking out <strong>:plan</strong> with <strong>:price</strong>.
+        Please click the button bellow to proceed with the payment information.',
+    'razorpay.pay_with_razorpay' => 'Pay with Razorpay',
 ) ?>
