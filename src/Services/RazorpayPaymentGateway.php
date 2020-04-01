@@ -14,7 +14,7 @@ use Acelle\Cashier\SubscriptionLog;
 
 class RazorpayPaymentGateway implements PaymentGatewayInterface
 {
-    const ERROR_RECURRING_CHARGE_FAILED = 'recurring-charge-failed';
+    const ERROR_CHARGE_FAILED = 'charge-failed';
 
     public $key_id;
     public $key_secret;
@@ -70,22 +70,49 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
             $subscription = $customer->subscription;
         } else {
             $subscription = new Subscription();
-            $subscription->user_id = $customer->getBillableId();
-            // @todo when is exactly started at?
-            $subscription->started_at = \Carbon\Carbon::now();
+            $subscription->user_id = $customer->getBillableId();            
         } 
+        // @todo when is exactly started at?
+        $subscription->started_at = \Carbon\Carbon::now();
+
         $subscription->user_id = $customer->getBillableId();
         $subscription->plan_id = $plan->getBillableId();
         $subscription->status = Subscription::STATUS_NEW;
         
+        // set dates and save
+        $subscription->ends_at = $subscription->getPeriodEndsAt(Carbon::now());
+        $subscription->current_period_ends_at = $subscription->ends_at;
         $subscription->save();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
-            'plan' => $plan->getBillableName(),
-            'price' => $plan->getBillableFormattedPrice(),
-        ]);
         
+        // If plan is free: enable subscription & update transaction
+        if ($plan->getBillableAmount() == 0) {
+            // subscription transaction
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
+                'ends_at' => $subscription->ends_at,
+                'current_period_ends_at' => $subscription->current_period_ends_at,
+                'status' => SubscriptionTransaction::STATUS_SUCCESS,
+                'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                    'plan' => $subscription->plan->getBillableName(),
+                ]),
+                'amount' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+            
+            // set active
+            $subscription->setActive();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
+                'plan' => $plan->getBillableName(),
+                'price' => $plan->getBillableFormattedPrice(),
+            ]);
+        } else {
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
+                'plan' => $plan->getBillableName(),
+                'price' => $plan->getBillableFormattedPrice(),
+            ]);
+        }
+
         return $subscription;
     }
 
@@ -152,13 +179,21 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      * @param  string    $currency
      * @return integer
      */
-    public function createRazorpayOrder($subscription)
+    public function createRazorpayOrder($subscription, $plan=null)
     {
+        if (!$plan) {
+            $plan = $subscription->plan;
+        }
+
+        if ($plan->price == 0) {
+            return false;
+        }
+
         return $this->request('POST', 'orders', [
             "content-type" => "application/json"
         ], [
-            "amount" => $this->convertPrice($subscription->plan->getBillableAmount(), $subscription->plan->getBillableCurrency()),
-            "currency" => $subscription->plan->getBillableCurrency(),
+            "amount" => $this->convertPrice($plan->getBillableAmount(), $plan->getBillableCurrency()),
+            "currency" => $plan->getBillableCurrency(),
             "receipt" => "rcptid_" . $subscription->uid,
             "payment_capture" => 1,
         ]);
@@ -171,7 +206,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      * @param  string    $currency
      * @return integer
      */
-    public function createRazorpayCustomer($subscription)
+    public function getRazorpayCustomer($subscription)
     {
         $data = $subscription->getMetadata();
 
@@ -311,24 +346,34 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
     }
 
     public function isSupportRecurring() {
-        return true;
+        return false;
     }
 
     /**
-     * Get change plan url.
+     * Get renew url.
      *
      * @return string
      */
-    public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/') {
-        return action("\Acelle\Cashier\Controllers\PayuController@changePlan", [
+    public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/')
+    {
+        return action("\Acelle\Cashier\Controllers\\RazorpayController@changePlan", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
             'plan_id' => $plan_id,
         ]);
     }
 
-    public function getRenewUrl($subscription, $returnUrl='/') {
-        return false;
+    /**
+     * Get renew url.
+     *
+     * @return string
+     */
+    public function getRenewUrl($subscription, $returnUrl='/')
+    {
+        return action("\Acelle\Cashier\Controllers\\RazorpayController@renew", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
     }
 
     /**

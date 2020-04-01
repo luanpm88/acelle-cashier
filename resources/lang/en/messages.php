@@ -401,4 +401,25 @@
     'razorpay.checkout.intro' => 'You are checking out <strong>:plan</strong> with <strong>:price</strong>.
         Please click the button bellow to proceed with the payment information.',
     'razorpay.pay_with_razorpay' => 'Pay with Razorpay',
+
+    'razorpay.subscribe_to_plan' => 'Subscribe to plan <strong>:plan</strong>',
+    'razorpay.new_plan' => 'New plan',
+    'razorpay.change_plan' => 'Change plan',
+    'razorpay.next_period_day' => 'Next period end day',
+    'razorpay.plan' => 'Plan',
+    'razorpay.description' => 'Description',
+    'razorpay.amount' => 'Amount',
+    'razorpay.renew_proceed' => 'Proceed',
+    'razorpay.change_plan_proceed' => 'Proceed',
+    'razorpay.return_back' => 'Return back',
+    'razorpay.click_to_proceed' => 'Click on the button below to proceed with payment.',
+    'razorpay.change_plan_to' => 'Change from <strong>:current_plan</strong> to <strong>:new_plan</strong> plan',
+    'razorpay.renew_plan.intro' => 'You are about to renew :plan plan. Please check the renew information below before proceeding.',
+    'razorpay.renew_plan_desc' => 'Renew <strong>:plan</strong> plan',
+    'razorpay.renew_subscription' => 'Renew subscription',
+    'razorpay.change_plan.intro' => 'You are about to change <strong>:plan</strong> plan to <strong>:new_plan</strong> plan.
+        Please check the information below before proceeding.',
+    'razorpay.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
+        <br> Your browser will redirect to next page shortly.',
+    'razorpay.checkout.processing_payment' => 'Processing your payment... please wait!',
 ) ?>

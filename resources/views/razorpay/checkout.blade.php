@@ -36,6 +36,14 @@
                     </li>
                     <li>
                         <div class="unit size1of2">
+                            {{ trans('cashier::messages.razorpay.next_period_day') }}
+                        </div>
+                        <div class="lastUnit size1of2">
+                            <mc:flag>{{ $subscription->current_period_ends_at }}</mc:flag>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="unit size1of2">
                             {{ trans('cashier::messages.razorpay.amount') }}
                         </div>
                         <div class="lastUnit size1of2">
