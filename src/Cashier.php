@@ -67,6 +67,11 @@ class Cashier
                     $config['fields']['client_id'],
                     $config['fields']['secret']
                 );
+            case 'razorpay':
+                return new \Acelle\Cashier\Services\RazorpayPaymentGateway(
+                    $config['fields']['key_id'],
+                    $config['fields']['key_secret']
+                );
             default:
                 throw new \Exception("Can not find payment service: " . $config['name']);
         }
@@ -167,5 +172,26 @@ class Cashier
             'plan' => $subscription->plan->getBillableName(),
             'price' => $subscription->plan->getBillableFormattedPrice(),
         ]);
+    }
+
+    /**
+     * Check if subscription has renew pending.
+     *
+     * @return void
+     */
+    public static function hasPendingRenew($subscription)
+    {
+        $service = self::getPaymentGateway();
+        $can = $subscription->isActive() && !$service->hasPending($subscription) && !$service->isSupportRecurring();
+        $can = $can && (
+            config('cashier.renew_free_plan') == 'yes' ||
+            (config('cashier.renew_free_plan') == 'no' && !$subscription->plan->getBillableAmount() == 0)
+        );
+
+        $goingToExpire = $subscription->goingToExpire();
+
+        $can = $can && $goingToExpire;
+
+        return $can;
     }
 }

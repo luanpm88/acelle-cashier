@@ -323,6 +323,29 @@
     'paypal.new_amount' => 'New plan price',
     'paypal.not_support_set_active' => 'PayPal subscription service does not support manual set active.',
     'paypal.not_support_asign_plan' => 'PayPal subscription service does not support manual asign plan.',
+    'payu.checkout.page_title' => 'Checkout',
+    'payu.checkout_with_payu' => 'Checkout with PayU',
+    'payu.card_list' => 'Your card information',
+    'payu.click_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with PayU with <strong>:price</strong>.
+        Please click the button bellow to proceed with the payment information.',
+    'payu.checkout.tree_plan' => 'You are checking out <strong>:plan</strong> with PayU with <strong>:price</strong>.
+        Please click the button bellow to proceed.',
+    'payu.pay' => 'Pay',
+    'payu.pay_with_new_card' => 'Pay with new card',
+    'payu.pay_with_this_card' => 'Pay with this card',
+    'payu.click_or_choose_card_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with PayU with <strong>:price</strong>.
+        Please choose to pay with exist card or pay with new card.',
+    'payu.change_plan_confirmation' => 'You are about to change current subscription plan to <strong>:plan</strong>.
+        Click the proceed button below to change.',
+    'payu.change_plan_proceed' => 'Proceed',
+    'payu.return_back' => 'Return back',
+    'payu.change_plan' => 'Change plan',
+    'payu.new_plan' => 'New plan',
+    'payu.amount' => 'Amount',
+    'payu.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
+        <br> Your browser will redirect to next page shortly.',
+    'payu.checkout.processing_payment' => 'Processing your payment... please wait!',
+    'payu.cancel_new_subscription' => 'Click here to choose another plan',
     'subscription.log.plan_change_failed' => 'Can not change to <strong>:plan</strong> plan. Error: :error',
     'stripe.payment_error.charge_error' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with the payment.
         <a href=":url"><strong>Click here</strong></a> to update the payment.',
@@ -347,4 +370,56 @@
     'paypal_subscription.remote_sub_not_found' => 'Could not found PayPal subscription with id: :id',
     'subscription.log.error' => 'Something went wrong. Error: :message',
     'paypal_subscription.remote_subscription_not_found' => 'Paypal subscription does not exist!',
+
+    'razorpay.checkout.page_title' => 'Checkout',
+    'razorpay.checkout_with_razorpay' => 'Checkout with Razorpay',
+    'razorpay.card_list' => 'Your card information',
+    'razorpay.click_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with Razorpay with <strong>:price</strong>.
+        Please click the button bellow to proceed with the payment information.',
+    'razorpay.checkout.tree_plan' => 'You are checking out <strong>:plan</strong> with Razorpay with <strong>:price</strong>.
+        Please click the button bellow to proceed.',
+    'razorpay.pay' => 'Pay',
+    'razorpay.pay_with_new_card' => 'Pay with new card',
+    'razorpay.pay_with_this_card' => 'Pay with this card',
+    'razorpay.click_or_choose_card_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with Razorpay with <strong>:price</strong>.
+        Please choose to pay with exist card or pay with new card.',
+    'razorpay.change_plan_confirmation' => 'You are about to change current subscription plan to <strong>:plan</strong>.
+        Click the proceed button below to change.',
+    'razorpay.change_plan_proceed' => 'Proceed',
+    'razorpay.return_back' => 'Return back',
+    'razorpay.change_plan' => 'Change plan',
+    'razorpay.new_plan' => 'New plan',
+    'razorpay.amount' => 'Amount',
+    'razorpay.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
+        <br> Your browser will redirect to next page shortly.',
+    'razorpay.checkout.processing_payment' => 'Processing your payment... please wait!',
+    'razorpay.cancel_new_subscription' => 'Click here to choose another plan',
+    'razorpay.plan' => 'Plan',
+    'razorpay.next_period_day' => 'Next period end day',
+    'razorpay.amount' => 'Amount',
+    'razorpay.next_period_day' => 'Next period end day',
+    'razorpay.checkout.intro' => 'You are checking out <strong>:plan</strong> with <strong>:price</strong>.
+        Please click the button bellow to proceed with the payment information.',
+    'razorpay.pay_with_razorpay' => 'Pay with Razorpay',
+
+    'razorpay.subscribe_to_plan' => 'Subscribe to plan <strong>:plan</strong>',
+    'razorpay.new_plan' => 'New plan',
+    'razorpay.change_plan' => 'Change plan',
+    'razorpay.next_period_day' => 'Next period end day',
+    'razorpay.plan' => 'Plan',
+    'razorpay.description' => 'Description',
+    'razorpay.amount' => 'Amount',
+    'razorpay.renew_proceed' => 'Proceed',
+    'razorpay.change_plan_proceed' => 'Proceed',
+    'razorpay.return_back' => 'Return back',
+    'razorpay.click_to_proceed' => 'Click on the button below to proceed with payment.',
+    'razorpay.change_plan_to' => 'Change from <strong>:current_plan</strong> to <strong>:new_plan</strong> plan',
+    'razorpay.renew_plan.intro' => 'You are about to renew :plan plan. Please check the renew information below before proceeding.',
+    'razorpay.renew_plan_desc' => 'Renew <strong>:plan</strong> plan',
+    'razorpay.renew_subscription' => 'Renew subscription',
+    'razorpay.change_plan.intro' => 'You are about to change <strong>:plan</strong> plan to <strong>:new_plan</strong> plan.
+        Please check the information below before proceeding.',
+    'razorpay.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
+        <br> Your browser will redirect to next page shortly.',
+    'razorpay.checkout.processing_payment' => 'Processing your payment... please wait!',
 ) ?>

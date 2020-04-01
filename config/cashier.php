@@ -57,5 +57,12 @@ return [
                 'secret' => null,
             ],
         ],
+        'razorpay' => [
+            'name' => 'razorpay',
+            'fields' => [                
+                'key_id' => null,
+                'key_secret' => null,
+            ],
+        ],
     ],
 ];

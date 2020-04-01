@@ -92,7 +92,7 @@ class PaypalController extends Controller
             }
 
             // charged successfully. Set subscription to active
-            $subscription->start();
+            $subscription->setActive();
 
             // add transaction
             $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
@@ -285,7 +285,7 @@ class PaypalController extends Controller
                 'ends_at' => $subscription->ends_at,
                 'current_period_ends_at' => $subscription->current_period_ends_at,
                 'status' => SubscriptionTransaction::STATUS_PENDING,
-                'title' => trans('cashier::messages.transaction.change_plan', [
+                'title' => trans('cashier::messages.transaction.renew_plan', [
                     'plan' => $subscription->plan->getBillableName(),
                 ]),
                 'amount' => $subscription->plan->getBillableFormattedPrice()
