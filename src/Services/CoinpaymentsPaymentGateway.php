@@ -272,7 +272,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             $transaction->description = $transaction->getMetadata()['remote']['status_text'];
             $transaction->save();
 
-            if ($transaction->getMetadata()['remote']['status'] == 0) {
+            if ($transaction->getMetadata()['remote']['status'] == 100) {
                 // set active
                 $transaction->setSuccess();
                 $subscription->setActive();  
@@ -300,7 +300,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             $transaction->description = $transaction->getMetadata()['remote']['status_text'];
             $transaction->save();
 
-            if ($transaction->getMetadata()['remote']['status'] == 0) {
+            if ($transaction->getMetadata()['remote']['status'] == 100) {
                 // set active
                 $transaction->setSuccess();
                 $this->approvePending($subscription);                

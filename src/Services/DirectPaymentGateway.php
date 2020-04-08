@@ -294,7 +294,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
         }
 
         // set subscription last_error_type
-        $subscription->last_error_type = CoinpaymentsPaymentGateway::ERROR_PENDING_REJECTED;
+        $subscription->last_error_type = DirectPaymentGateway::ERROR_PENDING_REJECTED;
         $subscription->save();
 
         // save reason
