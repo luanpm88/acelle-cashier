@@ -531,6 +531,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
                 break;
 
             case 'ACTIVE':
+            case 'SUSPENDED':
                 // log
                 if ($transaction->type == SubscriptionTransaction::TYPE_PLAN_CHANGE) {
                     $transaction->setSuccess();
@@ -573,10 +574,6 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
                     ]);
                 }
 
-                break;
-
-            case 'SUSPENDED':
-                $transaction->setFailed();
                 break;
 
             case 'CANCELLED':
@@ -749,7 +746,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         // subscription does not exist
         if (!$subscriptionID) {
             // cancel subscription
-            $subscription->cancel();
+            $subscription->cancelNow();
                     
             // add log
             $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
