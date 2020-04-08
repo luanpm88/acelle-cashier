@@ -141,12 +141,10 @@ class Cashier
         }   
         $subscription->user_id = $customer->getBillableId();
         $subscription->plan_id = $plan->getBillableId();        
+        // @todo when is exactly started at?
+        $subscription->started_at = \Carbon\Carbon::now();
 
-        if (config('cashier.gateway') == 'direct') {
-            $subscription->status = Subscription::STATUS_PENDING;
-        } else {
-            $subscription->status = Subscription::STATUS_NEW;
-        }
+        $subscription->status = Subscription::STATUS_NEW;
 
         // set dates and save        
         $subscription->current_period_ends_at = $subscription->getPeriodEndsAt(\Carbon\Carbon::now());

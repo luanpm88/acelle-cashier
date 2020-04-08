@@ -84,6 +84,7 @@ class DirectController extends Controller
         $service = $this->getPaymentService();
         
         $service->claim($service->getInitTransaction($subscription));
+        $subscription->setPending();
         
         return redirect()->action('\Acelle\Cashier\Controllers\DirectController@checkout', [
             'subscription_id' => $subscription->uid,
@@ -126,6 +127,12 @@ class DirectController extends Controller
         // Save return url
         if ($request->return_url) {
             $request->session()->put('checkout_return_url', $request->return_url);
+        }
+
+        if ($subscription->isPending()) {            
+            return redirect()->action('\Acelle\Cashier\Controllers\DirectController@checkout', [
+                'subscription_id' => $subscription->uid,
+            ]);
         }
         
         if (!$transaction->isPending()) {            
@@ -172,7 +179,7 @@ class DirectController extends Controller
         $service = $this->getPaymentService();
         $transaction = $service->getLastTransaction($subscription);
         
-        $service->claim($transaction);
+        $service->claim($transaction);        
 
         // add log
         $subscription->addLog(SubscriptionLog::TYPE_CLAIMED, [
