@@ -367,4 +367,30 @@ class PaypalController extends Controller
             'redirect' => $request->redirect,
         ]);
     }
+
+    /**
+     * Cancel new subscription.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function cancelNow(Request $request, $subscription_id)
+    {
+        $subscription = Subscription::findByUid($subscription_id);
+        $service = $this->getPaymentService();
+
+        if ($subscription->isPending() || $subscription->isNew()) {
+            $subscription->cancelNow();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+        }
+
+        // Redirect to my subscription page
+        return redirect()->away($this->getReturnUrl($request));
+    }
 }
