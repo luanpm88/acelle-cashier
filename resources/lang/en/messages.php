@@ -126,7 +126,7 @@
     'direct.plan' => 'Plan',
     'direct.description' => 'Description',
     'direct.amount' => 'Amount',
-    'direct.pending.intro' => 'Thank you for subscribing to our <strong>:plan</strong>, your billing
+    'direct.pending.intro' => 'Thank you for subscribing to our <strong>:plan</strong> plan, your billing
         amount is <strong>:price</strong>. Please make the payment following the guideline bellow and your
         subscription will be activated quickly.',
     'coinpayments.plan' => 'Plan',
