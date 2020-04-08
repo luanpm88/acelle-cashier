@@ -70,7 +70,7 @@
                 {!! $service->getPaymentInstruction() !!}
                 </div>
                 <hr>
-                <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@pendingClaim', ['subscription_id' => $subscription->uid]) }}">
+                <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@claim', ['subscription_id' => $subscription->uid]) }}">
                     {{ csrf_field() }}
                     
                     <div class="d-flex align-items-center">
