@@ -371,7 +371,7 @@ class DirectController extends Controller
         $subscription = Subscription::findByUid($subscription_id);
         $service = $this->getPaymentService();
 
-        if ($subscription->isPending()) {
+        if ($subscription->isPending() || $subscription->isNew()) {
             $subscription->setEnded();
 
             // add log
