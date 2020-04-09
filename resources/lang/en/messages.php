@@ -422,4 +422,5 @@
     'razorpay.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
         <br> Your browser will redirect to next page shortly.',
     'razorpay.checkout.processing_payment' => 'Processing your payment... please wait!',
+    'create_transaction.failed' => 'Something went wrong when creating transaction: :message',
 ) ?>

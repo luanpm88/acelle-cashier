@@ -14,6 +14,7 @@ use Acelle\Cashier\SubscriptionLog;
 class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 {
     const ERROR_PENDING_REJECTED = 'pending-rejected';
+    const ERROR_CREATE_TRANSACTION_FAILED = 'create-transaction-failed';
 
     public $coinPaymentsAPI;
     
@@ -62,17 +63,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             throw new \Exception($res["error"]);
         }        
         
-        $transaction = $res["result"];
-        
-        // // update subscription txn_id
-        // $subscription->updateMetadata([
-        //     'txn_id' => $transaction["txn_id"],
-        //     'checkout_url' => $transaction["checkout_url"],
-        //     'status_url' => $transaction["status_url"],
-        //     'qrcode_url' => $transaction["qrcode_url"],
-        // ]);
-        
-        return $transaction;
+        return $res["result"];
     }
     
     /**
@@ -185,6 +176,20 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     public function getLastTransaction($subscription) {
         // if has only init transaction
         if ($subscription->subscriptionTransactions()->count() <= 1) {
+            return null;
+        }
+        $transaction = $subscription->subscriptionTransactions()->orderBy('created_at', 'desc')->first();
+        return $transaction;
+    }
+
+    /**
+     * Get last transaction
+     *
+     * @return boolean
+     */
+    public function getLastTransactionWithInit($subscription) {
+        // if has only init transaction
+        if ($subscription->subscriptionTransactions()->count() < 1) {
             return null;
         }
         $transaction = $subscription->subscriptionTransactions()->orderBy('created_at', 'desc')->first();
@@ -817,6 +822,10 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                 $transaction = $this->getLastTransaction($subscription);
 
                 return $transaction->isFailed();
+            case CoinpaymentsPaymentGateway::ERROR_CREATE_TRANSACTION_FAILED:
+                $transaction = $this->getLastTransactionWithInit($subscription);
+
+                return $transaction->isFailed();
             default:
                 return false;
         }
@@ -830,6 +839,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                 $transaction = $this->getLastTransaction($subscription);
                 $reason = isset($transaction->getMetadata()['reject-reason']) ? $transaction->getMetadata()['reject-reason'] : '';
                 return trans('cashier::messages.last_payment_failed', ['reason' => $reason]);
+            case CoinpaymentsPaymentGateway::ERROR_CREATE_TRANSACTION_FAILED:
+                $transaction = $this->getLastTransactionWithInit($subscription);
+                return trans('cashier::messages.create_transaction.failed', ['message' => $transaction->description]);
             default:
                 return '';
         }

@@ -7,6 +7,7 @@ use Acelle\Cashier\Subscription;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
+use Acelle\Cashier\Services\CoinpaymentsPaymentGateway;
 use Acelle\Cashier\SubscriptionTransaction;
 use Acelle\Cashier\SubscriptionLog;
 
@@ -97,14 +98,39 @@ class CoinpaymentsController extends Controller
                 'amount' => $subscription->plan->getBillableFormattedPrice()
             ]);
             
-            // add remote transaction
-            $result = $gatewayService->charge($subscription, [
-                'id' => $transaction->uid,
-                'amount' => $subscription->plan->getBillableAmount(),
-                'desc' => trans('cashier::messages.coinpayments.subscribe_to_plan', [
+            try {
+                // add remote transaction
+                $result = $gatewayService->charge($subscription, [
+                    'id' => $transaction->uid,
+                    'amount' => $subscription->plan->getBillableAmount(),
+                    'desc' => trans('cashier::messages.coinpayments.subscribe_to_plan', [
+                        'plan' => $subscription->plan->getBillableName(),
+                    ]),                
+                ]);
+            } catch (\Exception $e) {
+                // set transaction failed
+                $transaction->description = $e->getMessage();
+                $transaction->setFailed();
+
+                // add log
+                sleep(1);
+                $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
                     'plan' => $subscription->plan->getBillableName(),
-                ]),                
-            ]);
+                    'price' => $subscription->plan->getBillableAmount(),
+                    'message' => $e->getMessage(),
+                ]);
+
+                // cancel now
+                $subscription->cancelNow();
+
+                // set subscription last_error_type
+                $subscription->last_error_type = CoinpaymentsPaymentGateway::ERROR_CREATE_TRANSACTION_FAILED;
+                $subscription->save();
+
+                // Redirect to my subscription page
+                $request->session()->flash('alert-error', 'Can not create transaction: ' . $e->getMessage());
+                return redirect()->away($this->getReturnUrl($request));
+            }
 
             // update remote data
             $transaction->updateMetadata([

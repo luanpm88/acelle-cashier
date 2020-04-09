@@ -245,7 +245,7 @@ class StripeController extends Controller
                     $transaction->setFailed();
 
                     // add log
-                    $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANG_FAILED, [
+                    $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE_FAILED, [
                         'old_plan' => $subscription->plan->getBillableName(),
                         'plan' => $newPlan->getBillableName(),
                         'price' => $result['amount'],
