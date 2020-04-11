@@ -122,55 +122,6 @@ class Cashier
             'endsAt' => $newEndsAt,
         ];
     }
-    
-    /**
-     * Assign plan to customer.
-     *
-     * @return void
-     */
-    public static function assignPlan($customer, $plan)
-    {
-        $service = self::getPaymentGateway();
-
-        // update subscription model
-        if ($customer->subscription) {
-            $subscription = $customer->subscription;
-        } else {
-            $subscription = new Subscription();
-            $subscription->user_id = $customer->getBillableId();
-        }   
-        $subscription->user_id = $customer->getBillableId();
-        $subscription->plan_id = $plan->getBillableId();        
-        // @todo when is exactly started at?
-        $subscription->started_at = \Carbon\Carbon::now();
-
-        $subscription->status = Subscription::STATUS_NEW;
-
-        // set dates and save        
-        $subscription->current_period_ends_at = $subscription->getPeriodEndsAt(\Carbon\Carbon::now());
-        if (!$service->isSupportRecurring()) {
-            $subscription->ends_at = $subscription->current_period_ends_at;
-        }
-        
-        $subscription->save();
-
-        // add transaction
-        $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
-            'ends_at' => $subscription->ends_at,
-            'current_period_ends_at' => $subscription->current_period_ends_at,
-            'status' => SubscriptionTransaction::STATUS_SUCCESS,
-            'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
-                'plan' => $subscription->plan->getBillableName(),
-            ]),
-            'amount' => $subscription->plan->getBillableFormattedPrice()
-        ]);
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_ADMIN_PLAN_ASSIGNED, [
-            'plan' => $subscription->plan->getBillableName(),
-            'price' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
-    }
 
     /**
      * Check if subscription has renew pending.
