@@ -48,7 +48,7 @@
                             {{ trans('cashier::messages.stripe.amount') }}
                         </div>
                         <div class="lastUnit size1of2">
-                            <mc:flag>{{ round($amount) }} ({{ $newPlan->getBillableCurrency() }})</mc:flag>
+                            <mc:flag>{{ $amount }} ({{ $newPlan->getBillableCurrency() }})</mc:flag>
                         </div>
                     </li>
                 </ul>
