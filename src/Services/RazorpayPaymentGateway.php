@@ -469,68 +469,6 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         return $price / $rate;
     }
 
-    public function renew($subscription) {
-        // add transaction
-        $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_AUTO_CHARGE, [
-            'ends_at' => null,
-            'current_period_ends_at' => $subscription->nextPeriod(),
-            'status' => SubscriptionTransaction::STATUS_PENDING,
-            'title' => trans('cashier::messages.transaction.recurring_charge', [
-                'plan' => $subscription->plan->getBillableName(),
-            ]),
-            'amount' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
-
-        // charge
-        try {
-            $this->charge($subscription, [
-                'amount' => $subscription->plan->getBillableAmount(),
-                'currency' => $subscription->plan->getBillableCurrency(),
-                'description' => trans('cashier::messages.transaction.recurring_charge', [
-                    'plan' => $subscription->plan->getBillableName(),
-                ]),
-            ]);
-
-            // set active
-            $transaction->setSuccess();
-
-            // check new states from transaction
-            $subscription->ends_at = $transaction->ends_at;
-            // save last period
-            $subscription->last_period_ends_at = $subscription->current_period_ends_at;
-            // set new current period
-            $subscription->current_period_ends_at = $transaction->current_period_ends_at;
-            $subscription->save();
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_RENEWED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-
-            return true;
-        } catch (\Exception $e) {
-            $transaction->setFailed();
-
-            // update error message
-            $transaction->description = $e->getMessage();
-            $transaction->save();
-
-            // set subscription last_error_type
-            $subscription->last_error_type = PayuPaymentGateway::ERROR_RECURRING_CHARGE_FAILED;
-            $subscription->save();
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_RENEW_FAILED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-                'error' => $e->getMessage(),
-            ]);
-
-            return false;
-        }
-    }
-
     /**
      * Get last transaction
      *
@@ -541,47 +479,6 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
             ->where('type', '<>', SubscriptionLog::TYPE_SUBSCRIBE)
             ->orderBy('created_at', 'desc')
             ->first();
-    }
-
-    /**
-     * Check if has pending transaction
-     *
-     * @return boolean
-     */
-    public function hasPending($subscription) {
-        $transaction = $this->getLastTransaction($subscription);
-        return isset($transaction) && $transaction->isPending() && !in_array($transaction->type, [
-            SubscriptionTransaction::TYPE_SUBSCRIBE,
-        ]);
-    }
-
-    public function getPendingNotice($subscription) {
-        return false;
-    }
-
-    /**
-     * Check if has failed transaction
-     *
-     * @return boolean
-     */
-    public function hasError($subscription) {
-        return isset($subscription->last_error_type);
-    }
-
-    public function getErrorNotice($subscription) {
-
-        switch ($subscription->last_error_type) {
-            case PayuPaymentGateway::ERROR_RECURRING_CHARGE_FAILED:
-                return trans('cashier::messages.braintree.payment_error.recurring_charge_error', [
-                    'url' => action('\Acelle\Cashier\Controllers\PayuController@fixPayment', [
-                        'subscription_id' => $subscription->uid,
-                    ]),
-                ]);
-
-                break;
-            default:
-                return trans('cashier::messages.braintree.error.something_went_wrong');
-        }
     }
 
     /**
@@ -636,9 +533,33 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      */
     public function check($subscription)
     {
-        // check from service: recurring/transaction
-        if ($subscription->isExpiring($this)) {
-            $this->renew($subscription);
+        // check expired
+        if ($subscription->isExpired()) {
+            $subscription->cancelNow();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+        }
+
+        if (!$subscription->hasError()) {
+            // check renew pending
+            if ($subscription->isExpiring() && $subscription->canRenewFreePlan()) {
+                $subscription->error = json_encode([
+                    'status' => 'warning',
+                    'type' => 'renew',
+                    'message' => trans('cashier::messages.renew.warning', [
+                        'date' => $subscription->current_period_ends_at,
+                        'link' => action("\Acelle\Cashier\Controllers\\RazorpayController@renew", [
+                            'subscription_id' => $subscription->uid,
+                            'return_url' => action('AccountSubscriptionController@index'),
+                        ]),
+                    ]),
+                ]);
+                $subscription->save();
+            }
         }
     }
 
@@ -682,5 +603,12 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         $str .= $this->second_key;
 
         return hash('sha256', $str);
+    }
+
+    function verifyCharge($request) {
+        $sig = hash_hmac('sha256', $request->razorpay_order_id . "|" . $request->razorpay_payment_id, $this->key_secret);
+        if ($sig != $request->razorpay_signature) {
+            throw new \Exception('Can not verify remote order: ' . $request->razorpay_order_id);
+        }
     }
 }

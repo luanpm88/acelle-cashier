@@ -24,6 +24,45 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
     {
         $this->payment_instruction = $payment_instruction;
         $this->confirmation_message = $confirmation_message;
+
+        \Carbon\Carbon::setToStringFormat('jS \o\f F');
+    }
+
+    /**
+     * Gateway check method.
+     *
+     * @return void
+     */
+    public function check($subscription)
+    {
+        // check expired
+        if ($subscription->isExpired()) {
+            $subscription->cancelNow();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+        }
+        
+        if (!$subscription->hasError()) {
+            // check renew pending
+            if ($subscription->isExpiring() && $subscription->canRenewFreePlan()) {
+                $subscription->error = json_encode([
+                    'status' => 'warning',
+                    'type' => 'renew',
+                    'message' => trans('cashier::messages.renew.warning', [
+                        'date' => $subscription->current_period_ends_at,
+                        'link' => action("\Acelle\Cashier\Controllers\\DirectController@renew", [
+                            'subscription_id' => $subscription->uid,
+                            'return_url' => action('AccountSubscriptionController@index'),
+                        ]),
+                    ]),
+                ]);
+                $subscription->save();
+            }
+        }
     }
 
     /**
@@ -265,6 +304,10 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
                 'price' => $transaction->amount,
             ]);
         }
+
+        // clear error
+        $subscription->error = null;
+        $subscription->save();
     }
 
     /**
@@ -284,6 +327,21 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
                 'price' => $subscription->plan->getBillableFormattedPrice(),
                 'reason' => $reason,
             ]);
+
+            // add error notice
+            $subscription->error = json_encode([
+                'status' => 'error',
+                'type' => 'renew_rejected',
+                'message' => trans('cashier::messages.rejected', [
+                    'reason' => $reason,
+                    'date' => $subscription->current_period_ends_at,
+                    'link' => action("\Acelle\Cashier\Controllers\\DirectController@renew", [
+                        'subscription_id' => $subscription->uid,
+                        'return_url' => action('AccountSubscriptionController@index'),
+                    ]),
+                ]),
+            ]);
+            $subscription->save();
         } else {
             // add log
             $subscription->addLog(SubscriptionLog::TYPE_ADMIN_PLAN_CHANGE_REJECTED, [
@@ -291,11 +349,32 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
                 'price' => $transaction->amount,
                 'reason' => $reason,
             ]);
-        }
 
-        // set subscription last_error_type
-        $subscription->last_error_type = DirectPaymentGateway::ERROR_PENDING_REJECTED;
-        $subscription->save();
+            // add error notice
+            if ($subscription->isExpiring() && $subscription->canRenewFreePlan()) {
+                $subscription->error = json_encode([
+                    'status' => 'error',
+                    'type' => 'change_plan_rejected',                    
+                    'message' => trans('cashier::messages.change_plan_rejected_with_renew', [
+                        'reason' => $reason,
+                        'date' => $subscription->current_period_ends_at,
+                        'link' => action("\Acelle\Cashier\Controllers\\DirectController@renew", [
+                            'subscription_id' => $subscription->uid,
+                            'return_url' => action('AccountSubscriptionController@index'),
+                        ]),
+                    ]),
+                ]);
+            } else {
+                $subscription->error = json_encode([
+                    'status' => 'error',
+                    'type' => 'change_plan_rejected',
+                    'message' => trans('cashier::messages.change_plan_rejected', [
+                        'reason' => $reason,
+                    ]),
+                ]);
+            }
+            $subscription->save();
+        }
 
         // save reason
         $data = $transaction->getMetadata();
@@ -304,35 +383,6 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
     }
 
     public function sync($subscription) {}
-
-    /**
-     * Check if has pending transaction.
-     *
-     * @return boolean
-     */
-    public function hasPending($subscription) {
-        $transaction = $this->getLastTransaction($subscription);
-        return $transaction && $transaction->isPending() && !in_array($transaction->type, [
-            SubscriptionTransaction::TYPE_SUBSCRIBE,
-        ]);
-    }
-
-    /**
-     * Get pending notice.
-     *
-     * @return boolean
-     */
-    public function getPendingNotice($subscription) {
-        $transaction = $this->getLastTransaction($subscription);
-        
-        return trans('cashier::messages.direct.has_transaction_pending', [
-            'description' => $transaction->title,
-            'amount' => $transaction->amount,
-            'url' => action('\Acelle\Cashier\Controllers\DirectController@pending', [
-                'subscription_id' => $subscription->uid,
-            ]),
-        ]);
-    }
 
     /**
      * Get renew url.
@@ -386,30 +436,30 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
         ]);
     }
 
-    public function hasError($subscription) {
-        $error_type = $subscription->last_error_type;
+    // public function hasError($subscription) {
+    //     $error_type = $subscription->last_error_type;
 
-        switch ($error_type) {
-            case DirectPaymentGateway::ERROR_PENDING_REJECTED:
-                $transaction = $this->getLastTransaction($subscription);
+    //     switch ($error_type) {
+    //         case DirectPaymentGateway::ERROR_PENDING_REJECTED:
+    //             $transaction = $this->getLastTransaction($subscription);
 
-                return $transaction->isFailed();
-            default:
-                return false;
-        }
-    }
-    public function getErrorNotice($subscription) {
-        $error_type = $subscription->last_error_type;
+    //             return $transaction->isFailed();
+    //         default:
+    //             return false;
+    //     }
+    // }
+    // public function getErrorNotice($subscription) {
+    //     $error_type = $subscription->last_error_type;
 
-        switch ($error_type) {
-            case DirectPaymentGateway::ERROR_PENDING_REJECTED:
-                $transaction = $this->getLastTransaction($subscription);
-                $reason = isset($transaction->getMetadata()['reject-reason']) ? $transaction->getMetadata()['reject-reason'] : '';
-                return trans('cashier::messages.last_payment_failed', ['reason' => $reason]);
-            default:
-                return '';
-        }
-    }
+    //     switch ($error_type) {
+    //         case DirectPaymentGateway::ERROR_PENDING_REJECTED:
+    //             $transaction = $this->getLastTransaction($subscription);
+    //             $reason = isset($transaction->getMetadata()['reject-reason']) ? $transaction->getMetadata()['reject-reason'] : '';
+    //             return trans('cashier::messages.last_payment_failed', ['reason' => $reason]);
+    //         default:
+    //             return '';
+    //     }
+    // }
 
     /**
      * Cancel subscription.

@@ -100,11 +100,11 @@ class SubscriptionTransaction extends Model
      */
     public function getMetadata()
     {
-        if (!$this->metadata) {
+        if (!$this['metadata']) {
             return json_decode('{}', true);
         }
 
-        return json_decode($this->metadata, true);
+        return json_decode($this['metadata'], true);
     }
 
     /**
@@ -115,7 +115,7 @@ class SubscriptionTransaction extends Model
     public function updateMetadata($data)
     {
         $metadata = (object) array_merge((array) $this->getMetadata(), $data);
-        $this->metadata = json_encode($metadata);
+        $this['metadata'] = json_encode($metadata);
 
         $this->save();
     }

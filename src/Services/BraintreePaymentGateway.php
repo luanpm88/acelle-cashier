@@ -12,9 +12,6 @@ use Acelle\Cashier\SubscriptionLog;
 
 class BraintreePaymentGateway implements PaymentGatewayInterface
 {
-    const ERROR_RECURRING_CHARGE_FAILED = 'recurring-charge-failed';
-    const ERROR_CHARGE_FAILED = 'charge-failed';
-
     public $environment;
     public $merchantId;
     public $publicKey;
@@ -35,6 +32,8 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
             'publicKey' => (isset($publicKey) ? $publicKey : 'noname'),
             'privateKey' => (isset($privateKey) ? $privateKey : 'noname'),
         ]);
+
+        \Carbon\Carbon::setToStringFormat('jS \o\f F');
     }
 
     /**
@@ -109,10 +108,10 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Get the Stripe customer instance for the current user and token.
+     * Get the braintree customer instance for the current user and token.
      *
      * @param  SubscriptionParam    $subscriptionParam
-     * @return \Stripe\Customer
+     * @return \Braintree\Customer
      */
     protected function getBraintreeCustomer($user)
     {
@@ -200,9 +199,6 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         return true;
     }
 
-    public function hasPending($subscription) {}
-    public function getPendingNotice($subscription) {}
-
     /**
      * Get checkout url.
      *
@@ -279,7 +275,17 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
             $transaction->save();
 
             // set subscription last_error_type
-            $subscription->last_error_type = BraintreePaymentGateway::ERROR_RECURRING_CHARGE_FAILED;
+            $subscription->error = json_encode([
+                'status' => 'error',
+                'type' => 'renew',
+                'message' => trans('cashier::messages.renew.error', [
+                    'date' => $subscription->current_period_ends_at,
+                    'link' => action("\Acelle\Cashier\Controllers\\BraintreeController@fixPayment", [
+                        'subscription_id' => $subscription->uid,
+                        'return_url' => action('AccountSubscriptionController@index'),
+                    ]),
+                ]),
+            ]);
             $subscription->save();
 
             // add log
@@ -303,32 +309,6 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
             ->where('type', '<>', SubscriptionLog::TYPE_SUBSCRIBE)
             ->orderBy('created_at', 'desc')
             ->first();
-    }
-
-    /**
-     * Check if has failed transaction
-     *
-     * @return boolean
-     */
-    public function hasError($subscription) {
-        $transaction = $this->getLastTransaction($subscription);
-
-        return isset($subscription->last_error_type) && $transaction->isFailed();
-    }
-
-    public function getErrorNotice($subscription) {
-        switch ($subscription->last_error_type) {
-            case StripePaymentGateway::ERROR_RECURRING_CHARGE_FAILED:
-                return trans('cashier::messages.braintree.payment_error.recurring_charge_error', [
-                    'url' => action('\Acelle\Cashier\Controllers\BraintreeController@fixPayment', [
-                        'subscription_id' => $subscription->uid,
-                    ]),
-                ]);
-
-                break;
-            default:
-                return trans('cashier::messages.braintree.error.something_went_wrong');
-        }
     }
 
     /**
@@ -383,8 +363,19 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      */
     public function check($subscription)
     {
+        // check expired
+        if ($subscription->isExpired()) {
+            $subscription->cancelNow();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+        }
+
         // check from service: recurring/transaction
-        if ($subscription->isExpiring($this)) {
+        if ($subscription->isExpiring()) {
             $this->renew($subscription);
         }
     }

@@ -231,14 +231,9 @@ class DirectController extends Controller
             $request->session()->put('checkout_return_url', $request->return_url);
         }
         
-        // check if status is not pending
-        if ($service->hasPending($subscription)) {
-            return redirect()->away($this->getReturnUrl($request));
-        }
-        
         if ($request->isMethod('post')) {
             // subscribe to plan
-            $subscription->addTransaction(SubscriptionTransaction::TYPE_RENEW, [
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_RENEW, [
                 'ends_at' => $subscription->nextPeriod(),
                 'current_period_ends_at' => $subscription->nextPeriod(),
                 'status' => SubscriptionTransaction::STATUS_PENDING,
@@ -258,6 +253,20 @@ class DirectController extends Controller
             // if is free
             if ($subscription->plan->getBillableAmount() == 0) {
                 $service->approvePending($subscription);
+            } else {
+                // add error notice
+                $subscription->error = json_encode([
+                    'status' => 'warning',
+                    'type' => 'renew',
+                    'message' => trans('cashier::messages.direct.has_transaction_pending', [
+                        'description' => $transaction->title,
+                        'amount' => $transaction->amount,
+                        'url' => action('\Acelle\Cashier\Controllers\DirectController@pending', [
+                            'subscription_id' => $subscription->uid,
+                        ]),
+                    ]),
+                ]);
+                $subscription->save();
             }
 
             // Redirect to my subscription page
@@ -292,11 +301,6 @@ class DirectController extends Controller
         // Save return url
         if ($request->return_url) {
             $request->session()->put('checkout_return_url', $request->return_url);
-        }
-        
-        // check if status is not pending
-        if ($service->hasPending($subscription)) {
-            return redirect()->away($request->return_url);
         }
 
         // calc plan before change
@@ -336,6 +340,20 @@ class DirectController extends Controller
             // if is free
             if ($result['amount'] == 0) {
                 $service->approvePending($subscription);
+            } else {
+                // add error notice
+                $subscription->error = json_encode([
+                    'status' => 'warning',
+                    'type' => 'change_plan',
+                    'message' => trans('cashier::messages.direct.has_transaction_pending', [
+                        'description' => $transaction->title,
+                        'amount' => $transaction->amount,
+                        'url' => action('\Acelle\Cashier\Controllers\DirectController@pending', [
+                            'subscription_id' => $subscription->uid,
+                        ]),
+                    ]),
+                ]);
+                $subscription->save();
             }
 
             // Redirect to my subscription page

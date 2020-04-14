@@ -153,36 +153,53 @@ class BraintreeController extends Controller
         $return_url = $request->session()->get('checkout_return_url', url('/'));
 
         if ($request->isMethod('post')) {
-            // // subscribe to plan
-            // $gatewayService->charge($subscription);
-
-            // // Redirect to my subscription page
-            // return redirect()->away($return_url);
-            
-            if ($subscription->plan->getBillableAmount() > 0) {
-                // charge customer
-                $service->charge($subscription, [
-                    'amount' => $subscription->plan->getBillableAmount(),
-                    'currency' => $subscription->plan->getBillableCurrency(),
-                    'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
-                        'plan' => $subscription->plan->getBillableName(),
-                    ]),
-                ]);
-            }
-
-            // charged successfully. Set subscription to active
-            $subscription->start();
-
             // add transaction
-            $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
                 'ends_at' => $subscription->ends_at,
                 'current_period_ends_at' => $subscription->current_period_ends_at,
-                'status' => SubscriptionTransaction::STATUS_SUCCESS,
+                'status' => SubscriptionTransaction::STATUS_PENDING,
                 'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
                     'plan' => $subscription->plan->getBillableName(),
                 ]),
                 'amount' => $subscription->plan->getBillableFormattedPrice()
             ]);
+            
+            if ($subscription->plan->getBillableAmount() > 0) {
+                try {
+                    // charge customer
+                    $service->charge($subscription, [
+                        'amount' => $subscription->plan->getBillableAmount(),
+                        'currency' => $subscription->plan->getBillableCurrency(),
+                        'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                            'plan' => $subscription->plan->getBillableName(),
+                        ]),
+                    ]);
+                } catch (\Exception $e) {
+                    // charged successfully. Set subscription to active
+                    $subscription->cancelNow();
+
+                    // transaction success
+                    $transaction->description = trans('cashier::messages.charge.something_went_wrong', ['error' => $e->getMessage()]);
+                    $transaction->setFailed();
+
+                    // add log
+                    $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
+                        'plan' => $subscription->plan->getBillableName(),
+                        'price' => $subscription->plan->getBillableFormattedPrice(),
+                        'message' => $e->getMessage(),
+                    ]);
+
+                    // Redirect to my subscription page
+                    $request->session()->flash('alert-error', trans('cashier::messages.charge.something_went_wrong', ['error' => $e->getMessage()]));
+                    return redirect()->away($this->getReturnUrl($request));
+                }
+            }
+
+            // charged successfully. Set subscription to active
+            $subscription->start();
+
+            // transaction success
+            $transaction->setSuccess();
 
             // add log
             $subscription->addLog(SubscriptionLog::TYPE_PAID, [
@@ -258,11 +275,6 @@ class BraintreeController extends Controller
         if ($request->return_url) {
             $request->session()->put('checkout_return_url', $request->return_url);
         }
-        
-        // check if status is not pending
-        if ($service->hasPending($subscription)) {
-            return redirect()->away($request->return_url);
-        }
 
         // calc plan before change
         try {
@@ -309,7 +321,13 @@ class BraintreeController extends Controller
                     ]);
 
                     // set subscription last_error_type
-                    $subscription->last_error_type = BraintreePaymentGateway::ERROR_CHARGE_FAILED;
+                    $subscription->error = json_encode([
+                        'status' => 'error',
+                        'type' => 'change_plan_failed',
+                        'message' => trans('cashier::messages.change_plan_failed_with_error', [
+                            'error' => $e->getMessage(),
+                        ]),
+                    ]);
                     $subscription->save();
 
                     // Redirect to my subscription page
@@ -329,6 +347,10 @@ class BraintreeController extends Controller
                 'plan' => $plan->getBillableName(),
                 'price' => $plan->getBillableFormattedPrice(),
             ]);
+            
+            // remove last_error
+            $subscription->error = null;
+            $subscription->save();
 
             // Redirect to my subscription page
             return redirect()->away($this->getReturnUrl($request));
@@ -409,11 +431,6 @@ class BraintreeController extends Controller
             $request->session()->put('checkout_return_url', $request->return_url);
         }
         
-        // check if status is not pending
-        if ($service->hasPending($subscription)) {
-            return redirect()->away($request->return_url);
-        }
-        
         if ($request->isMethod('post')) {
             // subscribe to plan
             $service->renew($subscription);
@@ -474,7 +491,7 @@ class BraintreeController extends Controller
 
             if ($ok) {
                 // remove last_error
-                $subscription->last_error_type = null;
+                $subscription->error = null;
                 $subscription->save();
             }
 

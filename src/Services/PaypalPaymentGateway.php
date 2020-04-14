@@ -39,6 +39,43 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
     }
 
     /**
+     * Gateway check method.
+     *
+     * @return void
+     */
+    public function check($subscription)
+    {
+        // check expired
+        if ($subscription->isExpired()) {
+            $subscription->cancelNow();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+        }
+
+        if (!$subscription->hasError()) {
+            // check renew pending
+            if ($subscription->isExpiring() && $subscription->canRenewFreePlan()) {
+                $subscription->error = json_encode([
+                    'status' => 'warning',
+                    'type' => 'renew',
+                    'message' => trans('cashier::messages.renew.warning', [
+                        'date' => $subscription->current_period_ends_at,
+                        'link' => action("\Acelle\Cashier\Controllers\\PaypalController@renew", [
+                            'subscription_id' => $subscription->uid,
+                            'return_url' => action('AccountSubscriptionController@index'),
+                        ]),
+                    ]),
+                ]);
+                $subscription->save();
+            }
+        }
+    }
+
+    /**
      * Check if service is valid.
      *
      * @return void
@@ -273,28 +310,6 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
     }
     
     /**
-     * Check for notice.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function hasPending($subscription)
-    {
-        return false;
-    }
-    
-    /**
-     * Get notice message.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function getPendingNotice($subscription)
-    {
-        return false;
-    }
-    
-    /**
      * Get renew url.
      *
      * @return string
@@ -356,25 +371,6 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
             ->where('type', '<>', SubscriptionLog::TYPE_SUBSCRIBE)
             ->orderBy('created_at', 'desc')
             ->first();
-    }
-
-    /**
-     * Check if has failed transaction
-     *
-     * @return boolean
-     */
-    public function hasError($subscription) {
-        $transaction = $this->getLastTransaction($subscription);
-
-        return isset($subscription->last_error_type) && $transaction->isFailed();
-    }
-
-    public function getErrorNotice($subscription) {
-        switch ($subscription->last_error_type) {
-
-            default:
-                return trans('cashier::messages.paypal.error.something_went_wrong');
-        }
     }
 
     /**

@@ -64,8 +64,6 @@ class CoinpaymentsController extends Controller
             return redirect()->away($this->getReturnUrl($request));
         }
         
-        $service->sync($subscription);
-        
         return view('cashier::coinpayments.checkout', [
             'gatewayService' => $service,
             'subscription' => $subscription,
@@ -122,10 +120,6 @@ class CoinpaymentsController extends Controller
 
                 // cancel now
                 $subscription->cancelNow();
-
-                // set subscription last_error_type
-                $subscription->last_error_type = CoinpaymentsPaymentGateway::ERROR_CREATE_TRANSACTION_FAILED;
-                $subscription->save();
 
                 // Redirect to my subscription page
                 $request->session()->flash('alert-error', 'Can not create transaction: ' . $e->getMessage());
@@ -195,11 +189,7 @@ class CoinpaymentsController extends Controller
 
         // get remote info
         $service->updateTransactionRemoteInfo($transaction);
-        
-        if (!$service->hasPending($subscription)) {
-            return redirect()->away($this->getReturnUrl($request));
-        }
-        
+                
         return view('cashier::coinpayments.transactionPending', [
             'gatewayService' => $service,
             'subscription' => $subscription,
@@ -226,11 +216,6 @@ class CoinpaymentsController extends Controller
             $request->session()->put('checkout_return_url', $request->return_url);
         }
         
-        // make sure status is not pending
-        if ($service->hasPending($subscription)) {
-            return redirect()->away($request->return_url);
-        }
-        
         if ($request->isMethod('post')) {
             // add transaction
             $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_RENEW, [
@@ -245,13 +230,44 @@ class CoinpaymentsController extends Controller
 
             if ($subscription->plan->getBillableAmount() > 0) {
                 // add remote transaction
-                $result = $service->charge($subscription, [
-                    'id' => $transaction->uid,
-                    'amount' => $subscription->plan->getBillableAmount(),
-                    'desc' => trans('cashier::messages.transaction.renew_plan', [
+                try {
+                    $result = $service->charge($subscription, [
+                        'id' => $transaction->uid,
+                        'amount' => $subscription->plan->getBillableAmount(),
+                        'desc' => trans('cashier::messages.transaction.renew_plan', [
+                            'plan' => $subscription->plan->getBillableName(),
+                        ]),                
+                    ]);
+                } catch (\Exception $e) {
+                    // set transaction failed
+                    $transaction->description = $e->getMessage();
+                    $transaction->setFailed();                    
+                    
+                    // add log
+                    sleep(1);
+                    $subscription->addLog(SubscriptionLog::TYPE_RENEW_FAILED, [
                         'plan' => $subscription->plan->getBillableName(),
-                    ]),                
-                ]);
+                        'price' => $subscription->plan->getBillableFormattedPrice(),
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    // set subscription last_error_type
+                    $subscription->error = json_encode([
+                        'status' => 'warning',
+                        'type' => 'renew_failed',
+                        'message' => trans('cashier::messages.renew_failed_with_error', [
+                            'error' => $e->getMessage(),
+                            'link' => action('\Acelle\Cashier\Controllers\CoinpaymentsController@renew', [
+                                'subscription_id' => $subscription->uid,
+                                'return_url' => action('AccountSubscriptionController@index'),
+                            ]),
+                        ]),
+                    ]);
+                    $subscription->save();
+
+                    // Redirect to my subscription page
+                    return redirect()->away($this->getReturnUrl($request));
+                }                    
 
                 // update remote data
                 $transaction->updateMetadata([
@@ -266,6 +282,20 @@ class CoinpaymentsController extends Controller
                     'plan' => $subscription->plan->getBillableName(),
                     'price' => $subscription->plan->getBillableFormattedPrice(),
                 ]);
+
+                // add error notice
+                $subscription->error = json_encode([
+                    'status' => 'warning',
+                    'type' => 'renew',
+                    'message' => trans('cashier::messages.renew_pending', [
+                        'plan' => $subscription->plan->getBillableName(),
+                        'amount' => $transaction->amount,
+                        'url' => action('\Acelle\Cashier\Controllers\CoinpaymentsController@transactionPending', [
+                            'subscription_id' => $subscription->uid,
+                        ]),
+                    ]),
+                ]);
+                $subscription->save();
             } elseif ($subscription->plan->getBillableAmount() == 0) {
                 $service->approvePending($subscription);
                 return redirect()->away($this->getReturnUrl($request));
@@ -307,11 +337,6 @@ class CoinpaymentsController extends Controller
         if ($request->return_url) {
             $request->session()->put('checkout_return_url', $request->return_url);
         }
-        
-        // check if status is not pending
-        if ($service->hasPending($subscription)) {
-            return redirect()->away($request->return_url);
-        }
 
         // calc plan before change
         try {
@@ -340,13 +365,57 @@ class CoinpaymentsController extends Controller
 
             if ($result['amount'] > 0) {
                 // add remote transaction
-                $result = $service->charge($subscription, [
-                    'id' => $transaction->uid,
-                    'amount' => $result['amount'],
-                    'desc' => trans('cashier::messages.transaction.change_plan', [
+                // add remote transaction
+                try {
+                    $result = $service->charge($subscription, [
+                        'id' => $transaction->uid,
+                        'amount' => $result['amount'],
+                        'desc' => trans('cashier::messages.transaction.change_plan', [
+                            'plan' => $plan->getBillableName(),
+                        ]),                
+                    ]);
+                } catch (\Exception $e) {
+                    // set transaction failed
+                    $transaction->description = $e->getMessage();
+                    $transaction->setFailed();                    
+                    
+                    // add log
+                    sleep(1);
+                    $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE_FAILED, [
+                        'old_plan' => $subscription->plan->getBillableName(),
                         'plan' => $plan->getBillableName(),
-                    ]),                
-                ]);
+                        'price' => $result['amount'],
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    // set subscription last_error_type
+                    if ($subscription->isExpiring() && $subscription->canRenewFreePlan()) {
+                        $subscription->error = json_encode([
+                            'status' => 'error',
+                            'type' => 'change_plan_failed',                    
+                            'message' => trans('cashier::messages.change_plan_failed_with_renew', [
+                                'error' => $e->getMessage(),
+                                'date' => $subscription->current_period_ends_at,
+                                'link' => action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
+                                    'subscription_id' => $subscription->uid,
+                                    'return_url' => action('AccountSubscriptionController@index'),
+                                ]),
+                            ]),
+                        ]);
+                    } else {
+                        $subscription->error = json_encode([
+                            'status' => 'error',
+                            'type' => 'change_plan_failed',
+                            'message' => trans('cashier::messages.change_plan_failed_with_error', [
+                                'error' => $e->getMessage(),
+                            ]),
+                        ]);
+                    }
+                    $subscription->save();
+
+                    // Redirect to my subscription page
+                    return redirect()->away($this->getReturnUrl($request));
+                }
 
                 // update remote data
                 $transaction->updateMetadata([
@@ -362,6 +431,20 @@ class CoinpaymentsController extends Controller
                     'plan' => $plan->getBillableName(),
                     'price' => $plan->getBillableFormattedPrice(),
                 ]);
+
+                // add error notice
+                $subscription->error = json_encode([
+                    'status' => 'warning',
+                    'type' => 'change_plan',
+                    'message' => trans('cashier::messages.change_plan_pending', [
+                        'plan' => $plan->getBillableName(),
+                        'amount' => $transaction->amount,
+                        'url' => action('\Acelle\Cashier\Controllers\CoinpaymentsController@transactionPending', [
+                            'subscription_id' => $subscription->uid,
+                        ]),
+                    ]),
+                ]);
+                $subscription->save();
             } elseif (round($result['amount']) == 0) {
                 $service->approvePending($subscription);
 

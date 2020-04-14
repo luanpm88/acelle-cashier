@@ -13,15 +13,54 @@ use Acelle\Cashier\SubscriptionLog;
 
 class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 {
-    const ERROR_PENDING_REJECTED = 'pending-rejected';
-    const ERROR_CREATE_TRANSACTION_FAILED = 'create-transaction-failed';
-
     public $coinPaymentsAPI;
     
     // Contruction
     public function __construct($merchantId, $publicKey, $privateKey, $ipnSecret)
     {
         $this->coinPaymentsAPI = new CoinpaymentsAPI($privateKey, $publicKey, 'json'); // new CoinPayments($privateKey, $publicKey, $merchantId, $ipnSecret, null);
+
+        \Carbon\Carbon::setToStringFormat('jS \o\f F');
+    }
+
+    /**
+     * Gateway check method.
+     *
+     * @return void
+     */
+    public function check($subscription)
+    {
+        // check expired
+        if ($subscription->isExpired()) {
+            $subscription->cancelNow();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+        }
+
+        if (!$subscription->hasError()) {
+            // check renew pending
+            if ($subscription->isExpiring() && $subscription->canRenewFreePlan()) {
+                $subscription->error = json_encode([
+                    'status' => 'warning',
+                    'type' => 'renew',
+                    'message' => trans('cashier::messages.renew.warning', [
+                        'date' => $subscription->current_period_ends_at,
+                        'link' => action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
+                            'subscription_id' => $subscription->uid,
+                            'return_url' => action('AccountSubscriptionController@index'),
+                        ]),
+                    ]),
+                ]);
+                $subscription->save();
+            }
+        }
+
+        //
+        $this->sync($subscription);
     }
     
     /**
@@ -297,8 +336,8 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         }
 
         // if renew/change plan transaction
-        if ($this->hasPending($subscription)) {
-            $transaction = $this->getLastTransaction($subscription);
+        $transaction = $this->getLastTransaction($subscription);
+        if ($transaction && $transaction->isPending()) {            
             $this->updateTransactionRemoteInfo($transaction);
 
             // update description
@@ -308,35 +347,37 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             if ($transaction->getMetadata()['remote']['status'] == 100) {
                 // set active
                 $transaction->setSuccess();
-                $this->approvePending($subscription);                
+                $this->approvePending($subscription);
+                
+                // log
+                if ($transaction->type == SubscriptionTransaction::TYPE_RENEW) {
+                    // add log
+                    $subscription->addLog(SubscriptionLog::TYPE_PAID, [
+                        'plan' => $subscription->plan->getBillableName(),
+                        'price' => $subscription->plan->getBillableFormattedPrice(),
+                    ]);
+                    sleep(1);
+                    // add log
+                    $subscription->addLog(SubscriptionLog::TYPE_RENEWED, [
+                        'plan' => $subscription->plan->getBillableName(),
+                        'price' => $subscription->plan->getBillableFormattedPrice(),
+                    ]);
+                } else {
+                    // add log
+                    $subscription->addLog(SubscriptionLog::TYPE_PAID, [
+                        'plan' => $subscription->plan->getBillableName(),
+                        'price' => $transaction->amount,
+                    ]);
+                    sleep(1);
+                    // add log
+                    $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGED, [
+                        'plan' => $subscription->plan->getBillableName(),
+                        'price' => $transaction->amount,
+                    ]);
+                }
             }
             
-            // log
-            if ($transaction->type == SubscriptionTransaction::TYPE_RENEW) {
-                // add log
-                $subscription->addLog(SubscriptionLog::TYPE_PAID, [
-                    'plan' => $subscription->plan->getBillableName(),
-                    'price' => $subscription->plan->getBillableFormattedPrice(),
-                ]);
-                sleep(1);
-                // add log
-                $subscription->addLog(SubscriptionLog::TYPE_RENEWED, [
-                    'plan' => $subscription->plan->getBillableName(),
-                    'price' => $subscription->plan->getBillableFormattedPrice(),
-                ]);
-            } else {
-                // add log
-                $subscription->addLog(SubscriptionLog::TYPE_PAID, [
-                    'plan' => $subscription->plan->getBillableName(),
-                    'price' => $transaction->amount,
-                ]);
-                sleep(1);
-                // add log
-                $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGED, [
-                    'plan' => $subscription->plan->getBillableName(),
-                    'price' => $transaction->amount,
-                ]);
-            }
+            
         }
     }
     
@@ -728,39 +769,39 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         ]);
     }
     
-    /**
-     * Check for notice.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function hasPending($subscription)
-    {
-        $transaction = $this->getLastTransaction($subscription);
+    // /**
+    //  * Check for notice.
+    //  *
+    //  * @param  Subscription  $subscription
+    //  * @return date
+    //  */
+    // public function hasPending($subscription)
+    // {
+    //     $transaction = $this->getLastTransaction($subscription);
 
-        return isset($transaction) && $transaction->isPending() && !in_array($transaction->type, [
-            SubscriptionTransaction::TYPE_SUBSCRIBE,
-        ]);
-    }
+    //     return isset($transaction) && $transaction->isPending() && !in_array($transaction->type, [
+    //         SubscriptionTransaction::TYPE_SUBSCRIBE,
+    //     ]);
+    // }
     
-    /**
-     * Get notice message.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function getPendingNotice($subscription)
-    {
-        $transaction = $this->getLastTransaction($subscription);
+    // /**
+    //  * Get notice message.
+    //  *
+    //  * @param  Subscription  $subscription
+    //  * @return date
+    //  */
+    // public function getPendingNotice($subscription)
+    // {
+    //     $transaction = $this->getLastTransaction($subscription);
         
-        return trans('cashier::messages.direct.has_transaction_pending', [
-            'description' => $subscription->plan->name,
-            'amount' => $transaction->amount,
-            'url' => action('\Acelle\Cashier\Controllers\CoinpaymentsController@transactionPending', [
-                'subscription_id' => $subscription->uid,
-            ]),
-        ]);
-    }
+    //     return trans('cashier::messages.direct.has_transaction_pending', [
+    //         'description' => $subscription->plan->name,
+    //         'amount' => $transaction->amount,
+    //         'url' => action('\Acelle\Cashier\Controllers\CoinpaymentsController@transactionPending', [
+    //             'subscription_id' => $subscription->uid,
+    //         ]),
+    //     ]);
+    // }
     
     /**
      * Get renew url.
@@ -814,38 +855,38 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
-    public function hasError($subscription) {
-        $error_type = $subscription->last_error_type;
+    // public function hasError($subscription) {
+    //     $error_type = $subscription->last_error_type;
 
-        switch ($error_type) {
-            case CoinpaymentsPaymentGateway::ERROR_PENDING_REJECTED:
-                $transaction = $this->getLastTransaction($subscription);
+    //     switch ($error_type) {
+    //         case CoinpaymentsPaymentGateway::ERROR_PENDING_REJECTED:
+    //             $transaction = $this->getLastTransaction($subscription);
 
-                return $transaction->isFailed();
-            case CoinpaymentsPaymentGateway::ERROR_CREATE_TRANSACTION_FAILED:
-                $transaction = $this->getLastTransactionWithInit($subscription);
+    //             return $transaction->isFailed();
+    //         case CoinpaymentsPaymentGateway::ERROR_CREATE_TRANSACTION_FAILED:
+    //             $transaction = $this->getLastTransactionWithInit($subscription);
 
-                return $transaction->isFailed();
-            default:
-                return false;
-        }
-    }
+    //             return $transaction->isFailed();
+    //         default:
+    //             return false;
+    //     }
+    // }
 
-    public function getErrorNotice($subscription) {
-        $error_type = $subscription->last_error_type;
+    // public function getErrorNotice($subscription) {
+    //     $error_type = $subscription->last_error_type;
 
-        switch ($error_type) {
-            case CoinpaymentsPaymentGateway::ERROR_PENDING_REJECTED:
-                $transaction = $this->getLastTransaction($subscription);
-                $reason = isset($transaction->getMetadata()['reject-reason']) ? $transaction->getMetadata()['reject-reason'] : '';
-                return trans('cashier::messages.last_payment_failed', ['reason' => $reason]);
-            case CoinpaymentsPaymentGateway::ERROR_CREATE_TRANSACTION_FAILED:
-                $transaction = $this->getLastTransactionWithInit($subscription);
-                return trans('cashier::messages.create_transaction.failed', ['message' => $transaction->description]);
-            default:
-                return '';
-        }
-    }
+    //     switch ($error_type) {
+    //         case CoinpaymentsPaymentGateway::ERROR_PENDING_REJECTED:
+    //             $transaction = $this->getLastTransaction($subscription);
+    //             $reason = isset($transaction->getMetadata()['reject-reason']) ? $transaction->getMetadata()['reject-reason'] : '';
+    //             return trans('cashier::messages.last_payment_failed', ['reason' => $reason]);
+    //         case CoinpaymentsPaymentGateway::ERROR_CREATE_TRANSACTION_FAILED:
+    //             $transaction = $this->getLastTransactionWithInit($subscription);
+    //             return trans('cashier::messages.create_transaction.failed', ['message' => $transaction->description]);
+    //         default:
+    //             return '';
+    //     }
+    // }
 
     /**
      * Set subscription active if it is pending.
@@ -872,6 +913,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         if (isset($data['plan_id'])) {
             $subscription->plan_id = $data['plan_id'];
         }
+
+        // remove last_error
+        $subscription->error = null;
 
         $subscription->save();
     }

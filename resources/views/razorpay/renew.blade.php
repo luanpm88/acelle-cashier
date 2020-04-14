@@ -17,7 +17,7 @@
                     </strong>
                 </label>
                 <div class="text-center">
-                    <img width="60%" src="{{ url('/vendor/acelle-cashier/image/paypal-logo.png') }}" />
+                    <img width="60%" src="{{ url('/vendor/acelle-cashier/image/razorpay.png') }}" />
                 </div>
             </div>
             <div class="col-md-4 mt-40 pd-60">

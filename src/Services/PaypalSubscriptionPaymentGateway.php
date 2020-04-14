@@ -37,6 +37,8 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         }
 
         // $this->initPayPalProduct();
+
+        \Carbon\Carbon::setToStringFormat('jS \o\f F');
     }
 
     /**
@@ -378,15 +380,18 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     public function checkSubscription($subscription)
     {
         // free plan and local renew
-        if ($subscription->plan->getBillableAmount() == 0 && $subscription->isExpiring($this)) {
+        if ($subscription->plan->getBillableAmount() == 0 && $subscription->isExpiring()) {
             $this->renew($subscription);
             return;
         }
 
-        // update from service
-        if (!$this->syncPaypalSubscription($subscription)) {
+        // no remote subscription
+        if (empty($subscription->getMetadata())) {
             return false;
         }
+
+        // update from service
+        $this->syncPaypalSubscription($subscription);
 
         // APPROVAL_PENDING. The subscription is created but not yet approved by the buyer.
         // APPROVED. The buyer has approved the subscription.
@@ -572,6 +577,10 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
                         'plan' => $subscription->plan->getBillableName(),
                         'price' => $subscription->plan->getBillableFormattedPrice(),
                     ]);
+
+                    // remove last_error
+                    $subscription->error = null;
+                    $subscription->save();
                 }
 
                 break;
@@ -693,6 +702,18 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function check($subscription)
     {
+        // check expired
+        if ($subscription->isExpired()) {
+            $subscription->cancelNow();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+        }
+
+        // check remote status
         if (!$subscription->isEnded()) {
             // check subscription status
             $this->checkSubscription($subscription);
@@ -737,30 +758,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function syncPaypalSubscription($subscription)
     {
-        if (empty($subscription->getMetadata())) {
-            $subscriptionID = null;
-        } else {
-            $subscriptionID = $subscription->getMetadata()['subscriptionID'];
-        }
-
-        // subscription does not exist
-        if (!$subscriptionID) {
-            // cancel subscription
-            $subscription->cancelNow();
-                    
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
-                'message' => trans('cashier::messages.paypal_subscription.remote_subscription_not_found'),
-            ]);
-            sleep(1);
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-
-            return false;
-        }
+        $subscriptionID = $subscription->getMetadata()['subscriptionID'];
 
         // Get new one if not exist
         try {
@@ -1042,36 +1040,36 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         return $invoices;
     }
     
-    /**
-     * Check for notice.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function hasPending($subscription)
-    {
-        $transaction = $this->getLastTransaction($subscription);
-        return $transaction && $transaction->isPending() && !in_array($transaction->type, [
-            SubscriptionTransaction::TYPE_SUBSCRIBE,
-        ]);
-    }
+    // /**
+    //  * Check for notice.
+    //  *
+    //  * @param  Subscription  $subscription
+    //  * @return date
+    //  */
+    // public function hasPending($subscription)
+    // {
+    //     $transaction = $this->getLastTransaction($subscription);
+    //     return $transaction && $transaction->isPending() && !in_array($transaction->type, [
+    //         SubscriptionTransaction::TYPE_SUBSCRIBE,
+    //     ]);
+    // }
     
-    /**
-     * Get notice message.
-     *
-     * @param  Subscription  $subscription
-     * @return date
-     */
-    public function getPendingNotice($subscription)
-    {
-        $transaction = $this->getLastTransaction($subscription);
+    // /**
+    //  * Get notice message.
+    //  *
+    //  * @param  Subscription  $subscription
+    //  * @return date
+    //  */
+    // public function getPendingNotice($subscription)
+    // {
+    //     $transaction = $this->getLastTransaction($subscription);
         
-        return trans('cashier::messages.paypal_subscription.has_transaction_pending', [
-            'description' => $transaction->title,
-            'amount' => $transaction->amount,
-            'url' => $this->getTransactionPendingUrl($subscription, action('AccountSubscriptionController@index')),
-        ]);
-    }
+    //     return trans('cashier::messages.paypal_subscription.has_transaction_pending', [
+    //         'description' => $transaction->title,
+    //         'amount' => $transaction->amount,
+    //         'url' => $this->getTransactionPendingUrl($subscription, action('AccountSubscriptionController@index')),
+    //     ]);
+    // }
     
     /**
      * Get renew url.
@@ -1163,20 +1161,20 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
             ->first();
     }
 
-    /**
-     * Check if has failed transaction
-     *
-     * @return boolean
-     */
-    public function hasError($subscription) {
-        $transaction = $this->getLastTransaction($subscription);
+    // /**
+    //  * Check if has failed transaction
+    //  *
+    //  * @return boolean
+    //  */
+    // public function hasError($subscription) {
+    //     $transaction = $this->getLastTransaction($subscription);
 
-        return isset($subscription->last_error_type) && $transaction->isFailed();
-    }
+    //     return isset($subscription->last_error_type) && $transaction->isFailed();
+    // }
 
-    public function getErrorNotice($subscription) {
-        return trans('cashier::messages.paypal_subscription.error.something_went_wrong');
-    }
+    // public function getErrorNotice($subscription) {
+    //     return trans('cashier::messages.paypal_subscription.error.something_went_wrong');
+    // }
 
     /**
      * Cancel subscription.

@@ -49,11 +49,9 @@ class RazorpayController extends Controller
         $service = $this->getPaymentService();
         
         // save return url
-        $request->session()->put('checkout_return_url', $request->return_url);
-
-        // create order
-        $order = $service->createRazorpayOrder($subscription);
-        $customer = $service->getRazorpayCustomer($subscription);
+        if ($request->return_url) {
+            $request->session()->put('checkout_return_url', $request->return_url);
+        }
 
         // if subscription is active
         if (!$subscription->isNew()) {
@@ -87,9 +85,10 @@ class RazorpayController extends Controller
         }
 
         // check payment
-        if ($request->isMethod('post')) {            
-            $sig = hash_hmac('sha256', $request->razorpay_order_id . "|" . $request->razorpay_payment_id, $service->key_secret);
-            if ($sig == $request->razorpay_signature) {
+        if ($request->isMethod('post')) {      
+            try {
+                $service->verifyCharge($request);
+
                 // charged successfully. Set subscription to active
                 $subscription->setActive();
 
@@ -113,7 +112,41 @@ class RazorpayController extends Controller
 
                 // Redirect to my subscription page
                 return redirect()->away($this->getReturnUrl($request));
+            } catch (\Exception $e) {
+                // charged successfully. Set subscription to active
+                $subscription->cancelNow();
+
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                    'message' => $e->getMessage(),
+                ]);
+
+                // Redirect to my subscription page
+                $request->session()->flash('alert-error', trans('cashier::messages.charge.something_went_wrong', ['error' => $e->getMessage()]));
+                return redirect()->away($this->getReturnUrl($request));
             }
+        }
+
+        // create order
+        try {
+            $order = $service->createRazorpayOrder($subscription);
+            $customer = $service->getRazorpayCustomer($subscription);
+        } catch (\Exception $e) {
+            // charged successfully. Set subscription to active
+            $subscription->cancelNow();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+                'message' => $e->getMessage(),
+            ]);
+
+            // Redirect to my subscription page
+            $request->session()->flash('alert-error', trans('cashier::messages.charge.something_went_wrong', ['error' => $e->getMessage()]));
+            return redirect()->away($this->getReturnUrl($request));
         }
 
         return view('cashier::razorpay.checkout', [
@@ -142,11 +175,6 @@ class RazorpayController extends Controller
             $request->session()->put('checkout_return_url', $request->return_url);
         }
         
-        // check if status is not pending
-        if ($service->hasPending($subscription)) {
-            return redirect()->away($this->getReturnUrl($request));
-        }
-        
         if ($request->isMethod('post')) {            
             // add transaction
             $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_RENEW, [
@@ -165,17 +193,18 @@ class RazorpayController extends Controller
                 'price' => $subscription->plan->getBillableFormattedPrice(),
             ]);
 
-            if ($subscription->plan->price > 0) {      
-                $sig = hash_hmac('sha256', $request->razorpay_order_id . "|" . $request->razorpay_payment_id, $service->key_secret);
-                if ($sig == $request->razorpay_signature) {              
+            if ($subscription->plan->price > 0) {     
+                try {
+                    $service->verifyCharge($request);
+
                     // add log
                     $subscription->addLog(SubscriptionLog::TYPE_PAID, [
                         'plan' => $subscription->plan->getBillableName(),
                         'price' => $subscription->plan->getBillableFormattedPrice(),
                     ]);
-                } else {
+                } catch (\Exception $e) {
                     // set transaction failed
-                    $transaction->description = 'Can not verify remote order: ' . $request->razorpay_order_id;
+                    $transaction->description = $e->getMessage();
                     $transaction->setFailed();                    
                     
                     // add log
@@ -183,11 +212,21 @@ class RazorpayController extends Controller
                     $subscription->addLog(SubscriptionLog::TYPE_RENEW_FAILED, [
                         'plan' => $subscription->plan->getBillableName(),
                         'price' => $subscription->plan->getBillableFormattedPrice(),
-                        'error' => 'Can not verify remote order: ' . $request->razorpay_order_id,
+                        'error' => $e->getMessage(),
                     ]);
 
                     // set subscription last_error_type
-                    $subscription->last_error_type = RazorpayPaymentGateway::ERROR_CHARGE_FAILED;
+                    $subscription->error = json_encode([
+                        'status' => 'warning',
+                        'type' => 'renew_failed',
+                        'message' => trans('cashier::messages.renew_failed_with_error', [
+                            'error' => $e->getMessage(),
+                            'link' => action('\Acelle\Cashier\Controllers\RazorpayController@renew', [
+                                'subscription_id' => $subscription->uid,
+                                'return_url' => action('AccountSubscriptionController@index'),
+                            ]),
+                        ]),
+                    ]);
                     $subscription->save();
 
                     // Redirect to my subscription page
@@ -208,6 +247,10 @@ class RazorpayController extends Controller
                 'plan' => $subscription->plan->getBillableName(),
                 'price' => $subscription->plan->getBillableFormattedPrice(),
             ]);
+
+            // remove last_error
+            $subscription->error = null;
+            $subscription->save();
 
             // Redirect to my subscription page
             return redirect()->away($this->getReturnUrl($request));
@@ -246,11 +289,6 @@ class RazorpayController extends Controller
         if ($request->return_url) {
             $request->session()->put('checkout_return_url', $request->return_url);
         }
-        
-        // check if status is not pending
-        if ($service->hasPending($subscription)) {
-            return redirect()->away($this->getReturnUrl($request));
-        }
 
         // calc plan before change
         try {
@@ -282,17 +320,18 @@ class RazorpayController extends Controller
 
             // charge
             if ($result['amount'] > 0) {
-                $sig = hash_hmac('sha256', $request->razorpay_order_id . "|" . $request->razorpay_payment_id, $service->key_secret);
-                if ($sig == $request->razorpay_signature) {
+                try {
+                    $service->verifyCharge($request);
+
                     sleep(1);
                     // add log
                     $subscription->addLog(SubscriptionLog::TYPE_PAID, [
                         'plan' => $plan->getBillableName(),
                         'price' => $result['amount'],
                     ]);
-                } else {
+                } catch (\Exception $e) {
                     // set transaction failed
-                    $transaction->description = 'Can not verify remote order: ' . $request->razorpay_order_id;
+                    $transaction->description = $e->getMessage();
                     $transaction->setFailed();                    
                     
                     // add log
@@ -301,11 +340,32 @@ class RazorpayController extends Controller
                         'old_plan' => $subscription->plan->getBillableName(),
                         'plan' => $plan->getBillableName(),
                         'price' => $result['amount'],
-                        'error' => 'Can not verify remote order: ' . $request->razorpay_order_id,
+                        'error' => $e->getMessage(),
                     ]);
 
                     // set subscription last_error_type
-                    $subscription->last_error_type = PaypalPaymentGateway::ERROR_CHARGE_FAILED;
+                    if ($subscription->isExpiring() && $subscription->canRenewFreePlan()) {
+                        $subscription->error = json_encode([
+                            'status' => 'error',
+                            'type' => 'change_plan_failed',                    
+                            'message' => trans('cashier::messages.change_plan_failed_with_renew', [
+                                'error' => $e->getMessage(),
+                                'date' => $subscription->current_period_ends_at,
+                                'link' => action("\Acelle\Cashier\Controllers\\RazorpayController@renew", [
+                                    'subscription_id' => $subscription->uid,
+                                    'return_url' => action('AccountSubscriptionController@index'),
+                                ]),
+                            ]),
+                        ]);
+                    } else {
+                        $subscription->error = json_encode([
+                            'status' => 'error',
+                            'type' => 'change_plan_failed',
+                            'message' => trans('cashier::messages.change_plan_failed_with_error', [
+                                'error' => $e->getMessage(),
+                            ]),
+                        ]);
+                    }
                     $subscription->save();
 
                     // Redirect to my subscription page
@@ -325,6 +385,10 @@ class RazorpayController extends Controller
                 'plan' => $plan->getBillableName(),
                 'price' => $plan->getBillableFormattedPrice(),
             ]);
+
+            // remove last_error
+            $subscription->error = null;
+            $subscription->save();
 
             // Redirect to my subscription page
             return redirect()->away($this->getReturnUrl($request));

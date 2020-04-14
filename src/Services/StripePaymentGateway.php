@@ -18,9 +18,6 @@ use Acelle\Cashier\SubscriptionLog;
 
 class StripePaymentGateway implements PaymentGatewayInterface
 {
-    const ERROR_RECURRING_CHARGE_FAILED = 'recurring-charge-failed';
-    const ERROR_CHARGE_FAILED = 'charge-failed';
-
     public $secretKey;
     public $publishableKey;
     public $always_ask_for_valid_card;
@@ -36,6 +33,8 @@ class StripePaymentGateway implements PaymentGatewayInterface
         
         \Stripe\Stripe::setApiKey($secret_key);
         \Stripe\Stripe::setApiVersion("2019-12-03");
+
+        \Carbon\Carbon::setToStringFormat('jS \o\f F');
     }
 
     /**
@@ -331,7 +330,17 @@ class StripePaymentGateway implements PaymentGatewayInterface
             $transaction->save();
 
             // set subscription last_error_type
-            $subscription->last_error_type = StripePaymentGateway::ERROR_RECURRING_CHARGE_FAILED;
+            $subscription->error = json_encode([
+                'status' => 'error',
+                'type' => 'renew',
+                'message' => trans('cashier::messages.renew.error', [
+                    'date' => $subscription->current_period_ends_at,
+                    'link' => action("\Acelle\Cashier\Controllers\\StripeController@fixPayment", [
+                        'subscription_id' => $subscription->uid,
+                        'return_url' => action('AccountSubscriptionController@index'),
+                    ]),
+                ]),
+            ]);
             $subscription->save();
 
             // add log
@@ -355,49 +364,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
             ->where('type', '<>', SubscriptionLog::TYPE_SUBSCRIBE)
             ->orderBy('created_at', 'desc')
             ->first();
-    }
-
-    /**
-     * Check if has pending transaction
-     *
-     * @return boolean
-     */
-    public function hasPending($subscription) {
-        $transaction = $this->getLastTransaction($subscription);
-        return isset($transaction) && $transaction->isPending() && !in_array($transaction->type, [
-            SubscriptionTransaction::TYPE_SUBSCRIBE,
-        ]);
-    }
-
-    public function getPendingNotice($subscription) {
-        return false;
-    }
-
-    /**
-     * Check if has failed transaction
-     *
-     * @return boolean
-     */
-    public function hasError($subscription) {
-        $transaction = $this->getLastTransaction($subscription);
-
-        return isset($subscription->last_error_type) && $transaction->isFailed();
-    }
-
-    public function getErrorNotice($subscription) {
-
-        switch ($subscription->last_error_type) {
-            case StripePaymentGateway::ERROR_RECURRING_CHARGE_FAILED:
-                return trans('cashier::messages.stripe.payment_error.recurring_charge_error', [
-                    'url' => action('\Acelle\Cashier\Controllers\StripeController@fixPayment', [
-                        'subscription_id' => $subscription->uid,
-                    ]),
-                ]);
-
-                break;
-            default:
-                return trans('cashier::messages.stripe.error.something_went_wrong');
-        }
     }
 
     /**
@@ -452,8 +418,19 @@ class StripePaymentGateway implements PaymentGatewayInterface
      */
     public function check($subscription)
     {
+        // check expired
+        if ($subscription->isExpired()) {
+            $subscription->cancelNow();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+        }
+        
         // check from service: recurring/transaction
-        if ($subscription->isExpiring($this)) {
+        if ($subscription->isExpiring()) {
             $this->renew($subscription);
         }
     }

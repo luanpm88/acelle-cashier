@@ -151,9 +151,6 @@ class PaypalSubscriptionController extends Controller
      **/
     public function changePlan(Request $request, $subscription_id)
     {
-        // $request->session()->flash('alert-error', trans('cashier::messages.paypal.not_support_change_plan_yet'));
-        // return redirect()->away($this->getReturnUrl($request));
-
         // Get current customer
         $subscription = Subscription::findByUid($subscription_id);
         $service = $this->getPaymentService();
@@ -164,11 +161,6 @@ class PaypalSubscriptionController extends Controller
         // Save return url
         if ($request->return_url) {
             $request->session()->put('checkout_return_url', $request->return_url);
-        }
-        
-        // check if status is not pending
-        if ($service->hasPending($subscription)) {
-            return redirect()->away($this->getReturnUrl($request));
         }
 
         // get access token
@@ -255,6 +247,19 @@ class PaypalSubscriptionController extends Controller
                 $data['paypal_subscription'] = $paypalSubscription;
                 $data['subscriptionID'] = $request->subscriptionID;
                 $transaction->updateMetadata($data);
+
+                // set subscription last_error_type
+                $subscription->error = json_encode([
+                    'status' => 'warning',
+                    'type' => 'change_plan_pending',
+                    'message' => trans('cashier::messages.paypal_subscription.has_transaction_pending.change_plan', [
+                        'description' => $transaction->title,
+                        'amount' => $transaction->amount,
+                        'plan' => $plan->getBillableName(),
+                        'url' => $service->getTransactionPendingUrl($subscription, action('AccountSubscriptionController@index')),
+                    ]),
+                ]);
+                $subscription->save();
             } catch (\Exception $e) {
                 // set transaction failed
                 $transaction->description = $e->getMessage();
@@ -269,7 +274,13 @@ class PaypalSubscriptionController extends Controller
                 ]);
 
                 // set subscription last_error_type
-                $subscription->last_error_type = PaypalSubscriptionPaymentGateway::ERROR_CHARGE_FAILED;
+                $subscription->error = json_encode([
+                    'status' => 'error',
+                    'type' => 'change_plan_failed',
+                    'message' => trans('cashier::messages.change_plan_failed_with_error', [
+                        'error' => $e->getMessage(),
+                    ]),
+                ]);
                 $subscription->save();
 
                 // Redirect to my subscription page

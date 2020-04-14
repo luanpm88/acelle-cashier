@@ -81,11 +81,11 @@ class Subscription extends Model
      */
     public function getMetadata()
     {
-        if (!$this->metadata) {
+        if (!$this['metadata']) {
             return json_decode('{}', true);
         }
 
-        return json_decode($this->metadata, true);
+        return json_decode($this['metadata'], true);
     }
 
     /**
@@ -96,7 +96,7 @@ class Subscription extends Model
     public function updateMetadata($data)
     {
         $metadata = (object) array_merge((array) $this->getMetadata(), $data);
-        $this->metadata = json_encode($metadata);
+        $this['metadata'] = json_encode($metadata);
 
         $this->save();
     }
@@ -268,6 +268,7 @@ class Subscription extends Model
     {
         $this->status = self::STATUS_ENDED;
         $this->ends_at = \Carbon\Carbon::now();
+        $this->error = null;
         $this->save();
     }
 
@@ -375,22 +376,6 @@ class Subscription extends Model
     public function markAsCancelled()
     {
         $this->fill(['ends_at' => Carbon::now()->startOfDay()])->save();
-    }
-
-    /**
-     * Check if subscription is going to expire.
-     *
-     * @param  Subscription    $subscription
-     * @return Boolean
-     */
-    public function goingToExpire()
-    {
-        if (!$this->ends_at) {
-            return false;
-        }
-
-        $days = config('cashier.end_period_last_days');
-        return $this->ends_at->subDay($days)->lessThanOrEqualTo(\Carbon\Carbon::now());
     }
 
     /**
@@ -505,33 +490,19 @@ class Subscription extends Model
         
         $subscriptions = self::whereNull('ends_at')->orWhere('ends_at', '>=', \Carbon\Carbon::now())->get();
         foreach ($subscriptions as $subscription) {
-            $subscription->check($gateway);
+            $gateway->check($subscription);
         }
     }
 
     /**
-     * Check subscription status.
+     * Check if subscription is expired.
      *
      * @param  Int  $subscriptionId
      * @return date
      */
-    public function check($gateway)
+    public function isExpired()
     {
-        // check expired
-        if (isset($this->ends_at) && \Carbon\Carbon::now()->endOfDay() > $this->ends_at) {
-            $this->cancelNow();
-
-            // add log
-            $this->addLog(SubscriptionLog::TYPE_EXPIRED, [
-                'plan' => $this->plan->getBillableName(),
-                'price' => $this->plan->getBillableFormattedPrice(),
-            ]);
-        }
-
-        // gateway service check subscription
-        if(method_exists ( $gateway , 'check' )) {
-            $gateway->check($this);
-        }
+        return isset($this->ends_at) && \Carbon\Carbon::now()->endOfDay() > $this->ends_at;
     }
 
     /**
@@ -613,7 +584,7 @@ class Subscription extends Model
         $transaction->fill($data);
 
         if (isset($data['metadata'])) {
-            $transaction->metadata = json_encode($data['metadata']);
+            $transaction['metadata'] = json_encode($data['metadata']);
         }
 
         $transaction->save();
@@ -669,7 +640,7 @@ class Subscription extends Model
      * @return void
      */
     public function cancelNow()
-    {
+    {        
         $this->setEnded();
     }
 
@@ -709,37 +680,47 @@ class Subscription extends Model
         $this->save();
     }
 
-    public function isExpiring($gateway) {
-        // check if has pending transaction
-        if (!$this->isActive()) {
-            return false;
-        }
-
-        // check if subscription is cancelled
-        if ($this->cancelled()) {
-            return false;
-        }
-
-        // check if has pending transaction
-        if ($gateway->hasPending($this)) {
-            return false;
-        }
-
-        // check if has error transaction
-        if ($gateway->hasError($this)) {
-            return false;
-        }
-
-        // check if has error transaction
-        if (!$gateway->isSupportRecurring()) {
-            return false;
-        }
-
+    public function isExpiring() {      
         // check if recurring accur
         if (\Carbon\Carbon::now()->diffInDays($this->current_period_ends_at) < config('cashier.recurring_charge_before_days')) {
             return true;
         }
 
         return false;
+    }
+
+    /**
+     * Check if has error
+     *
+     * @return void
+     */
+    public function hasError()
+    {
+        return $this->error;
+    }
+
+    /**
+     * Get error
+     *
+     * @return void
+     */
+    public function getError()
+    {
+        if ($this->hasError()) {
+            return json_decode($this->error, true);
+        }
+    }
+
+    /**
+     * Check if can renew free plan
+     *
+     * @return void
+     */
+    public function canRenewFreePlan()
+    {
+        return (
+            config('cashier.renew_free_plan') == 'yes' ||
+            (config('cashier.renew_free_plan') == 'no' && !$subscription->plan->getBillableAmount() == 0)
+        );
     }
 }

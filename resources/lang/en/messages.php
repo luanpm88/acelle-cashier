@@ -362,6 +362,8 @@
     'paypal_subscription.transaction.period_ends_at' => 'End date',
     'paypal_subscription.has_transaction_pending' => 'There are pending transaction.
         <a href=":url"><strong>Click here</strong></a> to see more details.',
+    'paypal_subscription.has_transaction_pending.change_plan' => 'You are changing to :plan plan.
+        <a href=":url"><strong>Click here</strong></a> to see more details.',
     'paypal_subscription.cancel_new_subscription' => 'Click here to choose another plan',
     'paypal_subscription.not_support_set_active' => 'Cannot activate subscription. User needs to complete PayPal payment process first.',
     'paypal_subscription.not_support_approve' => 'PayPal subscription service does not support manual approve pending transaction.',
@@ -423,4 +425,27 @@
         <br> Your browser will redirect to next page shortly.',
     'razorpay.checkout.processing_payment' => 'Processing your payment... please wait!',
     'create_transaction.failed' => 'Something went wrong when creating transaction: :message',
+    'renew.warning' => 'The subscription is going to expired soon on :date!
+        Click <a href=":link">here</a> to extend current plan.',
+    'renew_rejected' => 'Your last payment was not confirmed by us with reason: :reason. Are you sure you want to
+        make it? Click <a href=":link">HERE</a> to try again.',
+    'renew_failed_with_error' => 'Your last payment was failed with error: :error. Are you
+        sure you did make it? Click <a href=":link">HERE</a> to try again.',
+    'change_plan_rejected' => 'Your last payment was not confirmed by us with reason: :reason. Are you sure you want to
+        make it? You can change plan again.',
+    'change_plan_failed_with_error' => 'Your last payment was failed with error: :error. Are you
+        sure you did make it? You can change plan again.',
+    'change_plan_rejected_with_renew' => 'Your last payment for RENEW was rejected with reason: :reason,
+        please TRY again by clicking the CHANGE PLAN button below. Or you can now click <a href=":link">HERE</a>
+        to RENEW your current plan which is going to expire in a few days on :date',
+    'change_plan_failed_with_renew' => 'Your last payment for RENEW was failed with error: :error,
+        please TRY again by clicking the CHANGE PLAN button below. Or you can now click <a href=":link">HERE</a>
+        to RENEW your current plan which is going to expire in a few days on :date',
+    'charge.something_went_wrong' => 'Something went wrong while charging: :error',
+    'renew.error' => 'Something went wrong when renewing your subscription.
+        <a href=":link"><strong>Click here</strong></a> to update the payment.',
+    'renew_pending' => 'You are renewing <strong>:plan</strong> plan with amount: <strong>:amount</strong>.
+        <br><a href=":url"><strong>Click here</strong></a> to see more details.',
+    'change_plan_pending' => 'You are changing to <strong>:plan</strong> plan with amount: <strong>:amount</strong>.
+        <br><a href=":url"><strong>Click here</strong></a> to see more details.',
 ) ?>
