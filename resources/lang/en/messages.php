@@ -435,10 +435,10 @@
         make it? You can change plan again.',
     'change_plan_failed_with_error' => 'Your last payment was failed with error: :error. Are you
         sure you did make it? You can change plan again.',
-    'change_plan_rejected_with_renew' => 'Your last payment for RENEW was rejected with reason: :reason,
+    'change_plan_rejected_with_renew' => 'Your last payment for was rejected with reason: :reason,
         please TRY again by clicking the CHANGE PLAN button below. Or you can now click <a href=":link">HERE</a>
         to RENEW your current plan which is going to expire in a few days on :date',
-    'change_plan_failed_with_renew' => 'Your last payment for RENEW was failed with error: :error,
+    'change_plan_failed_with_renew' => 'Your last payment was failed with error: :error,
         please TRY again by clicking the CHANGE PLAN button below. Or you can now click <a href=":link">HERE</a>
         to RENEW your current plan which is going to expire in a few days on :date',
     'charge.something_went_wrong' => 'Something went wrong while charging: :error',

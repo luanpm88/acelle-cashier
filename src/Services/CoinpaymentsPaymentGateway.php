@@ -333,6 +333,24 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                     'price' => $subscription->plan->getBillableFormattedPrice(),
                 ]);
             }
+
+            if ($transaction->getMetadata()['remote']['status'] < 0) {
+                //
+                $subscription->cancelNow();
+                
+                //
+                $transaction->setFailed();
+
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
+                    'message' => 'Coinpayments transaction is cancelled / time out',
+                ]);
+                sleep(1);
+                $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                ]);
+            }
         }
 
         // if renew/change plan transaction
@@ -377,7 +395,55 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                 }
             }
             
-            
+            if ($transaction->getMetadata()['remote']['status'] < 0) {
+                //
+                $transaction->setFailed();
+
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
+                    'message' => 'Coinpayments transaction is cancelled / time out',
+                ]);
+
+                // add error notice
+                if ($transaction->type == SubscriptionTransaction::TYPE_RENEW) {
+                    $subscription->error = json_encode([
+                        'status' => 'warning',
+                        'type' => 'renew_failed',
+                        'message' => trans('cashier::messages.renew_failed_with_error', [
+                            'error' => 'Coinpayments transaction is cancelled / time out',
+                            'link' => action('\Acelle\Cashier\Controllers\CoinpaymentsController@renew', [
+                                'subscription_id' => $subscription->uid,
+                                'return_url' => action('AccountSubscriptionController@index'),
+                            ]),
+                        ]),
+                    ]);
+                } else {
+                    if ($subscription->isExpiring() && $subscription->canRenewFreePlan()) {
+                        $subscription->error = json_encode([
+                            'status' => 'error',
+                            'type' => 'change_plan_failed',                    
+                            'message' => trans('cashier::messages.change_plan_failed_with_renew', [
+                                'error' => 'Coinpayments transaction is cancelled / time out',
+                                'date' => $subscription->current_period_ends_at,
+                                'link' => action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
+                                    'subscription_id' => $subscription->uid,
+                                    'return_url' => action('AccountSubscriptionController@index'),
+                                ]),
+                            ]),
+                        ]);
+                    } else {
+                        $subscription->error = json_encode([
+                            'status' => 'error',
+                            'type' => 'change_plan_failed',
+                            'message' => trans('cashier::messages.change_plan_failed_with_error', [
+                                'error' => 'Coinpayments transaction is cancelled / time out',
+                            ]),
+                        ]);
+                    }
+                }
+                    
+                $subscription->save();
+            }
         }
     }
     
@@ -855,39 +921,6 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
-    // public function hasError($subscription) {
-    //     $error_type = $subscription->last_error_type;
-
-    //     switch ($error_type) {
-    //         case CoinpaymentsPaymentGateway::ERROR_PENDING_REJECTED:
-    //             $transaction = $this->getLastTransaction($subscription);
-
-    //             return $transaction->isFailed();
-    //         case CoinpaymentsPaymentGateway::ERROR_CREATE_TRANSACTION_FAILED:
-    //             $transaction = $this->getLastTransactionWithInit($subscription);
-
-    //             return $transaction->isFailed();
-    //         default:
-    //             return false;
-    //     }
-    // }
-
-    // public function getErrorNotice($subscription) {
-    //     $error_type = $subscription->last_error_type;
-
-    //     switch ($error_type) {
-    //         case CoinpaymentsPaymentGateway::ERROR_PENDING_REJECTED:
-    //             $transaction = $this->getLastTransaction($subscription);
-    //             $reason = isset($transaction->getMetadata()['reject-reason']) ? $transaction->getMetadata()['reject-reason'] : '';
-    //             return trans('cashier::messages.last_payment_failed', ['reason' => $reason]);
-    //         case CoinpaymentsPaymentGateway::ERROR_CREATE_TRANSACTION_FAILED:
-    //             $transaction = $this->getLastTransactionWithInit($subscription);
-    //             return trans('cashier::messages.create_transaction.failed', ['message' => $transaction->description]);
-    //         default:
-    //             return '';
-    //     }
-    // }
-
     /**
      * Set subscription active if it is pending.
      *
@@ -937,6 +970,21 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                 'price' => $subscription->plan->getBillableFormattedPrice(),
                 'reason' => $reason,
             ]);
+
+            // add error notice
+            $subscription->error = json_encode([
+                'status' => 'error',
+                'type' => 'renew_rejected',
+                'message' => trans('cashier::messages.renew_rejected', [
+                    'reason' => $reason,
+                    'date' => $subscription->current_period_ends_at,
+                    'link' => action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
+                        'subscription_id' => $subscription->uid,
+                        'return_url' => action('AccountSubscriptionController@index'),
+                    ]),
+                ]),
+            ]);
+            $subscription->save();
         } else {
             // add log
             $subscription->addLog(SubscriptionLog::TYPE_ADMIN_PLAN_CHANGE_REJECTED, [
@@ -944,11 +992,32 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                 'price' => $transaction->amount,
                 'reason' => $reason,
             ]);
-        }
 
-        // set subscription last_error_type
-        $subscription->last_error_type = CoinpaymentsPaymentGateway::ERROR_PENDING_REJECTED;
-        $subscription->save();
+            // add error notice
+            if ($subscription->isExpiring() && $subscription->canRenewFreePlan()) {
+                $subscription->error = json_encode([
+                    'status' => 'error',
+                    'type' => 'change_plan_rejected',                    
+                    'message' => trans('cashier::messages.change_plan_rejected_with_renew', [
+                        'reason' => $reason,
+                        'date' => $subscription->current_period_ends_at,
+                        'link' => action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
+                            'subscription_id' => $subscription->uid,
+                            'return_url' => action('AccountSubscriptionController@index'),
+                        ]),
+                    ]),
+                ]);
+            } else {
+                $subscription->error = json_encode([
+                    'status' => 'error',
+                    'type' => 'change_plan_rejected',
+                    'message' => trans('cashier::messages.change_plan_rejected', [
+                        'reason' => $reason,
+                    ]),
+                ]);
+            }
+            $subscription->save();
+        }
 
         // save reason
         $data = $transaction->getMetadata();
