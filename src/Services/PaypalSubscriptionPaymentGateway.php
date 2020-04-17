@@ -1329,11 +1329,6 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         }
 
         $data = $this->getData();
-        // $key = array_search($plan->getBillableId(), array_column($data['plans'], 'uid'));
-
-        // if ($key !== false) {
-        //     return $data['plans'][$key];
-        // }
 
         foreach ($data['plans'] as $key => $item) {
             if ($item['uid'] == $plan->getBillableId()) {
@@ -1447,7 +1442,9 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         $this->removePlanConnection($plan);
 
         // Deactive remote plan
-        $this->deactivatePayPalPlan($connection['paypal_id']);
+        if ($connection) {
+            $this->deactivatePayPalPlan($connection['paypal_id']);
+        }
     }
 
     /**
@@ -1457,6 +1454,10 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function deactivatePayPalPlan($planId)
     {
+        if (!$planId) {
+            return false;
+        }
+
         try {
             // Deactive remote plan
             $this->request('POST', '/v1/billing/plans/' . $planId . '/deactivate', [
