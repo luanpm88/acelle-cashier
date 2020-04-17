@@ -1442,9 +1442,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         $this->removePlanConnection($plan);
 
         // Deactive remote plan
-        if ($connection) {
-            $this->deactivatePayPalPlan($connection['paypal_id']);
-        }
+        $this->deactivatePayPalPlan($connection['paypal_id']);
     }
 
     /**
