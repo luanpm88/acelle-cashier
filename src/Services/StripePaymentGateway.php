@@ -322,7 +322,46 @@ class StripePaymentGateway implements PaymentGatewayInterface
             ]);
 
             return true;
-        } catch (\Exception $e) {
+        } catch(\Stripe\Exception\CardException $e) {
+            // // Since it's a decline, \Stripe\Exception\CardException will be caught
+            // echo 'Status is:' . $e->getHttpStatus() . '\n';
+            // echo 'Type is:' . $e->getError()->type . '\n';
+            // echo 'Code is:' . $e->getError()->code . '\n';
+            // // param is '' in this case
+            // echo 'Param is:' . $e->getError()->param . '\n';
+            // echo 'Message is:' . $e->getError()->message . '\n';
+
+            $transaction->setFailed();
+
+            // update error message
+            $transaction->description = $e->getError()->message;
+            $transaction->save();
+
+            // set subscription last_error_type
+            $subscription->error = json_encode([
+                'status' => 'error',
+                'type' => 'renew',
+                'error' => $e->getError(),
+                'message' => trans('cashier::messages.renew.card_error', [
+                    'date' => $subscription->current_period_ends_at,
+                    'error' => $e->getError()->message,
+                    'link' => action("\Acelle\Cashier\Controllers\\StripeController@fixPayment", [
+                        'subscription_id' => $subscription->uid,
+                        'return_url' => action('AccountSubscriptionController@index'),
+                    ]),
+                ]),
+            ]);
+            $subscription->save();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_RENEW_FAILED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+                'error' => json_encode($e->getError()),
+            ]);
+
+            return false;
+         } catch (\Exception $e) {
             $transaction->setFailed();
 
             // update error message

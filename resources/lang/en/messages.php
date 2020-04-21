@@ -442,7 +442,8 @@
         please TRY again by clicking the CHANGE PLAN button below. Or you can now click <a href=":link">HERE</a>
         to RENEW your current plan which is going to expire in a few days on :date',
     'charge.something_went_wrong' => 'Something went wrong while charging: :error',
-    'renew.error' => 'Something went wrong when renewing your subscription.
+    'renew.error' => 'Something went wrong when renewing your subscription. Please contact admin for more information.',
+    'renew.card_error' => 'Something went wrong with the payment when renewing your subscription. Error: :error.
         <a href=":link"><strong>Click here</strong></a> to update the payment.',
     'renew_pending' => 'You are renewing <strong>:plan</strong> plan with amount: <strong>:amount</strong>.
         <br><a href=":url"><strong>Click here</strong></a> to see more details.',

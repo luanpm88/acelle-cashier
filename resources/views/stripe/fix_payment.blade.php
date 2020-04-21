@@ -53,13 +53,35 @@
                     </li>
                 </ul>
                 
-                <div class="alert alert-danger">
-                    {{ trans('cashier::messages.stripe.payment_outdated.alert') }}
+                <div class="sub-section">
+                    <h4 class="text-semibold mb-3 mt-4">{!! trans('cashier::messages.stripe.card_list') !!}</h4>
+                    <ul class="dotted-list topborder section mb-4">
+                        <li>
+                            <div class="unit size1of2">
+                                {{ trans('messages.card.holder') }}
+                            </div>
+                            <div class="lastUnit size1of2">
+                                <mc:flag>{{ $service->getCardInformation($subscription->user)->name }}</mc:flag>
+                            </div>
+                        </li>
+                        <li>
+                            <div class="unit size1of2">
+                                {{ trans('messages.card.last4') }}
+                            </div>
+                            <div class="lastUnit size1of2">
+                                <mc:flag>{{ $service->getCardInformation($subscription->user)->last4 }}</mc:flag>
+                            </div>
+                        </li>
+                    </ul>
+                    
+                    <form id="stripe_button" style="" action="{{ action('\Acelle\Cashier\Controllers\StripeController@fixPayment', [
+                            '_token' => csrf_token(),
+                            'subscription_id' => $subscription->uid,
+                        ]) }}" method="POST">
+                            <button class="btn btn-primary mr-2">{{ trans('cashier::messages.stripe.pay_with_this_card') }}</button>
+                            <a href="javascript:;" class="btn btn-secondary" onclick="$('#stripe_button button').click()">{{ trans('cashier::messages.stripe.pay_with_new_card') }}</a>
+                    </form>
                 </div>
-
-                <a href="javascript:;" class="btn btn-secondary full-width" onclick="$('#stripe_button button').click()">
-                    {{ trans('cashier::messages.stripe.update_payment_and_proceed') }}
-                </a>
 
                 <form id="stripe_button" style="display: none" action="{{ action('\Acelle\Cashier\Controllers\StripeController@updateCard', [
                     '_token' => csrf_token(),

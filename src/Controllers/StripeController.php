@@ -172,6 +172,24 @@ class StripeController extends Controller
                             'plan' => $subscription->plan->getBillableName(),
                         ]),
                     ]);
+                } catch(\Stripe\Exception\CardException $e) {
+                    // charged successfully. Set subscription to active
+                    $subscription->cancelNow();
+
+                    // transaction success
+                    $transaction->description = trans('cashier::messages.charge.something_went_wrong', ['error' => $e->getError()->message]);
+                    $transaction->setFailed();
+
+                    // add log
+                    $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
+                        'plan' => $subscription->plan->getBillableName(),
+                        'price' => $subscription->plan->getBillableFormattedPrice(),
+                        'message' => json_encode($e->getError()),
+                    ]);
+
+                    // Redirect to my subscription page
+                    $request->session()->flash('alert-error', trans('cashier::messages.charge.something_went_wrong', ['error' => $e->getError()->message]));
+                    return redirect()->away($this->getReturnUrl($request));
                 } catch (\Exception $e) {
                     // charged successfully. Set subscription to active
                     $subscription->cancelNow();
@@ -262,6 +280,31 @@ class StripeController extends Controller
                             'plan' => $newPlan->getBillableName(),
                         ]),
                     ]);
+                } catch(\Stripe\Exception\CardException $e) {
+                    // set transaction failed
+                    $transaction->description = $e->getError()->message;
+                    $transaction->setFailed();
+
+                    // add log
+                    $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE_FAILED, [
+                        'old_plan' => $subscription->plan->getBillableName(),
+                        'plan' => $newPlan->getBillableName(),
+                        'price' => $result['amount'],
+                        'error' => json_encode($e->getError()),
+                    ]);
+
+                    // set subscription last_error_type
+                    $subscription->error = json_encode([
+                        'status' => 'error',
+                        'type' => 'change_plan_failed',
+                        'message' => trans('cashier::messages.change_plan_failed_with_error', [
+                            'error' => $e->getError()->message,
+                        ]),
+                    ]);
+                    $subscription->save();
+
+                    // Redirect to my subscription page
+                    return redirect()->away($this->getReturnUrl($request));
                 } catch (\Exception $e) {
                     // set transaction failed
                     $transaction->description = $e->getMessage();

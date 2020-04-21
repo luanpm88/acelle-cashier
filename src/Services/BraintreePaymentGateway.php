@@ -278,7 +278,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
             $subscription->error = json_encode([
                 'status' => 'error',
                 'type' => 'renew',
-                'message' => trans('cashier::messages.renew.error', [
+                'message' => trans('cashier::messages.renew.card_error', [
                     'date' => $subscription->current_period_ends_at,
                     'link' => action("\Acelle\Cashier\Controllers\\BraintreeController@fixPayment", [
                         'subscription_id' => $subscription->uid,
