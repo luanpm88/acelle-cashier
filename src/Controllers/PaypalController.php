@@ -82,12 +82,6 @@ class PaypalController extends Controller
                 'amount' => $subscription->plan->getBillableFormattedPrice()
             ]);
 
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-
             // throw excaption of failed
             if ($subscription->plan->price > 0) {
                 try {
@@ -203,13 +197,6 @@ class PaypalController extends Controller
                     'plan' => $plan->getBillableName(),
                 ]),
                 'amount' => $result['amount']
-            ]);
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE, [
-                'old_plan' => $subscription->plan->getBillableName(),
-                'plan' => $plan->getBillableName(),
-                'price' => $plan->getBillableFormattedPrice(),
             ]);
 
             // charge
@@ -338,12 +325,6 @@ class PaypalController extends Controller
                     'plan' => $subscription->plan->getBillableName(),
                 ]),
                 'amount' => $subscription->plan->getBillableFormattedPrice()
-            ]);
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_RENEW, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
             ]);
 
             if ($subscription->plan->price > 0) {

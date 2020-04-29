@@ -164,12 +164,6 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                 'plan' => $plan->getBillableName(),
                 'price' => $plan->getBillableFormattedPrice(),
             ]);
-        } else {
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
-                'plan' => $plan->getBillableName(),
-                'price' => $plan->getBillableFormattedPrice(),
-            ]);
         }
         
         return $subscription;

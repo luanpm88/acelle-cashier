@@ -840,12 +840,6 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         $subscription->ends_at = null;
         $subscription->current_period_ends_at = $subscription->getPeriodEndsAt(Carbon::now());
         $subscription->save();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
-            'plan' => $plan->getBillableName(),
-            'price' => $plan->getBillableFormattedPrice(),
-        ]);
         
         // If plan is free: enable subscription & update transaction
         if ($plan->getBillableAmount() == 0) {

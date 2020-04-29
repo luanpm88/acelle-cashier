@@ -130,12 +130,6 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
             'amount' => $subscription->plan->getBillableFormattedPrice(),
             'description' => trans('cashier::messages.direct.payment_is_not_claimed'),
         ]);
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
-            'plan' => $plan->getBillableName(),
-            'price' => $plan->getBillableFormattedPrice(),
-        ]);
         
         // If plan is free: enable subscription & update transaction
         if ($plan->getBillableAmount() == 0) {

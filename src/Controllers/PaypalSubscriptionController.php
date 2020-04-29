@@ -167,14 +167,7 @@ class PaypalSubscriptionController extends Controller
         $accessToken = $service->getAccessToken();
         $paypalPlan = $service->getPaypalPlan($plan);
 
-        if ($request->isMethod('post')) {
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE, [
-                'old_plan' => $subscription->plan->getBillableName(),
-                'plan' => $plan->getBillableName(),
-                'price' => $plan->getBillableAmount(),
-            ]);
-            
+        if ($request->isMethod('post')) {            
             // add transaction
             $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_PLAN_CHANGE, [
                 'ends_at' => null,

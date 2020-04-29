@@ -90,12 +90,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $subscription->status = Subscription::STATUS_NEW;
         
         $subscription->save();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBE, [
-            'plan' => $plan->getBillableName(),
-            'price' => $plan->getBillableFormattedPrice(),
-        ]);
         
         return $subscription;
     }

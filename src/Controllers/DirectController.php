@@ -244,12 +244,6 @@ class DirectController extends Controller
                 'description' => trans('cashier::messages.direct.payment_is_not_claimed'),
             ]);
 
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_RENEW, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-
             // if is free
             if ($subscription->plan->getBillableAmount() == 0) {
                 $service->approvePending($subscription);
@@ -329,13 +323,6 @@ class DirectController extends Controller
             $data = $transaction->getMetadata();
             $data['plan_id'] = $plan->getBillableId();
             $transaction->updateMetadata($data);
-            
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE, [
-                'old_plan' => $subscription->plan->getBillableName(),
-                'plan' => $plan->getBillableName(),
-                'price' => $plan->getBillableFormattedPrice(),
-            ]);
 
             // if is free
             if ($result['amount'] == 0) {

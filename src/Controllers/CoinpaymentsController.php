@@ -277,12 +277,6 @@ class CoinpaymentsController extends Controller
                     'qrcode_url' => $result["qrcode_url"],
                 ]);
 
-                // add log
-                $subscription->addLog(SubscriptionLog::TYPE_RENEW, [
-                    'plan' => $subscription->plan->getBillableName(),
-                    'price' => $subscription->plan->getBillableFormattedPrice(),
-                ]);
-
                 // add error notice
                 $subscription->error = json_encode([
                     'status' => 'warning',
@@ -423,13 +417,6 @@ class CoinpaymentsController extends Controller
                     'checkout_url' => $result["checkout_url"],
                     'status_url' => $result["status_url"],
                     'qrcode_url' => $result["qrcode_url"],
-                ]);
-
-                // add log
-                $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE, [
-                    'old_plan' => $subscription->plan->getBillableName(),
-                    'plan' => $plan->getBillableName(),
-                    'price' => $plan->getBillableFormattedPrice(),
                 ]);
 
                 // add error notice
