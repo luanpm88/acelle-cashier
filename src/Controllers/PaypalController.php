@@ -182,8 +182,8 @@ class PaypalController extends Controller
         try {
             $result = Cashier::calcChangePlan($subscription, $plan);
         } catch (\Exception $e) {
-            $request->session()->flash('alert-error', 'Can not change plan: ' . $e->getMessage());
-            return redirect()->away($return_url);
+            $request->session()->flash('alert-error', trans('cashier::messages.change_plan.failed', ['error' => $e->getMessage()]));
+            return redirect()->away($this->getReturnUrl($request));
         }
 
         if ($request->isMethod('post')) {

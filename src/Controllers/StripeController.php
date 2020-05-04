@@ -255,7 +255,12 @@ class StripeController extends Controller
         $newPlan = \Acelle\Model\Plan::findByUid($request->plan_id);
         
         // calc when change plan
-        $result = Cashier::calcChangePlan($subscription, $newPlan);
+        try {
+            $result = Cashier::calcChangePlan($subscription, $newPlan);
+        } catch (\Exception $e) {
+            $request->session()->flash('alert-error', trans('cashier::messages.change_plan.failed', ['error' => $e->getMessage()]));
+            return redirect()->away($this->getReturnUrl($request));
+        }
         
         if ($request->isMethod('post')) {         
             // add transaction

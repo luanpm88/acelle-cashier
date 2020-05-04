@@ -449,4 +449,5 @@
         <br><a href=":url"><strong>Click here</strong></a> to see more details.',
     'change_plan_pending' => 'You are changing to <strong>:plan</strong> plan with amount: <strong>:amount</strong>.
         <br><a href=":url"><strong>Click here</strong></a> to see more details.',
+    'change_plan.failed' => 'Can not change plan: :error',
 ) ?>
