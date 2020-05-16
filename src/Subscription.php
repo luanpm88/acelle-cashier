@@ -712,6 +712,26 @@ class Subscription extends Model
     }
 
     /**
+     * Check if is renew pending
+     *
+     * @return void
+     */
+    public function hasRenewPending()
+    {
+        return ($this->hasError() &&  in_array($this->getError()["type"], ['renew']));
+    }
+
+    /**
+     * Check if is renew pending
+     *
+     * @return void
+     */
+    public function hasChangePlanPending()
+    {
+        return ($this->hasError() &&  in_array($this->getError()["type"], ['change_plan']));
+    }
+
+    /**
      * Check if can renew free plan
      *
      * @return void
