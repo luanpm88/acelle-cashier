@@ -716,11 +716,11 @@ class Subscription extends Model
      *
      * @return void
      */
-    public function canRenewFreePlan()
+    public function canRenewPlan()
     {
         return (
             config('cashier.renew_free_plan') == 'yes' ||
-            (config('cashier.renew_free_plan') == 'no' && !$subscription->plan->getBillableAmount() == 0)
+            (config('cashier.renew_free_plan') == 'no' && $this->plan->getBillableAmount() > 0)
         );
     }
 }

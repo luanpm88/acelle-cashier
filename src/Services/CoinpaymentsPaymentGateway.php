@@ -43,7 +43,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 
         if (!$subscription->hasError()) {
             // check renew pending
-            if ($subscription->isExpiring() && $subscription->canRenewFreePlan()) {
+            if ($subscription->isExpiring() && $subscription->canRenewPlan()) {
                 $subscription->error = json_encode([
                     'status' => 'warning',
                     'type' => 'renew',
@@ -412,7 +412,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                         ]),
                     ]);
                 } else {
-                    if ($subscription->isExpiring() && $subscription->canRenewFreePlan()) {
+                    if ($subscription->isExpiring() && $subscription->canRenewPlan()) {
                         $subscription->error = json_encode([
                             'status' => 'error',
                             'type' => 'change_plan_failed',                    
@@ -988,7 +988,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             ]);
 
             // add error notice
-            if ($subscription->isExpiring() && $subscription->canRenewFreePlan()) {
+            if ($subscription->isExpiring() && $subscription->canRenewPlan()) {
                 $subscription->error = json_encode([
                     'status' => 'error',
                     'type' => 'change_plan_rejected',                    

@@ -385,7 +385,7 @@ class CoinpaymentsController extends Controller
                     ]);
 
                     // set subscription last_error_type
-                    if ($subscription->isExpiring() && $subscription->canRenewFreePlan()) {
+                    if ($subscription->isExpiring() && $subscription->canRenewPlan()) {
                         $subscription->error = json_encode([
                             'status' => 'error',
                             'type' => 'change_plan_failed',                    

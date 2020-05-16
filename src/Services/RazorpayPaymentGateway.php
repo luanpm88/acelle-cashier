@@ -540,7 +540,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
 
         if (!$subscription->hasError()) {
             // check renew pending
-            if ($subscription->isExpiring() && $subscription->canRenewFreePlan()) {
+            if ($subscription->isExpiring() && $subscription->canRenewPlan()) {
                 $subscription->error = json_encode([
                     'status' => 'warning',
                     'type' => 'renew',
