@@ -197,8 +197,10 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function getInitTransaction($subscription)
     {
-        $transaction = $subscription->subscriptionTransactions()->first();
-        return $transaction;
+        return $subscription->subscriptionTransactions()
+            ->where('type', '=', SubscriptionTransaction::TYPE_SUBSCRIBE)
+            ->orderBy('created_at', 'desc')
+            ->first();
     }
 
     /**
