@@ -89,6 +89,7 @@
                     data-image="https://stripe.com/img/documentation/checkout/marketplace.png"
                     data-locale="{{ language_code() }}"
                     data-zip-code="true"
+                    data-billing-address="{{ $service->billing_address_required == 'yes' ? 'true' : 'false' }}"
                     data-label="{{ trans('messages.pay_with_strip_label_button') }}">
                     </script>
                 </form>

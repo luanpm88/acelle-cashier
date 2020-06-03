@@ -38,7 +38,8 @@ class Cashier
                 return new \Acelle\Cashier\Services\StripePaymentGateway(
                     $config['fields']['secret_key'],
                     $config['fields']['publishable_key'],
-                    $config['fields']['always_ask_for_valid_card']
+                    $config['fields']['always_ask_for_valid_card'],
+                    $config['fields']['billing_address_required']
                 );
             case 'braintree':
                 return new \Acelle\Cashier\Services\BraintreePaymentGateway(

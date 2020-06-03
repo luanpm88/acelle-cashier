@@ -19,6 +19,7 @@ return [
                 'publishable_key' => null,
                 'secret_key' => null,
                 'always_ask_for_valid_card' => 'no',
+                'billing_address_required' => 'no',
             ],
         ],
         'braintree' => [
