@@ -29,12 +29,6 @@ trait BillableUserTrait
         return $this->subscriptions()->first();
     }
 
-    public function subscriptionValid()
-    {
-        $subscription = $this->subscription();
-        return is_object($subscription) && $subscription->valid();
-    }
-
     /**
      * Begin creating a new subscription.
      *

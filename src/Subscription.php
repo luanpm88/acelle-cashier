@@ -168,26 +168,6 @@ class Subscription extends Model
     }
 
     /**
-     * Determine if the subscription is active, on trial, or within its grace period.
-     *
-     * @return bool
-     */
-    public function valid()
-    {
-        return $this->active() || $this->onTrial() || $this->onGracePeriod();
-    }
-
-    /**
-     * Determine if the subscription is active.
-     *
-     * @return bool
-     */
-    public function active()
-    {
-        return (is_null($this->ends_at) || $this->onGracePeriod()) && !$this->isPending() && !$this->isNew();
-    }
-
-    /**
      * Determine if the subscription is active.
      *
      * @return bool
@@ -293,16 +273,6 @@ class Subscription extends Model
         $this->status = self::STATUS_ACTIVE;
         $this->started_at = \Carbon\Carbon::now();
         $this->save();
-    }
-
-    /**
-     * Determine if the subscription has ended and the grace period has expired.
-     *
-     * @return bool
-     */
-    public function ended()
-    {
-        return $this->cancelled() && ! $this->onGracePeriod();
     }
 
     /**
