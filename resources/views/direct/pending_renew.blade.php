@@ -11,7 +11,7 @@
 
     <div class="page-title">
         <ul class="breadcrumb breadcrumb-caret position-right">
-            <li><a href="{{ action("HomeController@index") }}">{{ trans('messages.home') }}</a></li>
+            <li><a href="{{ \Acelle\Cashier\Cashier::lr_action("HomeController@index") }}">{{ trans('messages.home') }}</a></li>
             <li class="active">{{ trans('messages.subscription') }}</li>
         </ul>
     </div>
@@ -70,7 +70,7 @@
                 {!! $service->getPaymentInstruction() !!}
                 </div>
                 <hr>
-                <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@pendingClaim', ['subscription_id' => $subscription->uid]) }}">
+                <form method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@pendingClaim', ['subscription_id' => $subscription->uid]) }}">
                     {{ csrf_field() }}
                     
                     <div class="d-flex align-items-center">
@@ -131,7 +131,7 @@
                     </li>
                 </ul>          
                 
-                <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@pendingUnclaim', [
+                <form method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@pendingUnclaim', [
                     'subscription_id' => $subscription->uid,
                     'transaction_id' => $transaction['ID'],
                 ]) }}">

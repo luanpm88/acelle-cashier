@@ -4,7 +4,7 @@
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
             
-        <link rel="stylesheet" href="{{ url('/vendor/acelle-cashier/css/main.css') }}">
+        <link rel="stylesheet" href="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
     </head>
     
     <body>
@@ -17,7 +17,7 @@
                     </strong>
                 </label>
                 <div class="text-center">
-                    <img width="60%" src="{{ url('/vendor/acelle-cashier/image/paypal-logo.png') }}" />
+                    <img width="60%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/paypal-logo.png') }}" />
                 </div>
             </div>
             <div class="col-md-4 mt-40 pd-60">
@@ -57,7 +57,7 @@
                 </ul>
 
                 @if ($newPlan->price == 0)
-                    <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\PaypalController@changePlan', ['subscription_id' => $subscription->uid]) }}">
+                    <form method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaypalController@changePlan', ['subscription_id' => $subscription->uid]) }}">
                         {{ csrf_field() }}
                         <input type='hidden' name='plan_id' value='{{ $newPlan->getBillableId() }}' />
                         
@@ -84,7 +84,7 @@
 
                     <script>
                         var form = jQuery('<form>', {
-                            'action': '{{ action('\Acelle\Cashier\Controllers\PaypalController@paymentRedirect') }}',
+                            'action': '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaypalController@paymentRedirect') }}',
                             'target': '_top',
                             'method': 'GET'
                         }).append(jQuery('<input>', {
@@ -120,7 +120,7 @@
                                     }));
                                     form.append(jQuery('<input>', {
                                         'name': 'redirect',
-                                        'value': '{{ action('\Acelle\Cashier\Controllers\PaypalController@changePlan', $subscription->uid) }}',
+                                        'value': '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaypalController@changePlan', $subscription->uid) }}',
                                         'type': 'hidden'
                                     }));
                                     form.submit();

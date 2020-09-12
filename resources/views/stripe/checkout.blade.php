@@ -3,7 +3,7 @@
         <title>{{ trans('cashier::messages.stripe.checkout.page_title') }}</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
-        <link rel="stylesheet" href="{{ url('/vendor/acelle-cashier/css/main.css') }}">
+        <link rel="stylesheet" href="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
     </head>
     
     <body>
@@ -15,7 +15,7 @@
                         {{ trans('cashier::messages.stripe.checkout_with_stripe') }}
                     </strong>
                 </label>
-                <img class="rounded" width="100%" src="{{ url('/vendor/acelle-cashier/image/stripe.png') }}" />
+                <img class="rounded" width="100%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/stripe.png') }}" />
             </div>
             <div class="col-md-4 mt-40 pd-60">                
                 <label>{{ $subscription->plan->getBillableName() }}</label>  
@@ -48,7 +48,7 @@
                             </li>
                         </ul>
                         
-                        <a href="{{ action('\Acelle\Cashier\Controllers\StripeController@charge', [
+                        <a href="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@charge', [
                             'subscription_id' => $subscription->uid,
                         ]) }}" class="btn btn-primary mr-2">{{ trans('cashier::messages.stripe.pay_with_this_card') }}</a>
                         <a href="javascript:;" class="btn btn-secondary" onclick="$('#stripe_button button').click()">{{ trans('cashier::messages.stripe.pay_with_new_card') }}</a>
@@ -62,7 +62,7 @@
                     <a href="javascript:;" class="btn btn-secondary full-width" onclick="$('#stripe_button button').click()">{{ trans('cashier::messages.stripe.pay') }}</a>
                 @endif
 
-                <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\StripeController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
+                <form method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
                     {{ csrf_field() }}
                     
                     <a href="javascript:;" onclick="$(this).closest('form').submit()"
@@ -70,11 +70,11 @@
                     >{{ trans('cashier::messages.stripe.cancel_new_subscription') }}</a>
                 </form>
                 
-                <form id="stripe_button" style="display: none" action="{{ action('\Acelle\Cashier\Controllers\StripeController@updateCard', [
+                <form id="stripe_button" style="display: none" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@updateCard', [
                     '_token' => csrf_token(),
                     'subscription_id' => $subscription->uid,
                 ]) }}" method="POST">
-                    <input type="hidden" name="redirect" value="{{ action('\Acelle\Cashier\Controllers\StripeController@charge', [
+                    <input type="hidden" name="redirect" value="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@charge', [
                         'subscription_id' => $subscription->uid,
                     ]) }}" />
 

@@ -11,7 +11,7 @@
 
     <div class="page-title">
         <ul class="breadcrumb breadcrumb-caret position-right">
-            <li><a href="{{ action("HomeController@index") }}">{{ trans('messages.home') }}</a></li>
+            <li><a href="{{ \Acelle\Cashier\Cashier::lr_action("HomeController@index") }}">{{ trans('messages.home') }}</a></li>
             <li class="active">{{ trans('messages.subscription') }}</li>
         </ul>
     </div>
@@ -70,7 +70,7 @@
                 </li>
             </ul>          
             
-            <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@pendingUnclaim', [
+            <form method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@pendingUnclaim', [
                 'subscription_id' => $subscription->uid,
                 'transaction_id' => $transaction['ID'],
             ]) }}">
@@ -78,7 +78,7 @@
 
             </form>
             <br>
-                <form class="mt-4" method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
+                <form class="mt-4" method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
                     {{ csrf_field() }}
                     
                     <a href="javascript:;" onclick="$(this).closest('form').submit()"

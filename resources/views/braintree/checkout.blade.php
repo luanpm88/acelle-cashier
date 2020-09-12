@@ -3,7 +3,7 @@
         <title>{{ trans('cashier::messages.braintree.checkout.page_title') }}</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
-        <link rel="stylesheet" href="{{ url('/vendor/acelle-cashier/css/main.css') }}">
+        <link rel="stylesheet" href="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
 
         <style>
             .braintree-placeholder {display:none}
@@ -19,7 +19,7 @@
                         {{ trans('cashier::messages.braintree.checkout_with_braintree') }}
                     </strong>
                 </label>
-                <img class="rounded" width="100%" src="{{ url('/vendor/acelle-cashier/image/braintree.png') }}" />
+                <img class="rounded" width="100%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/braintree.png') }}" />
             </div>
             <div class="col-md-4 mt-40 pd-60">                
                 <label>{{ $subscription->plan->getBillableName() }}</label>  
@@ -52,7 +52,7 @@
                             </li>
                         </ul>
                         
-                        <a style="width: 100%;" href="{{ action('\Acelle\Cashier\Controllers\BraintreeController@charge', [
+                        <a style="width: 100%;" href="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@charge', [
                             'subscription_id' => $subscription->uid,
                         ]) }}" class="btn btn-primary mr-2">{{ trans('cashier::messages.braintree.pay_with_this_card') }}</a>
                         <!--
@@ -67,7 +67,7 @@
                 
                 <a style="width: 100%" id="submit-button" href="javascript:;" class="btn btn-secondary full-width mt-10">{{ trans('cashier::messages.braintree.pay') }}</a>
                 
-                <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\BraintreeController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
+                <form method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
                     {{ csrf_field() }}
                     
                     <a href="javascript:;" onclick="$(this).closest('form').submit()"
@@ -75,12 +75,12 @@
                     >{{ trans('cashier::messages.stripe.cancel_new_subscription') }}</a>
                 </form>
                     
-                <form id="updateCard" style="display: none" action="{{ action('\Acelle\Cashier\Controllers\BraintreeController@updateCard', [
+                <form id="updateCard" style="display: none" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@updateCard', [
                     'subscription_id' => $subscription->uid,
                 ]) }}" method="POST">
                     {{ csrf_field() }}
                     <input type="hidden" name="nonce" value="" />
-                    <input type="hidden" name="redirect" value="{{ action('\Acelle\Cashier\Controllers\BraintreeController@charge', [
+                    <input type="hidden" name="redirect" value="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@charge', [
                         'subscription_id' => $subscription->uid,
                     ]) }}" />
                 </form>

@@ -1061,7 +1061,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     //     return trans('cashier::messages.paypal_subscription.has_transaction_pending', [
     //         'description' => $transaction->title,
     //         'amount' => $transaction->amount,
-    //         'url' => $this->getTransactionPendingUrl($subscription, action('AccountSubscriptionController@index')),
+    //         'url' => $this->getTransactionPendingUrl($subscription, \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index')),
     //     ]);
     // }
     
@@ -1072,7 +1072,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function getRenewUrl($subscription, $returnUrl='/')
     {
-        return action("\Acelle\Cashier\Controllers\\PaypalSubscriptionController@renew", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\PaypalSubscriptionController@renew", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);
@@ -1084,7 +1084,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      * @return string
      */
     public function getCheckoutUrl($subscription, $returnUrl='/') {
-        return action("\Acelle\Cashier\Controllers\PaypalSubscriptionController@checkout", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaypalSubscriptionController@checkout", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);
@@ -1097,7 +1097,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/')
     {
-        return action("\Acelle\Cashier\Controllers\\PaypalSubscriptionController@changePlan", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\PaypalSubscriptionController@changePlan", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
             'plan_id' => $plan_id,
@@ -1111,7 +1111,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function getPendingUrl($subscription, $returnUrl='/')
     {
-        return action("\Acelle\Cashier\Controllers\\PaypalSubscriptionController@pending", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\PaypalSubscriptionController@pending", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);
@@ -1124,7 +1124,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function getTransactionPendingUrl($subscription, $returnUrl='/')
     {
-        return action("\Acelle\Cashier\Controllers\\PaypalSubscriptionController@transactionPending", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\PaypalSubscriptionController@transactionPending", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);
@@ -1137,7 +1137,7 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function getChangePlanPendingUrl($subscription, $returnUrl='/')
     {
-        return action("\Acelle\Cashier\Controllers\\PaypalSubscriptionController@ChangePlanpending", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\PaypalSubscriptionController@ChangePlanpending", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);

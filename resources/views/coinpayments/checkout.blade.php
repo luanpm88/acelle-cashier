@@ -98,7 +98,7 @@
                     </strong>
                 </label>
                 <div class="logo-wrapper">
-                    <img width="100%" src="{{ url('/vendor/acelle-cashier/image/coinpayments.png') }}" />
+                    <img width="100%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/coinpayments.png') }}" />
                 </div>
             </div>
             <div class="col-md-4 mt-40 pd-60">
@@ -138,11 +138,11 @@
                         </li>
                     </ul>
                     
-                    <a href="{{ action('\Acelle\Cashier\Controllers\CoinpaymentsController@charge', [
+                    <a href="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\CoinpaymentsController@charge', [
                         'subscription_id' => $subscription->uid,
                     ]) }}" class="btn btn-secondary">{{ trans('cashier::messages.coinpayments.pay_now') }}</a>
                     
-                    <form class="mt-5" method="POST" action="{{ action('\Acelle\Cashier\Controllers\CoinpaymentsController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
+                    <form class="mt-5" method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\CoinpaymentsController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
                         {{ csrf_field() }}
                         
                         <a href="javascript:;" onclick="$(this).closest('form').submit()"

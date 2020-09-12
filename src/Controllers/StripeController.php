@@ -14,9 +14,9 @@ use Acelle\Cashier\Services\StripePaymentGateway;
 class StripeController extends Controller
 {
     public function getReturnUrl(Request $request) {
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
 
         return $return_url;
@@ -84,7 +84,7 @@ class StripeController extends Controller
                 $subscription->delete();
 
                 $request->session()->flash('alert-error', trans('messages.operation_not_allowed_in_demo'));
-                return redirect()->action('\Acelle\Http\Controllers\AccountSubscriptionController@selectPlan');
+                return redirect()->Cashier::lr_action('\Acelle\Http\Controllers\AccountSubscriptionController@selectPlan');
             }
 
             $service = $this->getPaymentService();
@@ -100,8 +100,8 @@ class StripeController extends Controller
                   'currency' => $subscription->plan->getBillableCurrency(),
                   'quantity' => 1,
                 ]],
-                'success_url' => url('/'),
-                'cancel_url' => action('\Acelle\Http\Controllers\AccountSubscriptionController@index'),
+                'success_url' => Cashier::public_url('/'),
+                'cancel_url' => \Acelle\Cashier\Cashier::lr_action('\Acelle\Http\Controllers\AccountSubscriptionController@index'),
             ]);
             
             $subscription->delete();
@@ -418,9 +418,9 @@ class StripeController extends Controller
             $subscription->setEnded();
         }
 
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
 
         // Redirect to my subscription page

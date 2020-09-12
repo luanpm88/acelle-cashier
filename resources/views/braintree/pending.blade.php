@@ -3,7 +3,7 @@
         <title>{{ trans('cashier::messages.braintree.pending.page_title') }}</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
-        <link rel="stylesheet" href="{{ url('/vendor/acelle-cashier/css/main.css') }}">
+        <link rel="stylesheet" href="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
 
         <style>
             .braintree-placeholder {display:none}
@@ -19,7 +19,7 @@
                         {{ trans('cashier::messages.braintree.pending.page_title') }}
                     </strong>
                 </label>
-                <img width="100%" src="{{ url('/vendor/acelle-cashier/image/braintree.png') }}" />
+                <img width="100%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/braintree.png') }}" />
             </div>
             <div class="col-md-4 mt-40 pd-60">
                 <label>{{ $subscription->plan->getBillableName() }}</label>  

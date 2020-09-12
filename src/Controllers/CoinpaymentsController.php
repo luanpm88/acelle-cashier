@@ -24,9 +24,9 @@ class CoinpaymentsController extends Controller
      * @return string
      **/
     public function getReturnUrl(Request $request) {
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
 
         return $return_url;
@@ -257,9 +257,9 @@ class CoinpaymentsController extends Controller
                         'type' => 'renew_failed',
                         'message' => trans('cashier::messages.renew_failed_with_error', [
                             'error' => $e->getMessage(),
-                            'link' => action('\Acelle\Cashier\Controllers\CoinpaymentsController@renew', [
+                            'link' => \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\CoinpaymentsController@renew', [
                                 'subscription_id' => $subscription->uid,
-                                'return_url' => action('AccountSubscriptionController@index'),
+                                'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                             ]),
                         ]),
                     ]);
@@ -284,7 +284,7 @@ class CoinpaymentsController extends Controller
                     'message' => trans('cashier::messages.renew_pending', [
                         'plan' => $subscription->plan->getBillableName(),
                         'amount' => $transaction->amount,
-                        'url' => action('\Acelle\Cashier\Controllers\CoinpaymentsController@transactionPending', [
+                        'url' => \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\CoinpaymentsController@transactionPending', [
                             'subscription_id' => $subscription->uid,
                         ]),
                     ]),
@@ -392,9 +392,9 @@ class CoinpaymentsController extends Controller
                             'message' => trans('cashier::messages.change_plan_failed_with_renew', [
                                 'error' => $e->getMessage(),
                                 'date' => $subscription->current_period_ends_at,
-                                'link' => action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
+                                'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
                                     'subscription_id' => $subscription->uid,
-                                    'return_url' => action('AccountSubscriptionController@index'),
+                                    'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                                 ]),
                             ]),
                         ]);
@@ -428,7 +428,7 @@ class CoinpaymentsController extends Controller
                     'message' => trans('cashier::messages.change_plan_pending', [
                         'plan' => $plan->getBillableName(),
                         'amount' => $transaction->amount,
-                        'url' => action('\Acelle\Cashier\Controllers\CoinpaymentsController@transactionPending', [
+                        'url' => \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\CoinpaymentsController@transactionPending', [
                             'subscription_id' => $subscription->uid,
                         ]),
                     ]),
@@ -479,9 +479,9 @@ class CoinpaymentsController extends Controller
             $subscription->setEnded();
         }
 
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
 
         // Redirect to my subscription page

@@ -34,9 +34,9 @@ class PaypalSubscriptionController extends Controller
      * @return string
      **/
     public function getReturnUrl(Request $request) {
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
 
         return $return_url;
@@ -249,7 +249,7 @@ class PaypalSubscriptionController extends Controller
                         'description' => $transaction->title,
                         'amount' => $transaction->amount,
                         'plan' => $plan->getBillableName(),
-                        'url' => $service->getTransactionPendingUrl($subscription, action('AccountSubscriptionController@index')),
+                        'url' => $service->getTransactionPendingUrl($subscription, \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index')),
                     ]),
                 ]);
                 $subscription->save();

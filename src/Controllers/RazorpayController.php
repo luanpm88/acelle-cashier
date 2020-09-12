@@ -18,9 +18,9 @@ class RazorpayController extends Controller
     }
 
     public function getReturnUrl(Request $request) {
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
 
         return $return_url;
@@ -215,9 +215,9 @@ class RazorpayController extends Controller
                         'type' => 'renew_failed',
                         'message' => trans('cashier::messages.renew_failed_with_error', [
                             'error' => $e->getMessage(),
-                            'link' => action('\Acelle\Cashier\Controllers\RazorpayController@renew', [
+                            'link' => \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\RazorpayController@renew', [
                                 'subscription_id' => $subscription->uid,
-                                'return_url' => action('AccountSubscriptionController@index'),
+                                'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                             ]),
                         ]),
                     ]);
@@ -338,9 +338,9 @@ class RazorpayController extends Controller
                             'message' => trans('cashier::messages.change_plan_failed_with_renew', [
                                 'error' => $e->getMessage(),
                                 'date' => $subscription->current_period_ends_at,
-                                'link' => action("\Acelle\Cashier\Controllers\\RazorpayController@renew", [
+                                'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\RazorpayController@renew", [
                                     'subscription_id' => $subscription->uid,
-                                    'return_url' => action('AccountSubscriptionController@index'),
+                                    'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                                 ]),
                             ]),
                         ]);
@@ -462,9 +462,9 @@ class RazorpayController extends Controller
             $subscription->setEnded();
         }
 
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
 
         // Redirect to my subscription page

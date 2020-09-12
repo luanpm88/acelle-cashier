@@ -102,7 +102,7 @@
                         {{ trans('cashier::messages.coinpayments.change_plan') }}
                     </strong>
                 </label>
-                <img width="100%" src="{{ url('/vendor/acelle-cashier/image/coinpayments.png') }}" />
+                <img width="100%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/coinpayments.png') }}" />
             </div>
             <div class="col-md-4 mt-40 pd-60">
                 <label>{{ $newPlan->getBillableName() }}</label>  
@@ -139,7 +139,7 @@
                     </li>
                 </ul>
                 
-                <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\CoinpaymentsController@changePlan', ['subscription_id' => $subscription->uid]) }}">
+                <form method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\CoinpaymentsController@changePlan', ['subscription_id' => $subscription->uid]) }}">
                     {{ csrf_field() }}
                     <input type='hidden' name='plan_id' value='{{ $newPlan->getBillableId() }}' />
                     

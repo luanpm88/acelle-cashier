@@ -34,9 +34,9 @@ class PaypalController extends Controller
      * @return string
      **/
     public function getReturnUrl(Request $request) {
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
 
         return $return_url;
@@ -55,9 +55,9 @@ class PaypalController extends Controller
         $subscription = Subscription::findByUid($subscription_id);
 
         // return url
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
         
         // Save return url
@@ -173,9 +173,9 @@ class PaypalController extends Controller
         }
 
         // return url
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
 
         // calc plan before change
@@ -229,9 +229,9 @@ class PaypalController extends Controller
                             'message' => trans('cashier::messages.change_plan_failed_with_renew', [
                                 'error' => $e->getMessage(),
                                 'date' => $subscription->current_period_ends_at,
-                                'link' => action("\Acelle\Cashier\Controllers\\PaypalController@renew", [
+                                'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\PaypalController@renew", [
                                     'subscription_id' => $subscription->uid,
-                                    'return_url' => action('AccountSubscriptionController@index'),
+                                    'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                                 ]),
                             ]),
                         ]);
@@ -310,9 +310,9 @@ class PaypalController extends Controller
         }
 
         // return url
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
         
         if ($request->isMethod('post')) {
@@ -350,9 +350,9 @@ class PaypalController extends Controller
                         'type' => 'renew_failed',
                         'message' => trans('cashier::messages.renew_failed_with_error', [
                             'error' => $e->getMessage(),
-                            'link' => action('\Acelle\Cashier\Controllers\PaypalController@renew', [
+                            'link' => \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaypalController@renew', [
                                 'subscription_id' => $subscription->uid,
-                                'return_url' => action('AccountSubscriptionController@index'),
+                                'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                             ]),
                         ]),
                     ]);

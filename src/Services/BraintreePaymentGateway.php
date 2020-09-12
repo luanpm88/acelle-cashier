@@ -199,7 +199,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      * @return string
      */
     public function getCheckoutUrl($subscription, $returnUrl='/') {
-        return action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);
@@ -212,7 +212,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      */
     public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/')
     {
-        return action("\Acelle\Cashier\Controllers\\BraintreeController@changePlan", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\BraintreeController@changePlan", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
             'plan_id' => $plan_id,
@@ -274,9 +274,9 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
                 'type' => 'renew',
                 'message' => trans('cashier::messages.renew.card_error', [
                     'date' => $subscription->current_period_ends_at,
-                    'link' => action("\Acelle\Cashier\Controllers\\BraintreeController@fixPayment", [
+                    'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\BraintreeController@fixPayment", [
                         'subscription_id' => $subscription->uid,
-                        'return_url' => action('AccountSubscriptionController@index'),
+                        'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                     ]),
                 ]),
             ]);

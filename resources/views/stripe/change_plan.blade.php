@@ -3,7 +3,7 @@
         <title>{{ trans('cashier::messages.stripe.change_plan') }}</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>            
-        <link rel="stylesheet" href="{{ url('/vendor/acelle-cashier/css/main.css') }}">
+        <link rel="stylesheet" href="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
     </head>
     
     <body>
@@ -15,7 +15,7 @@
                         {{ trans('cashier::messages.stripe.change_plan') }}
                     </strong>
                 </label>
-                <img class="rounded" width="100%" src="{{ url('/vendor/acelle-cashier/image/stripe.png') }}" />
+                <img class="rounded" width="100%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/stripe.png') }}" />
             </div>
             <div class="col-md-4 mt-40 pd-60">                
                 <label>{{ trans('cashier::messages.stripe.change_plan') }}</label>  
@@ -54,7 +54,7 @@
                 </ul>
                 
                 @if($amount == 0)
-                    <a href="{{ action('\Acelle\Cashier\Controllers\StripeController@changePlanPending', [
+                    <a href="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@changePlanPending', [
                         'subscription_id' => $subscription->uid,
                         'plan_id' => $newPlan->getBillableId(),
                     ]) }}" class="btn btn-primary mr-2 mb-4">{{ trans('cashier::messages.stripe.change_plan_proceed') }}</a>
@@ -97,7 +97,7 @@
                             </li>
                         </ul>
                         
-                        <a href="{{ action('\Acelle\Cashier\Controllers\StripeController@changePlanPending', [
+                        <a href="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@changePlanPending', [
                             'subscription_id' => $subscription->uid,
                             'plan_id' => $newPlan->getBillableId(),
                         ]) }}" class="btn btn-primary mr-2">{{ trans('cashier::messages.stripe.pay_with_this_card') }}</a>
@@ -111,11 +111,11 @@
                     >{{ trans('cashier::messages.stripe.return_back') }}</a>
                 @endif
 
-                <form id="stripe_button" style="display: none" action="{{ action('\Acelle\Cashier\Controllers\StripeController@updateCard', [
+                <form id="stripe_button" style="display: none" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@updateCard', [
                     '_token' => csrf_token(),
                     'subscription_id' => $subscription->uid,
                 ]) }}" method="POST">
-                    <input type="hidden" name="redirect" value="{{ action('\Acelle\Cashier\Controllers\StripeController@changePlanPending', [
+                    <input type="hidden" name="redirect" value="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@changePlanPending', [
                         'subscription_id' => $subscription->uid,
                         'plan_id' => $newPlan->getBillableId(),
                     ]) }}" />

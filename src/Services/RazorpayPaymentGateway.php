@@ -116,7 +116,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      * @return string
      */
     public function getCheckoutUrl($subscription, $returnUrl='/') {
-        return action("\Acelle\Cashier\Controllers\RazorpayController@checkout", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\RazorpayController@checkout", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);
@@ -350,7 +350,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      */
     public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/')
     {
-        return action("\Acelle\Cashier\Controllers\\RazorpayController@changePlan", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\RazorpayController@changePlan", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
             'plan_id' => $plan_id,
@@ -364,7 +364,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      */
     public function getRenewUrl($subscription, $returnUrl='/')
     {
-        return action("\Acelle\Cashier\Controllers\\RazorpayController@renew", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\RazorpayController@renew", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);
@@ -546,9 +546,9 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
                     'type' => 'renew',
                     'message' => trans('cashier::messages.renew.warning', [
                         'date' => $subscription->current_period_ends_at,
-                        'link' => action("\Acelle\Cashier\Controllers\\RazorpayController@renew", [
+                        'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\RazorpayController@renew", [
                             'subscription_id' => $subscription->uid,
-                            'return_url' => action('AccountSubscriptionController@index'),
+                            'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                         ]),
                     ]),
                 ]);

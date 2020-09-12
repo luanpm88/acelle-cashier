@@ -19,9 +19,9 @@ class BraintreeController extends Controller
      * @return string
      **/
     public function getReturnUrl(Request $request) {
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
 
         return $return_url;
@@ -150,7 +150,7 @@ class BraintreeController extends Controller
         // subscription and service
         $subscription = Subscription::findByUid($subscription_id);
         $service = $this->getPaymentService();
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
 
         if ($request->isMethod('post')) {
             // add transaction
@@ -237,9 +237,9 @@ class BraintreeController extends Controller
         
         $service->sync($subscription);
         
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
         
         if (!$subscription->isPending()) {
@@ -403,9 +403,9 @@ class BraintreeController extends Controller
             $subscription->setEnded();
         }
 
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
 
         // Redirect to my subscription page
@@ -436,7 +436,7 @@ class BraintreeController extends Controller
             $service->renew($subscription);
 
             // Redirect to my subscription page
-            return redirect()->action('\Acelle\Cashier\Controllers\BraintreeController@pending', [
+            return redirect()->Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@pending', [
                 'subscription_id' => $subscription->uid,
             ]);
         }

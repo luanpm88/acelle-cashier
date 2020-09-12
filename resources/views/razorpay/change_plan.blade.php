@@ -4,7 +4,7 @@
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
             
-        <link rel="stylesheet" href="{{ url('/vendor/acelle-cashier/css/main.css') }}">
+        <link rel="stylesheet" href="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
     </head>
     
     <body>
@@ -17,7 +17,7 @@
                     </strong>
                 </label>
                 <div class="text-center">
-                    <img width="60%" src="{{ url('/vendor/acelle-cashier/image/razorpay.png') }}" />
+                    <img width="60%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/razorpay.png') }}" />
                 </div>
             </div>
             <div class="col-md-4 mt-40 pd-60">
@@ -57,7 +57,7 @@
                 </ul>
 
                 @if ($newPlan->price == 0)
-                    <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\RazorpayController@changePlan', ['subscription_id' => $subscription->uid]) }}">
+                    <form method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\RazorpayController@changePlan', ['subscription_id' => $subscription->uid]) }}">
                         {{ csrf_field() }}
                         <input type='hidden' name='plan_id' value='{{ $newPlan->getBillableId() }}' />
                         
@@ -81,7 +81,7 @@
                     </a>
 
                     <div class="hide" style="display:none">
-                        <form action="{{ action('\Acelle\Cashier\Controllers\RazorpayController@changePlan', [
+                        <form action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\RazorpayController@changePlan', [
                         '_token' => csrf_token(),
                         'subscription_id' => $subscription->uid,
                         'plan_id' => $newPlan->getBillableId(),
@@ -96,7 +96,7 @@
                                 data-buttontext="{{ trans('cashier::messages.razorpay.pay_with_razorpay') }}"
                                 data-name="{{ $newPlan->getBillableName() }}"
                                 data-description="{{ $newPlan->description }}"
-                                data-image="{{ \Acelle\Model\Setting::get('site_logo_small') ? action('SettingController@file', \Acelle\Model\Setting::get('site_logo_small')) : URL::asset('images/default_site_logo_small_' . (Auth::user()->customer->getColorScheme() == "white" ? "dark" : "light") . '.png') }}"
+                                data-image="{{ \Acelle\Model\Setting::get('site_logo_small') ? \Acelle\Cashier\Cashier::lr_action('SettingController@file', \Acelle\Model\Setting::get('site_logo_small')) : URL::asset('images/default_site_logo_small_' . (Auth::user()->customer->getColorScheme() == "white" ? "dark" : "light") . '.png') }}"
                                 data-prefill.email="{{ $subscription->user->getBillableEmail() }}"
                                 data-theme.color="#F37254"
                                 data-customer_id="{{ $customer["id"] }}"

@@ -54,9 +54,9 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
                     'type' => 'renew',
                     'message' => trans('cashier::messages.renew.warning', [
                         'date' => $subscription->current_period_ends_at,
-                        'link' => action("\Acelle\Cashier\Controllers\\DirectController@renew", [
+                        'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\DirectController@renew", [
                             'subscription_id' => $subscription->uid,
-                            'return_url' => action('AccountSubscriptionController@index'),
+                            'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                         ]),
                     ]),
                 ]);
@@ -329,9 +329,9 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
                 'message' => trans('cashier::messages.rejected', [
                     'reason' => $reason,
                     'date' => $subscription->current_period_ends_at,
-                    'link' => action("\Acelle\Cashier\Controllers\\DirectController@renew", [
+                    'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\DirectController@renew", [
                         'subscription_id' => $subscription->uid,
-                        'return_url' => action('AccountSubscriptionController@index'),
+                        'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                     ]),
                 ]),
             ]);
@@ -352,9 +352,9 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
                     'message' => trans('cashier::messages.change_plan_rejected_with_renew', [
                         'reason' => $reason,
                         'date' => $subscription->current_period_ends_at,
-                        'link' => action("\Acelle\Cashier\Controllers\\DirectController@renew", [
+                        'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\DirectController@renew", [
                             'subscription_id' => $subscription->uid,
-                            'return_url' => action('AccountSubscriptionController@index'),
+                            'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                         ]),
                     ]),
                 ]);
@@ -385,7 +385,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
      */
     public function getPendingUrl($subscription, $returnUrl='/')
     {
-        return action("\Acelle\Cashier\Controllers\\DirectController@pending", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\DirectController@pending", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);
@@ -397,7 +397,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
      * @return string
      */
     public function getCheckoutUrl($subscription, $returnUrl='/') {
-        return action("\Acelle\Cashier\Controllers\DirectController@checkout", [
+        return \Acelle\Cashier\Cashier::wp_action("\Acelle\Cashier\Controllers\DirectController@checkout", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);
@@ -410,7 +410,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
      */
     public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/')
     {
-        return action("\Acelle\Cashier\Controllers\\DirectController@changePlan", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\DirectController@changePlan", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
             'plan_id' => $plan_id,
@@ -424,7 +424,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
      */
     public function getRenewUrl($subscription, $returnUrl='/')
     {
-        return action("\Acelle\Cashier\Controllers\\DirectController@renew", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\DirectController@renew", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);

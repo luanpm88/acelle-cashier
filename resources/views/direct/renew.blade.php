@@ -3,7 +3,7 @@
         <title>{{ trans('cashier::messages.direct.renew_subscription') }}</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
-        <link rel="stylesheet" href="{{ url('/vendor/acelle-cashier/css/main.css') }}">
+        <link rel="stylesheet" href="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
     </head>
     
     <body>
@@ -15,7 +15,7 @@
                         {{ trans('cashier::messages.direct.renew_subscription') }}
                     </strong>
                 </label>
-                <img width="100%" src="{{ url('/vendor/acelle-cashier/image/direct.png') }}" />
+                <img width="100%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/direct.png') }}" />
             </div>
             <div class="col-md-4 mt-40 pd-60">
                 <label>{{ $subscription->plan->getBillableName() }}</label>  
@@ -52,7 +52,7 @@
                     </li>
                 </ul>
                 
-                <form method="POST" action="{{ action('\Acelle\Cashier\Controllers\DirectController@renew', ['subscription_id' => $subscription->uid]) }}">
+                <form method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@renew', ['subscription_id' => $subscription->uid]) }}">
                     {{ csrf_field() }}
                     
                     <button

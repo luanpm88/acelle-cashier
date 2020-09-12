@@ -20,7 +20,7 @@
             <div class="col-md-2"></div>
             <div class="col-md-8 text-center" style="margin-top: 30vh">
                 <div class="mb-40">
-                    <img src="{{ url('images/loading.gif') }}" />
+                    <img src="{{ \Acelle\Cashier\Cashier::public_url('images/loading.gif') }}" />
                 </div>
                 <h1 class="text-semibold mb-10">{!! trans('cashier::messages.stripe.checkout.processing_payment') !!}</h1>
         

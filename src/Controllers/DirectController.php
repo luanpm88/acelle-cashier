@@ -23,9 +23,9 @@ class DirectController extends Controller
      * @return string
      **/
     public function getReturnUrl(Request $request) {
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
 
         return $return_url;
@@ -87,7 +87,7 @@ class DirectController extends Controller
         $service->claim($service->getInitTransaction($subscription));
         $subscription->setPending();
         
-        return redirect()->action('\Acelle\Cashier\Controllers\DirectController@pending', [
+        return redirect()->Cashier::wp_action('\Acelle\Cashier\Controllers\DirectController@pending', [
             'subscription_id' => $subscription->uid,
         ]);
     }
@@ -107,7 +107,7 @@ class DirectController extends Controller
         
         $gatewayService->unclaim($subscription);
         
-        return redirect()->action('\Acelle\Cashier\Controllers\DirectController@checkout', [
+        return redirect()->Cashier::wp_action('\Acelle\Cashier\Controllers\DirectController@checkout', [
             'subscription_id' => $subscription->uid,
         ]);
     }
@@ -182,7 +182,7 @@ class DirectController extends Controller
             'price' => $transaction->amount,
         ]);
         
-        return redirect()->action('\Acelle\Cashier\Controllers\DirectController@pending', [
+        return redirect()->Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@pending', [
             'subscription_id' => $subscription->uid,
         ]);
     }
@@ -208,7 +208,7 @@ class DirectController extends Controller
             'price' => $subscription->plan->getBillableFormattedPrice(),
         ]);
         
-        return redirect()->action('\Acelle\Cashier\Controllers\DirectController@pending', [
+        return redirect()->Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@pending', [
             'subscription_id' => $subscription->uid,
         ]);
     }
@@ -255,7 +255,7 @@ class DirectController extends Controller
                     'message' => trans('cashier::messages.direct.has_transaction_pending', [
                         'description' => $transaction->title,
                         'amount' => $transaction->amount,
-                        'url' => action('\Acelle\Cashier\Controllers\DirectController@pending', [
+                        'url' => \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@pending', [
                             'subscription_id' => $subscription->uid,
                         ]),
                     ]),
@@ -264,7 +264,7 @@ class DirectController extends Controller
             }
 
             // Redirect to my subscription page
-            return redirect()->action('\Acelle\Cashier\Controllers\DirectController@pending', [
+            return redirect()->Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@pending', [
                 'subscription_id' => $subscription->uid,
             ]);
         }
@@ -335,7 +335,7 @@ class DirectController extends Controller
                     'message' => trans('cashier::messages.direct.has_transaction_pending', [
                         'description' => $transaction->title,
                         'amount' => $transaction->amount,
-                        'url' => action('\Acelle\Cashier\Controllers\DirectController@pending', [
+                        'url' => \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@pending', [
                             'subscription_id' => $subscription->uid,
                         ]),
                     ]),
@@ -344,7 +344,7 @@ class DirectController extends Controller
             }
 
             // Redirect to my subscription page
-            return redirect()->action('\Acelle\Cashier\Controllers\DirectController@pending', [
+            return redirect()->Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@pending', [
                 'subscription_id' => $subscription->uid,
             ]);
         }
@@ -381,9 +381,9 @@ class DirectController extends Controller
             ]);
         }
 
-        $return_url = $request->session()->get('checkout_return_url', url('/'));
+        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
-            $return_url = url('/');
+            $return_url = Cashier::public_url('/');
         }
 
         // Redirect to my subscription page

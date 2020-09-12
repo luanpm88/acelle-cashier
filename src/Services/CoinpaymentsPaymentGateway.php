@@ -49,9 +49,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                     'type' => 'renew',
                     'message' => trans('cashier::messages.renew.warning', [
                         'date' => $subscription->current_period_ends_at,
-                        'link' => action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
+                        'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
                             'subscription_id' => $subscription->uid,
-                            'return_url' => action('AccountSubscriptionController@index'),
+                            'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                         ]),
                     ]),
                 ]);
@@ -407,9 +407,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                         'type' => 'renew_failed',
                         'message' => trans('cashier::messages.renew_failed_with_error', [
                             'error' => 'Coinpayments transaction is cancelled / time out',
-                            'link' => action('\Acelle\Cashier\Controllers\CoinpaymentsController@renew', [
+                            'link' => \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\CoinpaymentsController@renew', [
                                 'subscription_id' => $subscription->uid,
-                                'return_url' => action('AccountSubscriptionController@index'),
+                                'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                             ]),
                         ]),
                     ]);
@@ -421,9 +421,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                             'message' => trans('cashier::messages.change_plan_failed_with_renew', [
                                 'error' => 'Coinpayments transaction is cancelled / time out',
                                 'date' => $subscription->current_period_ends_at,
-                                'link' => action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
+                                'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
                                     'subscription_id' => $subscription->uid,
-                                    'return_url' => action('AccountSubscriptionController@index'),
+                                    'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                                 ]),
                             ]),
                         ]);
@@ -859,7 +859,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     //     return trans('cashier::messages.direct.has_transaction_pending', [
     //         'description' => $subscription->plan->name,
     //         'amount' => $transaction->amount,
-    //         'url' => action('\Acelle\Cashier\Controllers\CoinpaymentsController@transactionPending', [
+    //         'url' => \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\CoinpaymentsController@transactionPending', [
     //             'subscription_id' => $subscription->uid,
     //         ]),
     //     ]);
@@ -872,7 +872,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function getRenewUrl($subscription, $returnUrl='/')
     {
-        return action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);
@@ -884,7 +884,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      * @return string
      */
     public function getCheckoutUrl($subscription, $returnUrl='/') {
-        return action("\Acelle\Cashier\Controllers\CoinpaymentsController@checkout", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\CoinpaymentsController@checkout", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);
@@ -897,7 +897,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/')
     {
-        return action("\Acelle\Cashier\Controllers\\CoinpaymentsController@changePlan", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\CoinpaymentsController@changePlan", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
             'plan_id' => $plan_id,
@@ -911,7 +911,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function getPendingUrl($subscription, $returnUrl='/')
     {
-        return action("\Acelle\Cashier\Controllers\\CoinpaymentsController@pending", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\CoinpaymentsController@pending", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);
@@ -974,9 +974,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                 'message' => trans('cashier::messages.renew_rejected', [
                     'reason' => $reason,
                     'date' => $subscription->current_period_ends_at,
-                    'link' => action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
+                    'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
                         'subscription_id' => $subscription->uid,
-                        'return_url' => action('AccountSubscriptionController@index'),
+                        'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                     ]),
                 ]),
             ]);
@@ -997,9 +997,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                     'message' => trans('cashier::messages.change_plan_rejected_with_renew', [
                         'reason' => $reason,
                         'date' => $subscription->current_period_ends_at,
-                        'link' => action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
+                        'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
                             'subscription_id' => $subscription->uid,
-                            'return_url' => action('AccountSubscriptionController@index'),
+                            'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                         ]),
                     ]),
                 ]);

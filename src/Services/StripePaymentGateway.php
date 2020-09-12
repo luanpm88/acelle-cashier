@@ -135,7 +135,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @return string
      */
     public function getCheckoutUrl($subscription, $returnUrl='/') {
-        return action("\Acelle\Cashier\Controllers\StripeController@checkout", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\StripeController@checkout", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);
@@ -147,7 +147,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @return string
      */
     public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/') {
-        return action("\Acelle\Cashier\Controllers\StripeController@changePlan", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\StripeController@changePlan", [
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
             'plan_id' => $plan_id,
@@ -341,9 +341,9 @@ class StripePaymentGateway implements PaymentGatewayInterface
                 'message' => trans('cashier::messages.renew.card_error', [
                     'date' => $subscription->current_period_ends_at,
                     'error' => $e->getError()->message,
-                    'link' => action("\Acelle\Cashier\Controllers\\StripeController@fixPayment", [
+                    'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\StripeController@fixPayment", [
                         'subscription_id' => $subscription->uid,
-                        'return_url' => action('AccountSubscriptionController@index'),
+                        'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                     ]),
                 ]),
             ]);
@@ -370,9 +370,9 @@ class StripePaymentGateway implements PaymentGatewayInterface
                 'type' => 'renew',
                 'message' => trans('cashier::messages.renew.error', [
                     'date' => $subscription->current_period_ends_at,
-                    'link' => action("\Acelle\Cashier\Controllers\\StripeController@fixPayment", [
+                    'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\StripeController@fixPayment", [
                         'subscription_id' => $subscription->uid,
-                        'return_url' => action('AccountSubscriptionController@index'),
+                        'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
                     ]),
                 ]),
             ]);
