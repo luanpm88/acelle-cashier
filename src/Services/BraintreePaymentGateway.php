@@ -54,6 +54,9 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         } 
         // @todo when is exactly started at?
         $subscription->started_at = \Carbon\Carbon::now();
+
+        // set gateway
+        $subscription->gateway = 'braintree';
         
         $subscription->user_id = $customer->getBillableId();
         $subscription->plan_id = $plan->getBillableId();

@@ -436,9 +436,9 @@ class BraintreeController extends Controller
             $service->renew($subscription);
 
             // Redirect to my subscription page
-            return redirect()->Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@pending', [
+            return redirect()->away(Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@pending', [
                 'subscription_id' => $subscription->uid,
-            ]);
+            ]));
         }
         
         // card info

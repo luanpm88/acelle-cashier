@@ -113,6 +113,9 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
         
         $subscription->plan_id = $plan->getBillableId();
         $subscription->status = Subscription::STATUS_NEW;
+
+        // set gateway
+        $subscription->gateway = 'direct';
         
         // set dates and save
         $subscription->ends_at = $subscription->getPeriodEndsAt(Carbon::now());

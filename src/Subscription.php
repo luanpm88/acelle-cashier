@@ -446,6 +446,16 @@ class Subscription extends Model
     }
 
     /**
+     * Get gateway.
+     *
+     * @return gateway
+     */
+    public function getPaymentGateway()
+    {
+        return \Acelle\Cashier\Cashier::getPaymentGateway($this->gateway);
+    }
+
+    /**
      * Check subscription status.
      *
      * @param  Int  $subscriptionId
@@ -460,7 +470,10 @@ class Subscription extends Model
         
         $subscriptions = self::whereNull('ends_at')->orWhere('ends_at', '>=', \Carbon\Carbon::now())->get();
         foreach ($subscriptions as $subscription) {
-            $gateway->check($subscription);
+            // get sub gateway
+            $subGateway = $subscription->getPaymentGateway();
+
+            $subGateway->check($subscription);
         }
     }
 

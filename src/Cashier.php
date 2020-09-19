@@ -35,7 +35,7 @@ class Cashier
         if (defined('WORDPRESS_MODE')) {
             return public_url($path);
         } else {
-            return Cashier::public_url($path);
+            return url($path);
         }
     }
 

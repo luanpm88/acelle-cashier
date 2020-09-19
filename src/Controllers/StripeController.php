@@ -84,7 +84,7 @@ class StripeController extends Controller
                 $subscription->delete();
 
                 $request->session()->flash('alert-error', trans('messages.operation_not_allowed_in_demo'));
-                return redirect()->Cashier::lr_action('\Acelle\Http\Controllers\AccountSubscriptionController@selectPlan');
+                return redirect()->away(Cashier::lr_action('\Acelle\Http\Controllers\AccountSubscriptionController@selectPlan'));
             }
 
             $service = $this->getPaymentService();
