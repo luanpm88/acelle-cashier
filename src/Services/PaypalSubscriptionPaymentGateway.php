@@ -809,6 +809,10 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         } catch (\Exception $e) {
             throw new \Exception($e->getMessage());           
         }
+
+        if (!$this->getData()['product_id']) {
+            throw new \Exception('Can not find product_id!');
+        }
         
         return true;
     }
