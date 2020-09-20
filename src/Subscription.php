@@ -461,19 +461,20 @@ class Subscription extends Model
      * @param  Int  $subscriptionId
      * @return date
      */
-    public static function checkAll($gateway)
+    public static function checkAll()
     {
-        // check plans
-        if (method_exists($gateway, 'checkAll')) {
-            $gateway->checkAll();
-        }
-        
         $subscriptions = self::whereNull('ends_at')->orWhere('ends_at', '>=', \Carbon\Carbon::now())->get();
         foreach ($subscriptions as $subscription) {
             // get sub gateway
             $subGateway = $subscription->getPaymentGateway();
 
+            // normal check
             $subGateway->check($subscription);
+
+            // check plans
+            if (method_exists($subGateway, 'checkAll')) {
+                $subGateway->checkAll();
+            }
         }
     }
 
