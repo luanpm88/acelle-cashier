@@ -420,13 +420,8 @@ class PaystackController extends Controller
             $subscription->setEnded();
         }
 
-        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
-        if (!$return_url) {
-            $return_url = Cashier::public_url('/');
-        }
-
         // Redirect to my subscription page
-        return redirect()->away($return_url);
+        return redirect()->away($this->getReturnUrl($request));
     }
 
     /**

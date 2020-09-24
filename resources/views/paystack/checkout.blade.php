@@ -27,8 +27,34 @@
                     'price' => $subscription->plan->getBillableFormattedPrice(),
                 ]) !!}</p>
 
+                <ul class="dotted-list topborder section mb-4">
+                    <li>
+                        <div class="unit size1of2">
+                            {{ trans('cashier::messages.paypal.plan') }}
+                        </div>
+                        <div class="lastUnit size1of2">
+                            <mc:flag>{{ $subscription->plan->getBillableName() }}</mc:flag>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="unit size1of2">
+                            {{ trans('cashier::messages.paypal.next_period_day') }}
+                        </div>
+                        <div class="lastUnit size1of2">
+                            <mc:flag>{{ $subscription->current_period_ends_at }}</mc:flag>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="unit size1of2">
+                            {{ trans('cashier::messages.paypal.amount') }}
+                        </div>
+                        <div class="lastUnit size1of2">
+                            <mc:flag>{{ $subscription->plan->getBillableFormattedPrice() }}</mc:flag>
+                        </div>
+                    </li>
+                </ul>
+
                 <form id="paymentForm">
-                    <hr />
                     <a href="javascript:;" class="btn btn-secondary full-width" onclick="payWithPaystack()">
                         {{ trans('cashier::messages.paystack.pay') }}
                     </a>
@@ -67,6 +93,14 @@
                         handler.openIframe();
                     }
                 </script>
+
+                <form class="mt-5" method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaystackController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
+                    {{ csrf_field() }}
+                    
+                    <a href="javascript:;" onclick="$(this).closest('form').submit()"
+                        class="text-muted" style="font-size: 12px; text-decoration: underline"
+                    >{{ trans('cashier::messages.paystack.cancel_new_subscription') }}</a>
+                </form>
             </div>
             <div class="col-md-2"></div>
         </div>

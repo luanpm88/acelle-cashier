@@ -82,6 +82,7 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     Route::match(['get', 'post'], '/cashier/razorpay/{subscription_id}/checkout', 'RazorpayController@checkout');
 
     // Paystack
+    Route::post('/cashier/paystack/{subscription_id}/cancel-now', 'PaystackController@cancelNow');
     Route::match(['get', 'post'], '/cashier/paystack/{subscription_id}/change-plan', 'PaystackController@changePlan');
     Route::get('/cashier/paystack/payment-redirect', 'PaystackController@paymentRedirect');
     Route::match(['get', 'post'], '/cashier/paystack/{subscription_id}/renew', 'PaystackController@renew');

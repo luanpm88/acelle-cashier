@@ -470,4 +470,5 @@
     'paystack.card_list' => 'Your card information',
     'paystack.pay_with_new_card' => 'Pay with new card',
     'paystack.pay_with_this_card' => 'Pay with this card',
+    'paystack.cancel_new_subscription' => 'Click here to choose another plan',
 ) ?>
