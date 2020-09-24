@@ -73,7 +73,7 @@
                             key: '{{ $service->public_key }}', // Replace with your public key
                             email: '{{ $subscription->user->getBillableEmail() }}',
                             amount: {{ $subscription->plan->getBillableAmount() }} * 100, // the amount value is multiplied by 100 to convert to the lowest currency unit
-                            currency: '{{ $subscription->plan->getBillableCurrency() }}', // Use GHS for Ghana Cedis or USD for US Dollars
+                            {{-- currency: '{{ $subscription->plan->getBillableCurrency() }}', // Use GHS for Ghana Cedis or USD for US Dollars --}}
                             firstname: '',
                             lastname: '',
                             reference: ''+Math.floor((Math.random() * 1000000000) + 1), // Replace with a reference you generated
