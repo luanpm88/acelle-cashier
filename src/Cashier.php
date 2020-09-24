@@ -102,6 +102,11 @@ class Cashier
                     $config['fields']['key_id'],
                     $config['fields']['key_secret']
                 );
+            case 'paystack':
+                return new \Acelle\Cashier\Services\PaystackPaymentGateway(
+                    $config['fields']['public_key'],
+                    $config['fields']['secret_key']
+                );
             default:
                 throw new \Exception("Can not find payment service: " . $config['name']);
         }

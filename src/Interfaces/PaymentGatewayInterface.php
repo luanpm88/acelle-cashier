@@ -13,4 +13,5 @@ interface PaymentGatewayInterface
     public function isSupportRecurring();
     public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/');
     public function getRenewUrl($subscription, $returnUrl='/');
+    public function getCheckoutUrl($subscription, $returnUrl='/');
 }

@@ -65,5 +65,12 @@ return [
                 'key_secret' => null,
             ],
         ],
+        'paystack' => [
+            'name' => 'paystack',
+            'fields' => [                
+                'public_key' => null,
+                'secret_key' => null,
+            ],
+        ],
     ],
 ];

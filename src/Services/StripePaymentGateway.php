@@ -468,7 +468,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
         }
         
         // check from service: recurring/transaction
-        if ($subscription->isExpiring()) {
+        if ($subscription->isRecurring() && $subscription->isExpiring()) {
             $this->renew($subscription);
         }
     }

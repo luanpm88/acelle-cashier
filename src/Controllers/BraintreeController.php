@@ -48,7 +48,11 @@ class BraintreeController extends Controller
     {
         $subscription = Subscription::findByUid($subscription_id);
         $service = $this->getPaymentService();
-        $request->session()->put('checkout_return_url', $request->return_url);
+        
+        // Save return url
+        if ($request->return_url) {
+            $request->session()->put('checkout_return_url', $request->return_url);
+        }
         
         $clientToken = $service->serviceGateway->clientToken()->generate();
         
@@ -78,8 +82,10 @@ class BraintreeController extends Controller
         $subscription = Subscription::findByUid($subscription_id);
         $service = $this->getPaymentService();
         
-        // save return url
-        $request->session()->put('checkout_return_url', $request->return_url);
+        // Save return url
+        if ($request->return_url) {
+            $request->session()->put('checkout_return_url', $request->return_url);
+        }
 
         // if subscription is active
         if ($subscription->isActive() || $subscription->isEnded()) {

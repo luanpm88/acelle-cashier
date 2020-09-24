@@ -450,4 +450,24 @@
     'change_plan_pending' => 'You are changing to <strong>:plan</strong> plan with amount: <strong>:amount</strong>.
         <br><a href=":url"><strong>Click here</strong></a> to see more details.',
     'change_plan.failed' => 'Can not change plan: :error',
+    'paystack.checkout_with_paystack' => 'Pay with Paystack',
+    'paystack.click_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with Stripe with <strong>:price</strong>.
+        Please click the button bellow to proceed with the payment information.',
+    'paystack.pay' => 'Pay Now',
+    'paystack.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
+        <br> Your browser will redirect to next page shortly.',
+    'paystack.checkout.processing_payment' => 'Processing your payment... please wait!',
+    'paystack.checkout.page_title' => 'Paystack Checkout',
+    'paystack.renew' => 'Renew',
+    'paystack.renew.click_bellow_to_pay' => 'You are renew <strong>:plan</strong> with Stripe with <strong>:price</strong>.
+        Please click the button bellow to proceed with the payment information.',
+    'paystack.update_payment_and_proceed' => 'Update payment & Proceed',
+    'paystack.change_plan' => 'Change plan',
+    'change_plan.intro' => 'You are about to change <strong>:plan</strong> plan to <strong>:new_plan</strong> plan.
+        Please check the information below before proceeding.',
+    'return_back' => 'Return back',
+    'paystack.change_plan_proceed' => 'Proceed',
+    'paystack.card_list' => 'Your card information',
+    'paystack.pay_with_new_card' => 'Pay with new card',
+    'paystack.pay_with_this_card' => 'Pay with this card',
 ) ?>

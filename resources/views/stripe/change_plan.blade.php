@@ -57,7 +57,7 @@
                     <a href="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@changePlanPending', [
                         'subscription_id' => $subscription->uid,
                         'plan_id' => $newPlan->getBillableId(),
-                    ]) }}" class="btn btn-primary mr-2 mb-4">{{ trans('cashier::messages.stripe.change_plan_proceed') }}</a>
+                    ]) }}" class="btn btn-primary mr-2">{{ trans('cashier::messages.stripe.change_plan_proceed') }}</a>
                     <a
                         href="{{ $return_url }}"
                         class="btn btn-secondary mr-10"

@@ -11,7 +11,7 @@ use Acelle\Cashier\SubscriptionTransaction;
 use Acelle\Cashier\SubscriptionLog;
 use Acelle\Cashier\Services\StripePaymentGateway;
 
-class StripeController extends Controller
+class PaystackController extends Controller
 {
     public function getReturnUrl(Request $request) {
         $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
@@ -29,7 +29,7 @@ class StripeController extends Controller
      **/
     public function getPaymentService()
     {
-        return Cashier::getPaymentGateway('stripe');
+        return Cashier::getPaymentGateway('paystack');
     }
     
     /**
@@ -54,8 +54,65 @@ class StripeController extends Controller
             return redirect()->away($this->getReturnUrl($request));
         }
 
+        // verify payment
+        if ($request->isMethod('post')) {
+            // add transaction
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
+                'ends_at' => $subscription->ends_at,
+                'current_period_ends_at' => $subscription->current_period_ends_at,
+                'status' => SubscriptionTransaction::STATUS_PENDING,
+                'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
+                    'plan' => $subscription->plan->getBillableName(),
+                ]),
+                'amount' => $subscription->plan->getBillableFormattedPrice()
+            ]);
+
+            try {
+                $service->verifyPayment($subscription, $request->reference);
+            } catch (\Exception $e) {
+                // charged successfully. Set subscription to active
+                $subscription->cancelNow();
+
+                // transaction success
+                $transaction->description = trans('cashier::messages.charge.something_went_wrong', ['error' => $e->getMessage()]);
+                $transaction->setFailed();
+
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                    'message' => $e->getMessage(),
+                ]);
+
+                $request->session()->flash('alert-error', trans('cashier::messages.charge.something_went_wrong', ['error' => $e->getMessage()]));
+                return redirect()->away($this->getReturnUrl($request));
+            }
+
+            // charged successfully. Set subscription to active
+            $subscription->start();
+
+            // transaction success
+            $transaction->setSuccess();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_PAID, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+            sleep(1);
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+
+
+            // Redirect to my subscription page
+            return redirect()->away($this->getReturnUrl($request));
+        }
+
         // if free plan and not always required card
-        if ($subscription->plan->getBillableAmount() == 0 && $service->always_ask_for_valid_card == 'no') {
+        if ($subscription->plan->getBillableAmount() == 0) {
             // charged successfully. Set subscription to active
             $subscription->start();
 
@@ -79,44 +136,24 @@ class StripeController extends Controller
             // Redirect to my subscription page
             return redirect()->away($this->getReturnUrl($request));
         }
-        
-        // for demo site only
-        if (isSiteDemo()) {
-            if ($subscription->plan->price == 0) {
-                $subscription->delete();
 
-                $request->session()->flash('alert-error', trans('messages.operation_not_allowed_in_demo'));
-                return redirect()->away(Cashier::lr_action('\Acelle\Http\Controllers\AccountSubscriptionController@selectPlan'));
-            }
-
-            $service = $this->getPaymentService();
-            \Stripe\Stripe::setApiVersion("2017-04-06");
-            
-            $session = \Stripe\Checkout\Session::create([
-                'payment_method_types' => ['card'],
-                'line_items' => [[
-                  'name' => $subscription->plan->getBillableName(),
-                  'description' => \Acelle\Model\Setting::get('site_name'),
-                  'images' => ['https://b.imge.to/2019/10/05/vE0yqs.png'],
-                  'amount' => $subscription->plan->stripePrice(),
-                  'currency' => $subscription->plan->getBillableCurrency(),
-                  'quantity' => 1,
-                ]],
-                'success_url' => Cashier::public_url('/'),
-                'cancel_url' => \Acelle\Cashier\Cashier::lr_action('\Acelle\Http\Controllers\AccountSubscriptionController@index'),
-            ]);
-            
-            $subscription->delete();
-
-            return view('cashier::stripe.checkout_demo', [
-                'service' => $service,
-                'session' => $session,
-            ]);
-        }
-
-        return view('cashier::stripe.checkout', [
+        return view('cashier::paystack.checkout', [
             'service' => $this->getPaymentService(),
             'subscription' => $subscription,
+        ]);
+    }
+
+    /**
+     * Payment redirecting.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     **/
+    public function paymentRedirect(Request $request)
+    {
+        return view('cashier::paystack.payment_redirect', [
+            'redirect' => $request->redirect,
         ]);
     }
     
@@ -257,14 +294,14 @@ class StripeController extends Controller
         $newPlan = \Acelle\Model\Plan::findByUid($request->plan_id);
         
         // calc when change plan
-        try {
+        try {            
             $result = Cashier::calcChangePlan($subscription, $newPlan);
         } catch (\Exception $e) {
             $request->session()->flash('alert-error', trans('cashier::messages.change_plan.failed', ['error' => $e->getMessage()]));
             return redirect()->away($this->getReturnUrl($request));
         }
         
-        if ($request->isMethod('post')) {         
+        if ($request->isMethod('post')) {
             // add transaction
             $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_PLAN_CHANGE, [
                 'ends_at' => $subscription->ends_at,
@@ -275,43 +312,20 @@ class StripeController extends Controller
                 ]),
                 'amount' => $result['amount'],
             ]);
-
+            
             // charge customer
             if ($result['amount'] > 0) {
                 try {
-                    // charge customer
-                    $service->charge($subscription, [
-                        'amount' => $result['amount'],
-                        'currency' => $newPlan->getBillableCurrency(),
-                        'description' => trans('cashier::messages.transaction.change_plan', [
-                            'plan' => $newPlan->getBillableName(),
-                        ]),
-                    ]);
-                } catch(\Stripe\Exception\CardException $e) {
-                    // set transaction failed
-                    $transaction->description = $e->getError()->message;
-                    $transaction->setFailed();
-
-                    // add log
-                    $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE_FAILED, [
-                        'old_plan' => $subscription->plan->getBillableName(),
-                        'plan' => $newPlan->getBillableName(),
-                        'price' => $result['amount'],
-                        'error' => json_encode($e->getError()),
-                    ]);
-
-                    // set subscription last_error_type
-                    $subscription->error = json_encode([
-                        'status' => 'error',
-                        'type' => 'change_plan_failed',
-                        'message' => trans('cashier::messages.change_plan_failed_with_error', [
-                            'error' => $e->getError()->message,
-                        ]),
-                    ]);
-                    $subscription->save();
-
-                    // Redirect to my subscription page
-                    return redirect()->away($this->getReturnUrl($request));
+                    // use old card
+                    if ($request->use_old_card) {
+                        $service->charge($subscription, [
+                            'amount' => $result['amount'],
+                            'currency' => $newPlan->getBillableCurrency(),
+                        ]);
+                    // new card
+                    } else {
+                        $service->verifyPayment($subscription, $request->reference);
+                    }
                 } catch (\Exception $e) {
                     // set transaction failed
                     $transaction->description = $e->getMessage();
@@ -322,7 +336,7 @@ class StripeController extends Controller
                         'old_plan' => $subscription->plan->getBillableName(),
                         'plan' => $newPlan->getBillableName(),
                         'price' => $result['amount'],
-                        'error' => $e->getMessage(),
+                        'error' => json_encode($e->getMessage()),
                     ]);
 
                     // set subscription last_error_type
@@ -339,7 +353,7 @@ class StripeController extends Controller
                     return redirect()->away($this->getReturnUrl($request));
                 }
             }
-            
+
             // change plan
             $subscription->changePlan($newPlan);
 
@@ -361,7 +375,7 @@ class StripeController extends Controller
             return redirect()->away($this->getReturnUrl($request));
         }
         
-        return view('cashier::stripe.change_plan', [
+        return view('cashier::paystack.change_plan', [
             'subscription' => $subscription,
             'return_url' => $this->getReturnUrl($request),
             'newPlan' => $newPlan,
@@ -384,23 +398,9 @@ class StripeController extends Controller
         $subscription = Subscription::findByUid($subscription_id);
         $service = $this->getPaymentService();
         
-        return view('cashier::stripe.change_plan_pending', [
+        return view('cashier::paystack.renew', [
             'subscription' => $subscription,
             'plan_id' => $request->plan_id,
-        ]);
-    }
-    
-    /**
-     * Payment redirecting.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function paymentRedirect(Request $request)
-    {
-        return view('cashier::stripe.payment_redirect', [
-            'redirect' => $request->redirect,
         ]);
     }
     
@@ -436,30 +436,94 @@ class StripeController extends Controller
      *
      * @return \Illuminate\Http\Response
      **/
-    public function fixPayment(Request $request, $subscription_id)
+    public function renew(Request $request, $subscription_id)
     {
-        // Get current customer
+        // init
         $subscription = Subscription::findByUid($subscription_id);
         $service = $this->getPaymentService();
         
-        if ($request->isMethod('post')) {
-            // try to renew again
-            $ok = $service->renew($subscription);
+        // Save return url
+        if ($request->return_url) {
+            $request->session()->put('checkout_return_url', $request->return_url);
+        }
 
-            if ($ok) {
-                // remove last_error
-                $subscription->error = null;
+        // if subscription is recurring
+        if (!$subscription->isRecurring() || !$subscription->isExpiring()) {
+            $request->session()->flash('alert-error', 'Subscription must be recurring and expiring!');
+            return redirect()->away($this->getReturnUrl($request));
+        }
+        
+        if ($request->isMethod('post')) {
+            // add transaction
+            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_AUTO_CHARGE, [
+                'ends_at' => null,
+                'current_period_ends_at' => $subscription->nextPeriod(),
+                'status' => SubscriptionTransaction::STATUS_PENDING,
+                'title' => trans('cashier::messages.transaction.recurring_charge', [
+                    'plan' => $subscription->plan->getBillableName(),
+                ]),
+                'amount' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+
+            try {
+                $service->verifyPayment($subscription, $request->reference);
+            } catch (\Exception $e) {
+                $transaction->setFailed();
+
+                // update error message
+                $transaction->description = $e->getMessage();
+                $transaction->save();
+
+                // set subscription last_error_type
+                $subscription->error = json_encode([
+                    'status' => 'error',
+                    'type' => 'renew',
+                    'message' => trans('cashier::messages.renew.error', [
+                        'date' => $subscription->current_period_ends_at,
+                        'error' => $e->getMessage(),
+                    ]),
+                ]);
                 $subscription->save();
+
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_RENEW_FAILED, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                    'error' => $e->getMessage(),
+                ]);
+
+                $request->session()->flash('alert-error', trans('cashier::messages.charge.something_went_wrong', ['error' => $e->getMessage()]));
+                return redirect()->away($this->getReturnUrl($request));
             }
+
+            // set active
+            $transaction->setSuccess();
+
+            // check new states from transaction
+            $subscription->ends_at = $transaction->ends_at;
+            // save last period
+            $subscription->last_period_ends_at = $subscription->current_period_ends_at;
+            // set new current period
+            $subscription->current_period_ends_at = $transaction->current_period_ends_at;
+            $subscription->save();
+
+            // add log
+            $subscription->addLog(SubscriptionLog::TYPE_RENEWED, [
+                'plan' => $subscription->plan->getBillableName(),
+                'price' => $subscription->plan->getBillableFormattedPrice(),
+            ]);
+
+            // remove last_error
+            $subscription->error = null;
+            $subscription->save();
 
             // Redirect to my subscription page
             return redirect()->away($this->getReturnUrl($request));
         }
         
-        return view('cashier::stripe.fix_payment', [
+        return view('cashier::paystack.renew', [
+            'service' => $this->getPaymentService(),
             'subscription' => $subscription,
-            'return_url' => $this->getReturnUrl($request),
-            'service' => $service,
         ]);
     }
 }
