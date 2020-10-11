@@ -61,15 +61,17 @@
             {!! $service->getPaymentInstruction() !!}
             </div>
             <hr>
-            <form method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@claim', ['subscription_id' => $subscription->uid]) }}">
-                {{ csrf_field() }}
+            
                 
                 <div class="d-flex align-items-center">
-                    <button
-                        class="btn btn-primary mr-10 mr-2"
-                    >{{ trans('cashier::messages.direct.claim_payment') }}</button>
+                    <form method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@claim', ['subscription_id' => $subscription->uid]) }}">
+                        {{ csrf_field() }}
+                        <button
+                            class="btn btn-primary mr-10 mr-2"
+                        >{{ trans('cashier::messages.direct.claim_payment') }}</button>
+                    </form>
                     
-                    <form class="mt-4" method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
+                    <form class="" method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
                         {{ csrf_field() }}
                         
                         <a href="javascript:;" onclick="$(this).closest('form').submit()"
@@ -78,7 +80,7 @@
                         >{{ trans('cashier::messages.direct.change_mind_cancel_subscription') }}</a>
                     </form>
                 </div>
-            </form>
+            
         </div>
         <div class="col-md-2"></div>
     </div>
