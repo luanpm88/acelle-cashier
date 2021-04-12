@@ -1,7 +1,6 @@
 <?php
 
 return [
-    'gateway' => 'direct',
     'end_period_last_days' => 10,
     'renew_free_plan' => 'yes',
     'recurring_charge_before_days' => 3,
