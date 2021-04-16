@@ -406,6 +406,6 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      * @return string
      */
     public function currencyValid($currency) {
-        return in_array($currency, ['GHS', 'NGN', 'USD']);
+        return in_array($currency, ['GHS', 'NGN', 'USD', 'ZAR']);
     }
 }
