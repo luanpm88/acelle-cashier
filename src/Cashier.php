@@ -46,11 +46,7 @@ class Cashier
      */
     public static function getPaymentGateway($name=null, $fields=null)
     {
-        if (isset($name)) {
-            $config = config('cashier.gateways.' . $name);
-        } else {
-            $config = config('cashier.gateways.' . config('cashier.gateway'));
-        }
+        $config = config('cashier.gateways.' . $name);
         
         // overide fields
         if (isset($fields)) {
