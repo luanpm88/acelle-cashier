@@ -44,7 +44,7 @@ class Cashier
      *
      * @var array
      */
-    public static function getPaymentGateway($name=null, $fields=null)
+    public static function getPaymentGateway($name, $fields=null)
     {
         $config = config('cashier.gateways.' . $name);
         

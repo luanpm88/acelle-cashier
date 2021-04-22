@@ -452,7 +452,11 @@ class Subscription extends Model
      */
     public function getPaymentGateway()
     {
-        return \Acelle\Cashier\Cashier::getPaymentGateway($this->gateway);
+        if ($this->user->getPaymentMethod() == null) {
+            return null;
+        }
+
+        return \Acelle\Cashier\Cashier::getPaymentGateway($this->user->getPaymentMethod()['gateway']);
     }
 
     /**
@@ -467,6 +471,20 @@ class Subscription extends Model
         foreach ($subscriptions as $subscription) {
             // get sub gateway
             $subGateway = $subscription->getPaymentGateway();
+
+            // can not find payment gateway
+            if (!isset($subGateway)) {
+                // set subscription last_error_type
+                $subscription->setError([
+                    'status' => 'error',
+                    'type' => 'change_plan_failed',
+                    'message' => trans('cashier::messages.gateway_not_found', [
+                        'error' => $e->getMessage(),
+                    ]),
+                ]);
+
+                break;
+            }
 
             // normal check
             $subGateway->check($subscription);
@@ -726,5 +744,16 @@ class Subscription extends Model
             config('cashier.renew_free_plan') == 'yes' ||
             (config('cashier.renew_free_plan') == 'no' && $this->plan->getBillableAmount() > 0)
         );
+    }
+
+    /**
+     * Add error
+     *
+     * @return void
+     */
+    public function setError($data)
+    {
+        $this->error = json_encode($data);
+        $this->save();
     }
 }

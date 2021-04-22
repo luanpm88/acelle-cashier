@@ -112,9 +112,6 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         } 
         // @todo when is exactly started at?
         $subscription->started_at = \Carbon\Carbon::now();
-
-        // set gateway
-        $subscription->gateway = 'paypal';
         
         $subscription->user_id = $customer->getBillableId();
         $subscription->plan_id = $plan->getBillableId();
@@ -124,6 +121,9 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         $subscription->ends_at = $subscription->getPeriodEndsAt(Carbon::now());
         $subscription->current_period_ends_at = $subscription->ends_at;
         $subscription->save();
+
+        // set gateway
+        $customer->updatePaymentMethod('paypal');
         
         // If plan is free: enable subscription & update transaction
         if ($plan->getBillableAmount() == 0) {

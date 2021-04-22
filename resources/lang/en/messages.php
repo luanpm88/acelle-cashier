@@ -471,4 +471,5 @@
     'paystack.pay_with_new_card' => 'Pay with new card',
     'paystack.pay_with_this_card' => 'Pay with this card',
     'paystack.cancel_new_subscription' => 'Click here to choose another plan',
+    'gateway_not_found' => 'Can not found customer payment method',
 ) ?>
