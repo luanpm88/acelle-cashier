@@ -93,7 +93,10 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
         $subscription->save();
 
         // set gateway
-        $customer->updatePaymentMethod('paystack');
+        $customer->updatePaymentMethod([
+            'method' => 'paystack',
+            'user_id' => $customer->getBillableEmail(),
+        ]);
         
         // // If plan is free: enable subscription & update transaction
         // if ($plan->getBillableAmount() == 0) {
@@ -158,16 +161,8 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      */
     public function check($subscription)
     {
-        // check expired
-        if ($subscription->isExpired()) {
-            $subscription->cancelNow();
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-        }
+        // clear renew message
+        $subscription->removeError('renew');
         
         // check from service: recurring/transaction
         if ($subscription->isRecurring() && $subscription->isExpiring()) {
@@ -407,5 +402,16 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      */
     public function currencyValid($currency) {
         return in_array($currency, ['GHS', 'NGN', 'USD', 'ZAR']);
+    }
+
+    /**
+     * Get connect url.
+     *
+     * @return string
+     */
+    public function getConnectUrl($returnUrl='/') {
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaystackController@connect", [
+            'return_url' => $returnUrl,
+        ]);
     }
 }

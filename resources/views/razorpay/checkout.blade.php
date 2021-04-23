@@ -81,11 +81,21 @@
                     </form>
                 </div>
 
+                <form class="mt-5" method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\RazorpayController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
+                    {{ csrf_field() }}
+                    
+                    <a href="javascript:;" onclick="$(this).closest('form').submit()"
+                        class="text-muted" style="font-size: 12px; text-decoration: underline"
+                    >{{ trans('cashier::messages.razorpay.cancel_subscription') }}</a>
+                </form>
+
             </div>
             <div class="col-md-2"></div>
         </div>
         <br />
         <br />
         <br />
+
+        
     </body>
 </html>

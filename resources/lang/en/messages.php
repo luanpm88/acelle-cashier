@@ -30,7 +30,7 @@
     'stripe.invoice.subscription_threshold' => 'Billing threshold being reached',
     'stripe.has_transaction_pending' => 'There are pending transaction.
         <br><a href=":url"><strong>Click here</strong></a> to see more details.',
-    'braintree.cancel_subscription' => 'Click here to cancel the transaction. This can be undone.',
+    'braintree.cancel_subscription' => 'Click here to cancel the transaction. This can not be undone.',
     'braintree.pending.intro' => 'There is a pending transaction. Please wait for validating your payment.',
     'braintree.pending.page_title' => 'Transaction is pending',
     'braintree.checkout.page_title' => 'Checkout',
@@ -444,7 +444,7 @@
     'charge.something_went_wrong' => 'Something went wrong while charging: :error',
     'renew.error' => 'Something went wrong when renewing your subscription. Please contact admin for more information.',
     'renew.card_error' => 'Something went wrong with the payment when renewing your subscription. Error: :error.
-        <a href=":link"><strong>Click here</strong></a> to update the payment.',
+        <a href=":link"><strong>Click here</strong></a> to check the payment.',
     'renew_pending' => 'You are renewing <strong>:plan</strong> plan with amount: <strong>:amount</strong>.
         <br><a href=":url"><strong>Click here</strong></a> to see more details.',
     'change_plan_pending' => 'You are changing to <strong>:plan</strong> plan with amount: <strong>:amount</strong>.
@@ -472,4 +472,23 @@
     'paystack.pay_with_this_card' => 'Pay with this card',
     'paystack.cancel_new_subscription' => 'Click here to choose another plan',
     'gateway_not_found' => 'Can not found customer payment method',
+    'stripe.use_current_card' => 'Use current card',
+    'stripe.change_card' => 'Change card',
+    'stripe.connected' => 'You connected to Stripe successfully',
+    'stripe.click_button_to_connect' => 'Click button below to add payment method',
+    'stripe.add_card' => 'Add card',
+    'direct.connected.thanks' => 'Thank you! <br>Direct payment method was set',
+    'direct.connected.intro' => 'Make payment outside of application',
+    'braintree.use_new_card' => 'Use new card',
+    'braintree.new_card' => 'New card',
+    'braintree.use_this_card' => 'Use this card',
+    'braintree.connected' => 'You connected to Stripe successfully',
+    'coinpayments.connected.thanks' => 'Thank you! <br>Coinpayments method was set',
+    'coinpayments.connected.intro' => 'Make payment using degital coins',
+    'razorpay.connected.thanks' => 'Thank you! <br>Razorpay payment method was set',
+    'razorpay.connected.intro' => 'Make payment outside of application',
+    'paypal.connected.thanks' => 'Thank you! <br>Paypal payment method was set',
+    'paypal.connected.intro' => 'Make payment outside of application',
+    'coinpayments.cancel_subscription' => 'Click here to cancel this subscription. This can not be undone',
+    'razorpay.cancel_subscription' => 'Click here to cancel the transaction. This can not be undone.',
 ) ?>

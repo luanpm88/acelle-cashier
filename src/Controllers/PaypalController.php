@@ -437,4 +437,34 @@ class PaypalController extends Controller
         // Redirect to my subscription page
         return redirect()->away($this->getReturnUrl($request));
     }
+
+    /**
+     * Fix transation.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     **/
+    public function connect(Request $request)
+    {        
+        $request->user()->customer->updatePaymentMethod([
+            'method' => 'paypal',
+            'user_id' => $request->user()->customer->getBillableEmail(),
+        ]);
+
+        // cancel auto recurring if current subscription is recurring
+        $subscription = $request->user()->customer->subscription;
+        if (is_object($subscription) && $request->user()->customer->can('cancel', $subscription)) {
+            $gateway->cancel($subscription);
+        }
+
+        // Save return url
+        if ($request->return_url) {
+            return redirect()->away($request->return_url);
+        }
+        
+        return view('cashier::paypal.connect', [
+            'return_url' => $this->getReturnUrl($request),
+        ]);
+    }
 }

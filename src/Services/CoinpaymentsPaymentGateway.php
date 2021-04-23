@@ -30,17 +30,6 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function check($subscription)
     {
-        // check expired
-        if ($subscription->isExpired()) {
-            $subscription->cancelNow();
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-        }
-
         if (!$subscription->hasError()) {
             // check renew pending
             if ($subscription->isExpiring() && $subscription->canRenewPlan()) {
@@ -49,10 +38,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                     'type' => 'renew',
                     'message' => trans('cashier::messages.renew.warning', [
                         'date' => $subscription->current_period_ends_at,
-                        'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
-                            'subscription_id' => $subscription->uid,
-                            'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
-                        ]),
+                        'link' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@renew'),
                     ]),
                 ]);
                 $subscription->save();
@@ -145,7 +131,10 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         $subscription->save();
 
         // set gateway
-        $customer->updatePaymentMethod('coinpayments');
+        $customer->updatePaymentMethod([
+            'method' => 'coinpayments',
+            'user_id' => $customer->getBillableEmail(),
+        ]);
         
         // Free plan
         if ($plan->getBillableAmount() == 0) {
@@ -834,40 +823,6 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         ]);
     }
     
-    // /**
-    //  * Check for notice.
-    //  *
-    //  * @param  Subscription  $subscription
-    //  * @return date
-    //  */
-    // public function hasPending($subscription)
-    // {
-    //     $transaction = $this->getLastTransaction($subscription);
-
-    //     return isset($transaction) && $transaction->isPending() && !in_array($transaction->type, [
-    //         SubscriptionTransaction::TYPE_SUBSCRIBE,
-    //     ]);
-    // }
-    
-    // /**
-    //  * Get notice message.
-    //  *
-    //  * @param  Subscription  $subscription
-    //  * @return date
-    //  */
-    // public function getPendingNotice($subscription)
-    // {
-    //     $transaction = $this->getLastTransaction($subscription);
-        
-    //     return trans('cashier::messages.direct.has_transaction_pending', [
-    //         'description' => $subscription->plan->name,
-    //         'amount' => $transaction->amount,
-    //         'url' => \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\CoinpaymentsController@transactionPending', [
-    //             'subscription_id' => $subscription->uid,
-    //         ]),
-    //     ]);
-    // }
-    
     /**
      * Get renew url.
      *
@@ -1000,10 +955,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                     'message' => trans('cashier::messages.change_plan_rejected_with_renew', [
                         'reason' => $reason,
                         'date' => $subscription->current_period_ends_at,
-                        'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
-                            'subscription_id' => $subscription->uid,
-                            'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
-                        ]),
+                        'link' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@renew'),
                     ]),
                 ]);
             } else {
@@ -1070,12 +1022,13 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Check if use remote subscription.
+     * Get connect url.
      *
-     * @return void
+     * @return string
      */
-    public function useRemoteSubscription()
-    {
-        return false;
+    public function getConnectUrl($returnUrl='/') {
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\CoinpaymentsController@connect", [
+            'return_url' => $returnUrl,
+        ]);
     }
 }

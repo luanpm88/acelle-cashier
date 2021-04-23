@@ -85,7 +85,10 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         $subscription->save();
 
         // set gateway
-        $customer->updatePaymentMethod('razorpay');
+        $customer->updatePaymentMethod([
+            'method' => 'razorpay',
+            'user_id' => $customer->getBillableEmail(),
+        ]);
         
         // If plan is free: enable subscription & update transaction
         if ($plan->getBillableAmount() == 0) {
@@ -311,33 +314,6 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
 
         return $this->accessToken;
     }
-    
-    /**
-     * Charge customer with subscription.
-     *
-     * @param  Customer                $customer
-     * @param  Subscription         $subscription
-     * @return void
-     */
-    public function charge($subscription, $data) {
-        ss;
-        // // get or create plan
-        // $stripeCustomer = $this->getStripeCustomer($subscription->user);
-        // $card = $this->getCardInformation($subscription->user);
-
-        // if (!is_object($card)) {
-        //     throw new \Exception('Can not find card information');
-        // }
-
-        // // Charge customter with current card
-        // \Stripe\Charge::create([
-        //     'amount' => $this->convertPrice($data['amount'], $data['currency']),
-        //     'currency' => $data['currency'],
-        //     'customer' => $stripeCustomer->id,
-        //     'source' => $card->id,
-        //     'description' => $data['description'],
-        // ]);
-    }
 
     public function sync($subscription) {
     }
@@ -371,83 +347,6 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
             'subscription_id' => $subscription->uid,
             'return_url' => $returnUrl,
         ]);
-    }
-
-    /**
-     * Get card information from Stripe user.
-     *
-     * @param  Subscription    $subscription
-     * @return Boolean
-     */
-    public function getCardInformation($user)
-    {        
-        // // Get new one if not exist
-        // $uri = 'https://secure.payu.com/pl/standard/user/oauth/authorize';
-        // $client = new \GuzzleHttp\Client();
-        // $response = $client->request('POST', $uri, [
-        //     'headers' =>
-        //         [
-        //             'Cache-Control' => 'no-cache',
-        //             'Content-Type' => 'application/x-www-form-urlencoded',
-        //         ],
-        //     'body' => 'grant_type=trusted_merchant&client_id=' . $this->client_id . '&client_secret=' . $this->client_secret . '&email=' . $user->getBillableEmail() . '&ext_customer_id=' . $user->getBillableId(),
-        // ]);
-        // $data = json_decode($response->getBody(), true);
-        // var_dump($data);
-        // die();
-
-        // // get or create plan
-        // $stripeCustomer = $this->getStripeCustomer($user);
-
-        // $cards = $stripeCustomer->sources->all(
-        //     ['object' => 'card']
-        // );
-
-        // return empty($cards->data) ? NULL : $cards->data["0"];
-
-        return null;
-    }
-
-    /**
-     * Get the Stripe customer instance for the current user and token.
-     *
-     * @param  SubscriptionParam    $subscriptionParam
-     * @return \Stripe\Customer
-     */
-    protected function getStripeCustomer($user)
-    {
-        // Find in gateway server
-        $stripeCustomers = \Stripe\Customer::all();
-        foreach ($stripeCustomers as $stripeCustomer) {
-            if ($stripeCustomer->metadata->local_user_id == $user->getBillableId()) {
-                return $stripeCustomer;
-            }
-        }
-
-        // create if not exist
-        $stripeCustomer = \Stripe\Customer::create([
-            'email' => $user->getBillableEmail(),
-            'metadata' => [
-                'local_user_id' => $user->getBillableId(),
-            ],
-        ]);
-
-        return $stripeCustomer;
-    }
-
-    /**
-     * Update user card.
-     *
-     * @param  string    $userId
-     * @return Boolean
-     */
-    public function billableUserUpdateCard($user, $params)
-    {
-        $stripeCustomer = $this->getStripeCustomer($user);
-
-        $card = $stripeCustomer->sources->create(['source' => $params['stripeToken']]);
-        $stripeCustomer->default_source = $card->id;
-        $stripeCustomer->save();
     }
 
     /**
@@ -530,16 +429,6 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      */
     public function check($subscription)
     {
-        // check expired
-        if ($subscription->isExpired()) {
-            $subscription->cancelNow();
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-        }
 
         if (!$subscription->hasError()) {
             // check renew pending
@@ -549,25 +438,12 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
                     'type' => 'renew',
                     'message' => trans('cashier::messages.renew.warning', [
                         'date' => $subscription->current_period_ends_at,
-                        'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\RazorpayController@renew", [
-                            'subscription_id' => $subscription->uid,
-                            'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
-                        ]),
+                        'link' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@renew'),
                     ]),
                 ]);
                 $subscription->save();
             }
         }
-    }
-
-    /**
-     * Check if use remote subscription.
-     *
-     * @return void
-     */
-    public function useRemoteSubscription()
-    {
-        return false;
     }
     
     /**
@@ -607,5 +483,16 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         if ($sig != $request->razorpay_signature) {
             throw new \Exception('Can not verify remote order: ' . $request->razorpay_order_id);
         }
+    }
+
+    /**
+     * Get connect url.
+     *
+     * @return string
+     */
+    public function getConnectUrl($returnUrl='/') {
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\RazorpayController@connect", [
+            'return_url' => $returnUrl,
+        ]);
     }
 }

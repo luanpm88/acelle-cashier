@@ -103,4 +103,12 @@ display: block;" href="{{ $transaction->getMetadata()['status_url'] }}">
         </div>
         <div class="col-md-2"></div>
     </div>
+
+    <form class="mt-5" method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\CoinpaymentsController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
+        {{ csrf_field() }}
+        
+        <a href="javascript:;" onclick="$(this).closest('form').submit()"
+            class="text-muted" style="font-size: 12px; text-decoration: underline"
+        >{{ trans('cashier::messages.coinpayments.cancel_subscription') }}</a>
+    </form>
 @endsection

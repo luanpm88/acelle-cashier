@@ -35,16 +35,6 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
      */
     public function check($subscription)
     {
-        // check expired
-        if ($subscription->isExpired()) {
-            $subscription->cancelNow();
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-        }
         
         if (!$subscription->hasError()) {
             // check renew pending
@@ -54,10 +44,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
                     'type' => 'renew',
                     'message' => trans('cashier::messages.renew.warning', [
                         'date' => $subscription->current_period_ends_at,
-                        'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\DirectController@renew", [
-                            'subscription_id' => $subscription->uid,
-                            'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
-                        ]),
+                        'link' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@renew'),
                     ]),
                 ]);
                 $subscription->save();
@@ -120,7 +107,10 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
         $subscription->save();
 
         // set gateway
-        $customer->updatePaymentMethod('direct');
+        $customer->updatePaymentMethod([
+            'method' => 'direct',
+            'user_id' => $customer->getBillableEmail(),
+        ]);
 
         // subscription transaction
         $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
@@ -504,12 +494,13 @@ class DirectPaymentGateway implements PaymentGatewayInterface {
     }
 
     /**
-     * Check if use remote subscription.
+     * Get connect url.
      *
-     * @return void
+     * @return string
      */
-    public function useRemoteSubscription()
-    {
-        return false;
+    public function getConnectUrl($returnUrl='/') {
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\DirectController@connect", [
+            'return_url' => $returnUrl,
+        ]);
     }
 }

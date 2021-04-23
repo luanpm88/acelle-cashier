@@ -446,20 +446,6 @@ class Subscription extends Model
     }
 
     /**
-     * Get gateway.
-     *
-     * @return gateway
-     */
-    public function getPaymentGateway()
-    {
-        if ($this->user->getPaymentMethod() == null) {
-            return null;
-        }
-
-        return \Acelle\Cashier\Cashier::getPaymentGateway($this->user->getPaymentMethod()['gateway']);
-    }
-
-    /**
      * Check subscription status.
      *
      * @param  Int  $subscriptionId
@@ -469,21 +455,32 @@ class Subscription extends Model
     {
         $subscriptions = self::whereNull('ends_at')->orWhere('ends_at', '>=', \Carbon\Carbon::now())->get();
         foreach ($subscriptions as $subscription) {
+            // check expired
+            if ($subscription->isExpired()) {
+                $subscription->cancelNow();
+
+                // add log
+                $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
+                    'plan' => $subscription->plan->getBillableName(),
+                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                ]);
+            }
+
             // get sub gateway
-            $subGateway = $subscription->getPaymentGateway();
+            $subGateway = $subscription->user->getPaymentGateway();
 
             // can not find payment gateway
             if (!isset($subGateway)) {
                 // set subscription last_error_type
                 $subscription->setError([
                     'status' => 'error',
-                    'type' => 'change_plan_failed',
-                    'message' => trans('cashier::messages.gateway_not_found', [
-                        'error' => $e->getMessage(),
-                    ]),
+                    'type' => 'payment_missing',
+                    'message' => trans('cashier::messages.gateway_not_found'),
                 ]);
 
                 break;
+            } else {
+                $subscription->removeError('payment_missing');                
             }
 
             // normal check
@@ -755,5 +752,81 @@ class Subscription extends Model
     {
         $this->error = json_encode($data);
         $this->save();
+    }
+
+    /**
+     * remove error
+     *
+     * @return void
+     */
+    public function removeError($type=null)
+    {
+        if ($type) {
+            if (
+                $this->getError() && 
+                $this->getError()['type'] &&
+                $this->getError()['type'] == $type
+            ) {
+                $this->error = null;
+            }
+        } else {
+            $this->error = null;
+        }
+
+        $this->save();
+    }
+
+    /**
+     * Get upcomming bill information
+     *
+     * @return void
+     */
+    public function getUpComingBill()
+    {
+        return  [
+            'plan' => $this->plan,
+            'bill' => [
+                ['name' => $this->plan->getBillableName(), 'amount' => $this->plan->getBillableAmount(), 'plan' => $this->plan],
+                ['name' => trans('messages.bill.tax'), 'amount' => 0],
+            ],
+            'charge_on' => $this->current_period_ends_at,
+            'total' => $this->plan->getBillableAmount(),
+        ];
+    }
+
+    /**
+     * Get lastest bill information
+     *
+     * @return void
+     */
+    public function getLatestBillingInfo()
+    {
+        return  [
+            'plan' => $this->plan,
+            'bill' => [
+                ['name' => $this->plan->getBillableName(), 'amount' => $this->plan->getBillableAmount(), 'plan' => $this->plan],
+                ['name' => trans('messages.bill.tax'), 'amount' => 0],
+            ],
+            'charge_on' => $this->started_at,
+            'total' => $this->plan->getBillableAmount(),
+        ];
+    }
+    
+    /**
+     * Get lastest bill information
+     *
+     * @return void
+     */
+    public function getRenewBillingInfo()
+    {
+        return  [
+            'plan' => $this->plan,
+            'bill' => [
+                ['name' => $this->plan->getBillableName(), 'amount' => $this->plan->getBillableAmount(), 'plan' => $this->plan],
+                ['name' => trans('messages.bill.tax'), 'amount' => 0],
+            ],
+            'charge_on' => $this->nextPeriod()->format('d M, Y'),
+            'total' => $this->plan->getBillableAmount(),
+        ];
     }
 }

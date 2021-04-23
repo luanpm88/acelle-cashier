@@ -114,10 +114,9 @@ class StripeController extends Controller
             ]);
         }
 
-        return view('cashier::stripe.checkout', [
-            'service' => $this->getPaymentService(),
-            'subscription' => $subscription,
-        ]);
+        return redirect()->away(\Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@charge', [
+            'subscription_id' => $subscription->uid,
+        ]));
     }
     
     /**
@@ -461,5 +460,74 @@ class StripeController extends Controller
             'return_url' => $this->getReturnUrl($request),
             'service' => $service,
         ]);
+    }
+
+    /**
+     * Connect to gateway.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     **/
+    public function connect(Request $request)
+    {
+        // Get current customer
+        $service = $this->getPaymentService();
+
+        // Save return url
+        if ($request->return_url) {
+            $request->session()->put('checkout_return_url', $request->return_url);
+        }
+
+        // get card
+        $card = $service->getCardInformation($request->user()->customer);
+        
+        if ($request->isMethod('post')) {
+            if (!$request->use_current_card) {
+                // update card
+                $service->billableUserUpdateCard($request->user()->customer, $request->all());
+            }
+
+            // set gateway
+            $card = $service->getCardInformation($request->user()->customer);
+            $request->user()->customer->updatePaymentMethod([
+                'method' => 'stripe',
+                'user_id' => $card->name,
+                'card_last4' => $card->last4,
+            ]);
+
+            // resume auto recurring if current subscription is recurring
+            $subscription = $request->user()->customer->subscription;
+            if (is_object($subscription) && $request->user()->customer->can('resume', $subscription)) {
+                $service->resume($subscription);
+            }
+            
+            // return to billing page
+            $request->session()->flash('alert-success', trans('cashier::messages.stripe.connected'));
+            return redirect()->away($this->getReturnUrl($request));
+        }
+        
+        return view('cashier::stripe.connect', [
+            'service' => $service,
+            'cardInfo' => $card,
+        ]);
+    }
+
+    /**
+     * Renew subscription.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     **/
+    public function renew(Request $request, $subscription_id)
+    {
+        // Get current customer
+        $subscription = Subscription::findByUid($subscription_id);
+        $subscription->resume();
+        
+        if ($request->return_url) {
+            return redirect()->away($request->return_url);
+        }
     }
 }

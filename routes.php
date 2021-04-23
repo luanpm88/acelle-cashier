@@ -24,6 +24,7 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     Route::get('/cashier/paypal-subscription/{subscription_id}/checkout', 'PaypalSubscriptionController@checkout');
 
     // PayPal
+    Route::get('/cashier/paypal/connect', 'PaypalController@connect');
     Route::get('/cashier/paypal/payment-redirect', 'PaypalController@paymentRedirect');
     Route::post('/cashier/paypal/{subscription_id}/cancel-now', 'PaypalController@cancelNow');
     Route::match(['get', 'post'], '/cashier/paypal/{subscription_id}/change-plan', 'PaypalController@changePlan');
@@ -32,6 +33,7 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     Route::get('/cashier/paypal/{subscription_id}/checkout', 'PaypalController@checkout');
 
     // Braintree
+    Route::match(['get', 'post'], '/cashier/braintree/connect', 'BraintreeController@connect');
     Route::get('/cashier/braintree/payment-redirect', 'BraintreeController@paymentRedirect');
     Route::match(['get', 'post'], '/cashier/braintree/{subscription_id}/fix-payment', 'BraintreeController@fixPayment');
     Route::get('/cashier/braintree/{subscription_id}/renew/pending', 'BraintreeController@renewPending');
@@ -45,6 +47,7 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     Route::get('/cashier/braintree/{subscription_id}/checkout', 'BraintreeController@checkout');
     
     // Coinpayments
+    Route::get('/cashier/coinpayments/connect', 'CoinpaymentsController@connect');
     Route::get('/cashier/coinpayments/{subscription_id}/transaction-pending', 'CoinpaymentsController@transactionPending');
     Route::post('/cashier/coinpayments/{subscription_id}/cancel-now', 'CoinpaymentsController@cancelNow');
     Route::match(['get', 'post'], '/cashier/coinpayments/{subscription_id}/change-plan', 'CoinpaymentsController@changePlan');
@@ -54,6 +57,7 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     Route::get('/cashier/coinpayments/{subscription_id}/checkout', 'CoinpaymentsController@checkout');
     
     // Direct
+    Route::get('/cashier/direct/connect', 'DirectController@connect');
     Route::post('/cashier/direct/{subscription_id}/cancel-now', 'DirectController@cancelNow');
     Route::match(['get', 'post'], '/cashier/direct/{subscription_id}/change-plan', 'DirectController@changePlan');
     Route::match(['get', 'post'], '/cashier/direct/{subscription_id}/renew', 'DirectController@renew');
@@ -65,6 +69,8 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     Route::get('/cashier/direct/{subscription_id}/checkout', 'DirectController@checkout');
     
     // Stripe
+    Route::match(['get', 'post'], '/cashier/stripe/{subscription_id}/renew', 'StripeController@renew');
+    Route::match(['get', 'post'], '/cashier/stripe/connect', 'StripeController@connect');
     Route::get('/cashier/stripe/payment-redirect', 'StripeController@paymentRedirect');
     Route::match(['get', 'post'], '/cashier/stripe/{subscription_id}/fix-payment', 'StripeController@fixPayment');
     Route::post('/cashier/stripe/{subscription_id}/cancel-now', 'StripeController@cancelNow');
@@ -75,6 +81,8 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     Route::get('/cashier/stripe/{subscription_id}/checkout', 'StripeController@checkout');
     
     // Razorpay
+    Route::post('/cashier/razorpay/{subscription_id}/cancel-now', 'RazorpayController@cancelNow');
+    Route::get('/cashier/razorpay/connect', 'RazorpayController@connect');
     Route::match(['get', 'post'], '/cashier/razorpay/{subscription_id}/change-plan', 'RazorpayController@changePlan');
     Route::match(['get', 'post'], '/cashier/razorpay/{subscription_id}/renew', 'RazorpayController@renew');
     Route::match(['get', 'post'], '/cashier/razorpay/{subscription_id}/charge', 'RazorpayController@charge');
@@ -82,6 +90,7 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     Route::match(['get', 'post'], '/cashier/razorpay/{subscription_id}/checkout', 'RazorpayController@checkout');
 
     // Paystack
+    Route::get('/cashier/paystack/connect', 'PaystackController@connect');
     Route::post('/cashier/paystack/{subscription_id}/cancel-now', 'PaystackController@cancelNow');
     Route::match(['get', 'post'], '/cashier/paystack/{subscription_id}/change-plan', 'PaystackController@changePlan');
     Route::get('/cashier/paystack/payment-redirect', 'PaystackController@paymentRedirect');

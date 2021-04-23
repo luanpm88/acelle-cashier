@@ -94,7 +94,12 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $subscription->save();
 
         // set gateway
-        $customer->updatePaymentMethod('stripe');
+        $card = $this->getCardInformation($customer);
+        $customer->updatePaymentMethod([
+            'method' => 'stripe',
+            'user_id' => $card->name,
+            'card_last4' => $card->last4,
+        ]);
         
         return $subscription;
     }
@@ -158,7 +163,10 @@ class StripePaymentGateway implements PaymentGatewayInterface
     }
 
     public function getRenewUrl($subscription, $returnUrl='/') {
-        return false;
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\StripeController@renew", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
     }
 
     /**
@@ -456,16 +464,8 @@ class StripePaymentGateway implements PaymentGatewayInterface
      */
     public function check($subscription)
     {
-        // check expired
-        if ($subscription->isExpired()) {
-            $subscription->cancelNow();
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-        }
+        // clear renew message
+        $subscription->removeError('renew');
         
         // check from service: recurring/transaction
         if ($subscription->isRecurring() && $subscription->isExpiring()) {
@@ -474,12 +474,13 @@ class StripePaymentGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Check if use remote subscription.
+     * Get connect url.
      *
-     * @return void
+     * @return string
      */
-    public function useRemoteSubscription()
-    {
-        return false;
+    public function getConnectUrl($returnUrl='/') {
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\StripeController@connect", [
+            'return_url' => $returnUrl,
+        ]);
     }
 }

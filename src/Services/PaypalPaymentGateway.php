@@ -45,16 +45,6 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
      */
     public function check($subscription)
     {
-        // check expired
-        if ($subscription->isExpired()) {
-            $subscription->cancelNow();
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-        }
 
         if (!$subscription->hasError()) {
             // check renew pending
@@ -64,10 +54,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
                     'type' => 'renew',
                     'message' => trans('cashier::messages.renew.warning', [
                         'date' => $subscription->current_period_ends_at,
-                        'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\PaypalController@renew", [
-                            'subscription_id' => $subscription->uid,
-                            'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
-                        ]),
+                        'link' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@renew'),
                     ]),
                 ]);
                 $subscription->save();
@@ -123,7 +110,10 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         $subscription->save();
 
         // set gateway
-        $customer->updatePaymentMethod('paypal');
+        $customer->updatePaymentMethod([
+            'method' => 'paypal',
+            'user_id' => $customer->getBillableEmail(),
+        ]);
         
         // If plan is free: enable subscription & update transaction
         if ($plan->getBillableAmount() == 0) {
@@ -416,12 +406,13 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Check if use remote subscription.
+     * Get connect url.
      *
-     * @return void
+     * @return string
      */
-    public function useRemoteSubscription()
-    {
-        return false;
+    public function getConnectUrl($returnUrl='/') {
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaypalController@connect", [
+            'return_url' => $returnUrl,
+        ]);
     }
 }

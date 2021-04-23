@@ -22,7 +22,6 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         $this->environment = $environment;
         $this->merchantId = $merchantId;
         $this->publicKey = $publicKey;
-        $this->publicKey = $publicKey;
         $this->privateKey = $privateKey;
         $this->always_ask_for_valid_card = $always_ask_for_valid_card;
 
@@ -62,7 +61,10 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         $subscription->save();
 
         // set gateway
-        $customer->updatePaymentMethod('braintree');
+        $customer->updatePaymentMethod([
+            'method' => 'braintree',
+            'user_id' => $customer->getBillableEmail(),
+        ]);
         
         return $subscription;
     }
@@ -222,7 +224,12 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
-    public function getRenewUrl($subscription, $returnUrl='/') {}
+    public function getRenewUrl($subscription, $returnUrl='/') {
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\BraintreeController@renew", [
+            'subscription_id' => $subscription->uid,
+            'return_url' => $returnUrl,
+        ]);
+    }
 
     public function renew($subscription) {        
         // add transaction
@@ -360,16 +367,8 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      */
     public function check($subscription)
     {
-        // check expired
-        if ($subscription->isExpired()) {
-            $subscription->cancelNow();
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-        }
+        // clear renew message
+        $subscription->removeError('renew');
 
         // check from service: recurring/transaction
         if ($subscription->isRecurring() && $subscription->isExpiring()) {
@@ -378,12 +377,13 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Check if use remote subscription.
+     * Get connect url.
      *
-     * @return void
+     * @return string
      */
-    public function useRemoteSubscription()
-    {
-        return false;
+    public function getConnectUrl($returnUrl='/') {
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\BraintreeController@connect", [
+            'return_url' => $returnUrl,
+        ]);
     }
 }

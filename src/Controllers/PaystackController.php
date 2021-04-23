@@ -158,25 +158,6 @@ class PaystackController extends Controller
     }
     
     /**
-     * Subscribe with card information.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function updateCard(Request $request, $subscription_id)
-    {
-        // subscription and service
-        $subscription = Subscription::findByUid($subscription_id);
-        $service = $this->getPaymentService();
-        
-        // update card
-        $service->billableUserUpdateCard($subscription->user, $request->all());
-
-        return redirect()->away($request->redirect);
-    }
-    
-    /**
      * Subscription charge.
      *
      * @param \Illuminate\Http\Request $request
@@ -519,6 +500,53 @@ class PaystackController extends Controller
         return view('cashier::paystack.renew', [
             'service' => $this->getPaymentService(),
             'subscription' => $subscription,
+        ]);
+    }
+
+    /**
+     * Fix transation.
+     *
+     * @param \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     **/
+    public function connect(Request $request)
+    {
+        // Get current customer
+        $service = $this->getPaymentService();
+
+        // Save return url
+        if ($request->return_url) {
+            $request->session()->put('checkout_return_url', $request->return_url);
+        }
+        
+        if ($request->isMethod('post')) {
+            if (!$request->use_current_card) {
+                // update card
+                $service->billableUserUpdateCard($request->user()->customer, $request->all());
+            }
+
+            // set gateway
+            $card = $service->getCardInformation($request->user()->customer);
+            $request->user()->customer->updatePaymentMethod([
+                'method' => 'stripe',
+                'user_id' => $card->name,
+                'card_last4' => $card->last4,
+            ]);
+
+            // resume auto recurring if current subscription is recurring
+            $subscription = $request->user()->customer->subscription;
+            if (is_object($subscription) && $request->user()->customer->can('resume', $subscription)) {
+                $service->resume($subscription);
+            }
+            
+            // return to billing page
+            $request->session()->flash('alert-success', trans('cashier::messages.stripe.connected'));
+            return redirect()->away($this->getReturnUrl($request));
+        }
+        
+        return view('cashier::paystack.connect', [
+            'service' => $service,
         ]);
     }
 }

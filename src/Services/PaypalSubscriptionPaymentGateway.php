@@ -702,16 +702,6 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
      */
     public function check($subscription)
     {
-        // check expired
-        if ($subscription->isExpired()) {
-            $subscription->cancelNow();
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_EXPIRED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-        }
 
         // check remote status
         if (!$subscription->isEnded()) {
@@ -846,7 +836,10 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
         $subscription->save();
 
         // set gateway
-        $customer->updatePaymentMethod('paypal_subscription');
+        $customer->updatePaymentMethod([
+            'method' => 'paypal_subscription',
+            'user_id' => $customer->getBillableEmail(),
+        ]);
         
         // If plan is free: enable subscription & update transaction
         if ($plan->getBillableAmount() == 0) {
@@ -1303,16 +1296,6 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
             'amount' => round($amount, 2),
             'ends_at' => $subscription->getPeriodEndsAt($subscription->current_period_ends_at),
         ];
-    }
-
-    /**
-     * Check if use remote subscription.
-     *
-     * @return void
-     */
-    public function useRemoteSubscription()
-    {
-        return true;
     }
 
     /**
