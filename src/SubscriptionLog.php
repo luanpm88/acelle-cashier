@@ -18,6 +18,7 @@ class SubscriptionLog extends Model
     const TYPE_RENEW = 'renew';
     const TYPE_RENEW_FAILED = 'renew_failed';
     const TYPE_PLAN_CHANGE = 'plan_change';
+    const TYPE_PLAN_CHANGE_CANCELED = 'plan_change_canceled';
     const TYPE_PLAN_CHANGED = 'plan_changed';
     const TYPE_PLAN_CHANGE_FAILED = 'plan_change_failed';
     const TYPE_CANCELLED = 'cancelled';

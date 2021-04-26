@@ -36,7 +36,7 @@ class BraintreeController extends Controller
     {
         return Cashier::getPaymentGateway('braintree');
     }
-    
+
     /**
      * Subscription checkout page.
      *
@@ -44,428 +44,490 @@ class BraintreeController extends Controller
      *
      * @return \Illuminate\Http\Response
      **/
-    public function checkout(Request $request, $subscription_id)
+    public function checkout(Request $request, $invoice_uid)
     {
-        $subscription = Subscription::findByUid($subscription_id);
+        $customer = $request->user()->customer;
         $service = $this->getPaymentService();
+        $invoice = \Acelle\Model\Invoice::findByUid($invoice_uid);
         
         // Save return url
         if ($request->return_url) {
             $request->session()->put('checkout_return_url', $request->return_url);
         }
 
-        // if subscription is active
-        if ($subscription->isActive() || $subscription->isEnded()) {
+        // not waiting
+        if (!$invoice->isPending() && !$invoice->isClaimed()) {
             return redirect()->away($this->getReturnUrl($request));
         }
 
-        // if free plan
-        if ($subscription->plan->getBillableAmount() == 0 && $service->always_ask_for_valid_card == 'no') {
-            // charged successfully. Set subscription to active
-            $subscription->start();
+        // free plan. No charge
+        if ($invoice->total() == 0) {
+            $invoice->setPaid();
 
-            // add transaction
-            $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
-                'ends_at' => $subscription->ends_at,
-                'current_period_ends_at' => $subscription->current_period_ends_at,
-                'status' => SubscriptionTransaction::STATUS_SUCCESS,
-                'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
-                    'plan' => $subscription->plan->getBillableName(),
-                ]),
-                'amount' => $subscription->plan->getBillableFormattedPrice()
-            ]);
-
-            // Redirect to my subscription page
             return redirect()->away($this->getReturnUrl($request));
-        }
+        }  
 
-        return redirect()->away(\Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@charge', [
-            'subscription_id' => $subscription->uid,
-        ]));
-    }
-    
-    /**
-     * Update customer card.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function updateCard(Request $request, $subscription_id)
-    {
-        // subscription and service
-        $subscription = Subscription::findByUid($subscription_id);
-        $service = $this->getPaymentService();
-        
-        // update card
-        $service->updateCard($subscription->user, $request->nonce);
-        
-        // charge url
-        if ($request->charge_url) {
-            return redirect()->away($request->charge_url);
+        if(!$service->hasCard($customer)) {
+            // connect again
+            return redirect()->away(
+                $service->getConnectUrl(
+                    $service->getCheckoutUrl($invoice, $this->getReturnUrl($request))
+                )
+            );
         }
-        
-        return redirect()->away($request->redirect);
-    }
-    
-    /**
-     * Subscription charge.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function charge(Request $request, $subscription_id)
-    {
-        // subscription and service
-        $subscription = Subscription::findByUid($subscription_id);
-        $service = $this->getPaymentService();
-        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
 
         if ($request->isMethod('post')) {
-            // add transaction
-            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
-                'ends_at' => $subscription->ends_at,
-                'current_period_ends_at' => $subscription->current_period_ends_at,
-                'status' => SubscriptionTransaction::STATUS_PENDING,
-                'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
-                    'plan' => $subscription->plan->getBillableName(),
-                ]),
-                'amount' => $subscription->plan->getBillableFormattedPrice()
-            ]);
-            
-            if ($subscription->plan->getBillableAmount() > 0) {
-                try {
-                    // charge customer
-                    $service->charge($subscription, [
-                        'amount' => $subscription->plan->getBillableAmount(),
-                        'currency' => $subscription->plan->getBillableCurrency(),
-                        'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
-                            'plan' => $subscription->plan->getBillableName(),
-                        ]),
-                    ]);
-                } catch (\Exception $e) {
-                    // charged successfully. Set subscription to active
-                    $subscription->cancelNow();
+            $result = $service->chargeInvoice($invoice);
 
-                    // transaction success
-                    $transaction->description = trans('cashier::messages.charge.something_went_wrong', ['error' => $e->getMessage()]);
-                    $transaction->setFailed();
+            if ($result['status'] == 'error') {
+                // reset invoice to new
+                $invoice->setNew();
 
-                    // add log
-                    $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
-                        'plan' => $subscription->plan->getBillableName(),
-                        'price' => $subscription->plan->getBillableFormattedPrice(),
-                        'message' => $e->getMessage(),
-                    ]);
-
-                    // Redirect to my subscription page
-                    $request->session()->flash('alert-error', trans('cashier::messages.charge.something_went_wrong', ['error' => $e->getMessage()]));
-                    return redirect()->away($this->getReturnUrl($request));
-                }
+                // return with error message
+                $request->session()->flash('alert-error', $result['error']);
+                return redirect()->away($this->getReturnUrl($request));
+                
             }
-
-            // charged successfully. Set subscription to active
-            $subscription->start();
-
-            // transaction success
-            $transaction->setSuccess();
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_PAID, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-            sleep(1);
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-
-            // Redirect to my subscription page
+                
+            // return 
+            $result = $service->chargeInvoice($invoice);
             return redirect()->away($this->getReturnUrl($request));
         }
 
-        return view('cashier::braintree.charge', [
-            'subscription' => $subscription,
+        return view('cashier::stripe.charging', [
+            'invoice' => $invoice,
         ]);
     }
     
-    /**
-     * Subscription pending page.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function pending(Request $request, $subscription_id)
-    {
-        $service = $this->getPaymentService();
-        $subscription = Subscription::findByUid($subscription_id);
-        $transaction = $service->getTransaction($subscription);
+    // /**
+    //  * Subscription checkout page.
+    //  *
+    //  * @param \Illuminate\Http\Request $request
+    //  *
+    //  * @return \Illuminate\Http\Response
+    //  **/
+    // public function checkout(Request $request, $subscription_id)
+    // {
+    //     $subscription = Subscription::findByUid($subscription_id);
+    //     $service = $this->getPaymentService();
         
-        $service->sync($subscription);
-        
-        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
-        if (!$return_url) {
-            $return_url = Cashier::public_url('/');
-        }
-        
-        if (!$subscription->isPending()) {
-            return redirect()->away($return_url);
-        }
-        
-        return view('cashier::braintree.pending', [
-            'gatewayService' => $service,
-            'subscription' => $subscription,
-            'transaction' => $transaction,
-            'return_url' => $return_url,
-        ]);
-    }
+    //     // Save return url
+    //     if ($request->return_url) {
+    //         $request->session()->put('checkout_return_url', $request->return_url);
+    //     }
+
+    //     // if subscription is active
+    //     if ($subscription->isActive() || $subscription->isEnded()) {
+    //         return redirect()->away($this->getReturnUrl($request));
+    //     }
+
+    //     // if free plan
+    //     if ($subscription->plan->getBillableAmount() == 0 && $service->always_ask_for_valid_card == 'no') {
+    //         // charged successfully. Set subscription to active
+    //         $subscription->start();
+
+    //         // add transaction
+    //         $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
+    //             'ends_at' => $subscription->ends_at,
+    //             'current_period_ends_at' => $subscription->current_period_ends_at,
+    //             'status' => SubscriptionTransaction::STATUS_SUCCESS,
+    //             'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
+    //                 'plan' => $subscription->plan->getBillableName(),
+    //             ]),
+    //             'amount' => $subscription->plan->getBillableFormattedPrice()
+    //         ]);
+
+    //         // Redirect to my subscription page
+    //         return redirect()->away($this->getReturnUrl($request));
+    //     }
+
+    //     return redirect()->away(\Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@charge', [
+    //         'subscription_id' => $subscription->uid,
+    //     ]));
+    // }
     
-    /**
-     * Renew subscription.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function changePlan(Request $request, $subscription_id)
-    {
-        // Get current customer
-        $subscription = Subscription::findByUid($subscription_id);
-        $service = $this->getPaymentService();
-        $cardInfo = $service->getCardInformation($subscription->user);
+    // /**
+    //  * Update customer card.
+    //  *
+    //  * @param \Illuminate\Http\Request $request
+    //  *
+    //  * @return \Illuminate\Http\Response
+    //  **/
+    // public function updateCard(Request $request, $subscription_id)
+    // {
+    //     // subscription and service
+    //     $subscription = Subscription::findByUid($subscription_id);
+    //     $service = $this->getPaymentService();
         
-        // @todo dependency injection
-        $plan = \Acelle\Model\Plan::findByUid($request->plan_id);        
+    //     // update card
+    //     $service->updateCard($subscription->user, $request->nonce);
         
-        // Save return url
-        if ($request->return_url) {
-            $request->session()->put('checkout_return_url', $request->return_url);
-        }
-
-        // calc plan before change
-        try {
-            $result = Cashier::calcChangePlan($subscription, $plan);
-        } catch (\Exception $e) {
-            $request->session()->flash('alert-error', trans('cashier::messages.change_plan.failed', ['error' => $e->getMessage()]));
-            return redirect()->away($this->getReturnUrl($request));
-        }
+    //     // charge url
+    //     if ($request->charge_url) {
+    //         return redirect()->away($request->charge_url);
+    //     }
         
-        if ($request->isMethod('post')) {
-            // add transaction
-            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_PLAN_CHANGE, [
-                'ends_at' => $subscription->ends_at,
-                'current_period_ends_at' => $subscription->current_period_ends_at,
-                'status' => SubscriptionTransaction::STATUS_PENDING,
-                'title' => trans('cashier::messages.transaction.change_plan', [
-                    'plan' => $plan->getBillableName(),
-                ]),
-                'amount' => $result['amount'],
-            ]);
+    //     return redirect()->away($request->redirect);
+    // }
+    
+    // /**
+    //  * Subscription charge.
+    //  *
+    //  * @param \Illuminate\Http\Request $request
+    //  *
+    //  * @return \Illuminate\Http\Response
+    //  **/
+    // public function charge(Request $request, $subscription_id)
+    // {
+    //     // subscription and service
+    //     $subscription = Subscription::findByUid($subscription_id);
+    //     $service = $this->getPaymentService();
+    //     $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
 
-            // charge customer
-            if ($result['amount'] > 0) {
-                try {
-                    // charge customer
-                    $service->charge($subscription, [
-                        'amount' => $result['amount'],
-                        'currency' => $plan->getBillableCurrency(),
-                        'description' => trans('cashier::messages.transaction.change_plan', [
-                            'plan' => $plan->getBillableName(),
-                        ]),
-                    ]);
-                } catch (\Exception $e) {
-                    // set transaction failed
-                    $transaction->description = $e->getMessage();
-                    $transaction->setFailed();
-
-                    // add log
-                    $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE_FAILED, [
-                        'old_plan' => $subscription->plan->getBillableName(),
-                        'plan' => $plan->getBillableName(),
-                        'price' => $result['amount'],
-                        'error' => $e->getMessage(),
-                    ]);
-
-                    // set subscription last_error_type
-                    $subscription->error = json_encode([
-                        'status' => 'error',
-                        'type' => 'change_plan_failed',
-                        'message' => trans('cashier::messages.change_plan_failed_with_error', [
-                            'error' => $e->getMessage(),
-                        ]),
-                    ]);
-                    $subscription->save();
-
-                    // Redirect to my subscription page
-                    return redirect()->away($this->getReturnUrl($request));
-                }
-            }
+    //     if ($request->isMethod('post')) {
+    //         // add transaction
+    //         $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
+    //             'ends_at' => $subscription->ends_at,
+    //             'current_period_ends_at' => $subscription->current_period_ends_at,
+    //             'status' => SubscriptionTransaction::STATUS_PENDING,
+    //             'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
+    //                 'plan' => $subscription->plan->getBillableName(),
+    //             ]),
+    //             'amount' => $subscription->plan->getBillableFormattedPrice()
+    //         ]);
             
-            // change plan
-            $subscription->changePlan($plan);
+    //         if ($subscription->plan->getBillableAmount() > 0) {
+    //             try {
+    //                 // charge customer
+    //                 $service->charge($subscription, [
+    //                     'amount' => $subscription->plan->getBillableAmount(),
+    //                     'currency' => $subscription->plan->getBillableCurrency(),
+    //                     'description' => trans('cashier::messages.transaction.subscribed_to_plan', [
+    //                         'plan' => $subscription->plan->getBillableName(),
+    //                     ]),
+    //                 ]);
+    //             } catch (\Exception $e) {
+    //                 // charged successfully. Set subscription to active
+    //                 $subscription->cancelNow();
 
-            // set success
-            $transaction->setSuccess();
+    //                 // transaction success
+    //                 $transaction->description = trans('cashier::messages.charge.something_went_wrong', ['error' => $e->getMessage()]);
+    //                 $transaction->setFailed();
 
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGED, [
-                'old_plan' => $subscription->plan->getBillableName(),
-                'plan' => $plan->getBillableName(),
-                'price' => $plan->getBillableFormattedPrice(),
-            ]);
+    //                 // add log
+    //                 $subscription->addLog(SubscriptionLog::TYPE_ERROR, [
+    //                     'plan' => $subscription->plan->getBillableName(),
+    //                     'price' => $subscription->plan->getBillableFormattedPrice(),
+    //                     'message' => $e->getMessage(),
+    //                 ]);
+
+    //                 // Redirect to my subscription page
+    //                 $request->session()->flash('alert-error', trans('cashier::messages.charge.something_went_wrong', ['error' => $e->getMessage()]));
+    //                 return redirect()->away($this->getReturnUrl($request));
+    //             }
+    //         }
+
+    //         // charged successfully. Set subscription to active
+    //         $subscription->start();
+
+    //         // transaction success
+    //         $transaction->setSuccess();
+
+    //         // add log
+    //         $subscription->addLog(SubscriptionLog::TYPE_PAID, [
+    //             'plan' => $subscription->plan->getBillableName(),
+    //             'price' => $subscription->plan->getBillableFormattedPrice(),
+    //         ]);
+    //         sleep(1);
+    //         // add log
+    //         $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
+    //             'plan' => $subscription->plan->getBillableName(),
+    //             'price' => $subscription->plan->getBillableFormattedPrice(),
+    //         ]);
+
+    //         // Redirect to my subscription page
+    //         return redirect()->away($this->getReturnUrl($request));
+    //     }
+
+    //     return view('cashier::braintree.charge', [
+    //         'subscription' => $subscription,
+    //     ]);
+    // }
+    
+    // /**
+    //  * Subscription pending page.
+    //  *
+    //  * @param \Illuminate\Http\Request $request
+    //  *
+    //  * @return \Illuminate\Http\Response
+    //  **/
+    // public function pending(Request $request, $subscription_id)
+    // {
+    //     $service = $this->getPaymentService();
+    //     $subscription = Subscription::findByUid($subscription_id);
+    //     $transaction = $service->getTransaction($subscription);
+        
+    //     $service->sync($subscription);
+        
+    //     $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
+    //     if (!$return_url) {
+    //         $return_url = Cashier::public_url('/');
+    //     }
+        
+    //     if (!$subscription->isPending()) {
+    //         return redirect()->away($return_url);
+    //     }
+        
+    //     return view('cashier::braintree.pending', [
+    //         'gatewayService' => $service,
+    //         'subscription' => $subscription,
+    //         'transaction' => $transaction,
+    //         'return_url' => $return_url,
+    //     ]);
+    // }
+    
+    // /**
+    //  * Renew subscription.
+    //  *
+    //  * @param \Illuminate\Http\Request $request
+    //  *
+    //  * @return \Illuminate\Http\Response
+    //  **/
+    // public function changePlan(Request $request, $subscription_id)
+    // {
+    //     // Get current customer
+    //     $subscription = Subscription::findByUid($subscription_id);
+    //     $service = $this->getPaymentService();
+    //     $cardInfo = $service->getCardInformation($subscription->user);
+        
+    //     // @todo dependency injection
+    //     $plan = \Acelle\Model\Plan::findByUid($request->plan_id);        
+        
+    //     // Save return url
+    //     if ($request->return_url) {
+    //         $request->session()->put('checkout_return_url', $request->return_url);
+    //     }
+
+    //     // calc plan before change
+    //     try {
+    //         $result = Cashier::calcChangePlan($subscription, $plan);
+    //     } catch (\Exception $e) {
+    //         $request->session()->flash('alert-error', trans('cashier::messages.change_plan.failed', ['error' => $e->getMessage()]));
+    //         return redirect()->away($this->getReturnUrl($request));
+    //     }
+        
+    //     if ($request->isMethod('post')) {
+    //         // add transaction
+    //         $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_PLAN_CHANGE, [
+    //             'ends_at' => $subscription->ends_at,
+    //             'current_period_ends_at' => $subscription->current_period_ends_at,
+    //             'status' => SubscriptionTransaction::STATUS_PENDING,
+    //             'title' => trans('cashier::messages.transaction.change_plan', [
+    //                 'plan' => $plan->getBillableName(),
+    //             ]),
+    //             'amount' => $result['amount'],
+    //         ]);
+
+    //         // charge customer
+    //         if ($result['amount'] > 0) {
+    //             try {
+    //                 // charge customer
+    //                 $service->charge($subscription, [
+    //                     'amount' => $result['amount'],
+    //                     'currency' => $plan->getBillableCurrency(),
+    //                     'description' => trans('cashier::messages.transaction.change_plan', [
+    //                         'plan' => $plan->getBillableName(),
+    //                     ]),
+    //                 ]);
+    //             } catch (\Exception $e) {
+    //                 // set transaction failed
+    //                 $transaction->description = $e->getMessage();
+    //                 $transaction->setFailed();
+
+    //                 // add log
+    //                 $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGE_FAILED, [
+    //                     'old_plan' => $subscription->plan->getBillableName(),
+    //                     'plan' => $plan->getBillableName(),
+    //                     'price' => $result['amount'],
+    //                     'error' => $e->getMessage(),
+    //                 ]);
+
+    //                 // set subscription last_error_type
+    //                 $subscription->error = json_encode([
+    //                     'status' => 'error',
+    //                     'type' => 'change_plan_failed',
+    //                     'message' => trans('cashier::messages.change_plan_failed_with_error', [
+    //                         'error' => $e->getMessage(),
+    //                     ]),
+    //                 ]);
+    //                 $subscription->save();
+
+    //                 // Redirect to my subscription page
+    //                 return redirect()->away($this->getReturnUrl($request));
+    //             }
+    //         }
             
-            // remove last_error
-            $subscription->error = null;
-            $subscription->save();
+    //         // change plan
+    //         $subscription->changePlan($plan);
 
-            // Redirect to my subscription page
-            return redirect()->away($this->getReturnUrl($request));
-        }
+    //         // set success
+    //         $transaction->setSuccess();
+
+    //         // add log
+    //         $subscription->addLog(SubscriptionLog::TYPE_PLAN_CHANGED, [
+    //             'old_plan' => $subscription->plan->getBillableName(),
+    //             'plan' => $plan->getBillableName(),
+    //             'price' => $plan->getBillableFormattedPrice(),
+    //         ]);
+            
+    //         // remove last_error
+    //         $subscription->error = null;
+    //         $subscription->save();
+
+    //         // Redirect to my subscription page
+    //         return redirect()->away($this->getReturnUrl($request));
+    //     }
         
-        return view('cashier::braintree.change_plan', [
-            'service' => $service,
-            'subscription' => $subscription,
-            'newPlan' => $plan,
-            'return_url' => $request->return_url,
-            'nextPeriodDay' => $result['endsAt'],
-            'amount' => $result['amount'],
-            'cardInfo' => $cardInfo,
-            'clientToken' => $service->serviceGateway->clientToken()->generate(),
-        ]);
-    }
+    //     return view('cashier::braintree.change_plan', [
+    //         'service' => $service,
+    //         'subscription' => $subscription,
+    //         'newPlan' => $plan,
+    //         'return_url' => $request->return_url,
+    //         'nextPeriodDay' => $result['endsAt'],
+    //         'amount' => $result['amount'],
+    //         'cardInfo' => $cardInfo,
+    //         'clientToken' => $service->serviceGateway->clientToken()->generate(),
+    //     ]);
+    // }
     
-    /**
-     * Change subscription plan pending page.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function changePlanPending(Request $request, $subscription_id)
-    {
-        // Get current customer
-        $subscription = Subscription::findByUid($subscription_id);
-        $service = $this->getPaymentService();
+    // /**
+    //  * Change subscription plan pending page.
+    //  *
+    //  * @param \Illuminate\Http\Request $request
+    //  *
+    //  * @return \Illuminate\Http\Response
+    //  **/
+    // public function changePlanPending(Request $request, $subscription_id)
+    // {
+    //     // Get current customer
+    //     $subscription = Subscription::findByUid($subscription_id);
+    //     $service = $this->getPaymentService();
         
-        return view('cashier::braintree.change_plan_pending', [
-            'subscription' => $subscription,
-            'plan_id' => $request->plan_id,
-        ]);
-    }
+    //     return view('cashier::braintree.change_plan_pending', [
+    //         'subscription' => $subscription,
+    //         'plan_id' => $request->plan_id,
+    //     ]);
+    // }
     
-    /**
-     * Cancel new subscription.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function cancelNow(Request $request, $subscription_id)
-    {
-        $subscription = Subscription::findByUid($subscription_id);
-        $service = $this->getPaymentService();
+    // /**
+    //  * Cancel new subscription.
+    //  *
+    //  * @param \Illuminate\Http\Request $request
+    //  *
+    //  * @return \Illuminate\Http\Response
+    //  */
+    // public function cancelNow(Request $request, $subscription_id)
+    // {
+    //     $subscription = Subscription::findByUid($subscription_id);
+    //     $service = $this->getPaymentService();
 
-        if ($subscription->isNew()) {
-            $subscription->setEnded();
-        }
+    //     if ($subscription->isNew()) {
+    //         $subscription->setEnded();
+    //     }
 
-        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
-        if (!$return_url) {
-            $return_url = Cashier::public_url('/');
-        }
+    //     $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
+    //     if (!$return_url) {
+    //         $return_url = Cashier::public_url('/');
+    //     }
 
-        // Redirect to my subscription page
-        return redirect()->away($return_url);
-    }
+    //     // Redirect to my subscription page
+    //     return redirect()->away($return_url);
+    // }
     
-    /**
-     * Renew subscription.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function renew(Request $request, $subscription_id)
-    {
-        // Get current customer
-        $subscription = Subscription::findByUid($subscription_id);
-        $subscription->resume();
+    // /**
+    //  * Renew subscription.
+    //  *
+    //  * @param \Illuminate\Http\Request $request
+    //  *
+    //  * @return \Illuminate\Http\Response
+    //  **/
+    // public function renew(Request $request, $subscription_id)
+    // {
+    //     // Get current customer
+    //     $subscription = Subscription::findByUid($subscription_id);
+    //     $subscription->resume();
         
-        if ($request->return_url) {
-            return redirect()->away($request->return_url);
-        }
-    }
+    //     if ($request->return_url) {
+    //         return redirect()->away($request->return_url);
+    //     }
+    // }
     
-    /**
-     * Change subscription plan pending page.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function renewPending(Request $request, $subscription_id)
-    {
-        // Get current customer
-        $subscription = Subscription::findByUid($subscription_id);
-        $service = $this->getPaymentService();
+    // /**
+    //  * Change subscription plan pending page.
+    //  *
+    //  * @param \Illuminate\Http\Request $request
+    //  *
+    //  * @return \Illuminate\Http\Response
+    //  **/
+    // public function renewPending(Request $request, $subscription_id)
+    // {
+    //     // Get current customer
+    //     $subscription = Subscription::findByUid($subscription_id);
+    //     $service = $this->getPaymentService();
         
-        return view('cashier::braintree.renew_pending', [
-            'subscription' => $subscription,
-        ]);
-    }
+    //     return view('cashier::braintree.renew_pending', [
+    //         'subscription' => $subscription,
+    //     ]);
+    // }
 
-    /**
-     * Fix transation.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function fixPayment(Request $request, $subscription_id)
-    {
-        // Get current customer
-        $subscription = Subscription::findByUid($subscription_id);
-        $service = $this->getPaymentService();
+    // /**
+    //  * Fix transation.
+    //  *
+    //  * @param \Illuminate\Http\Request $request
+    //  *
+    //  * @return \Illuminate\Http\Response
+    //  **/
+    // public function fixPayment(Request $request, $subscription_id)
+    // {
+    //     // Get current customer
+    //     $subscription = Subscription::findByUid($subscription_id);
+    //     $service = $this->getPaymentService();
         
-        if ($request->isMethod('post')) {
-            // try to renew again
-            $ok = $service->renew($subscription);
+    //     if ($request->isMethod('post')) {
+    //         // try to renew again
+    //         $ok = $service->renew($subscription);
 
-            if ($ok) {
-                // remove last_error
-                $subscription->error = null;
-                $subscription->save();
-            }
+    //         if ($ok) {
+    //             // remove last_error
+    //             $subscription->error = null;
+    //             $subscription->save();
+    //         }
 
-            // Redirect to my subscription page
-            return redirect()->away($this->getReturnUrl($request));
-        }
+    //         // Redirect to my subscription page
+    //         return redirect()->away($this->getReturnUrl($request));
+    //     }
         
-        return view('cashier::braintree.fix_payment', [
-            'subscription' => $subscription,
-            'return_url' => $this->getReturnUrl($request),
-            'service' => $service,
-            'clientToken' => $service->serviceGateway->clientToken()->generate(),
-        ]);
-    }
+    //     return view('cashier::braintree.fix_payment', [
+    //         'subscription' => $subscription,
+    //         'return_url' => $this->getReturnUrl($request),
+    //         'service' => $service,
+    //         'clientToken' => $service->serviceGateway->clientToken()->generate(),
+    //     ]);
+    // }
 
-    /**
-     * Payment redirecting.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function paymentRedirect(Request $request)
-    {
-        return view('cashier::braintree.payment_redirect', [
-            'redirect' => $request->redirect,
-        ]);
-    }
+    // /**
+    //  * Payment redirecting.
+    //  *
+    //  * @param \Illuminate\Http\Request $request
+    //  *
+    //  * @return \Illuminate\Http\Response
+    //  **/
+    // public function paymentRedirect(Request $request)
+    // {
+    //     return view('cashier::braintree.payment_redirect', [
+    //         'redirect' => $request->redirect,
+    //     ]);
+    // }
 
     /**
      * Fix transation.

@@ -1,4 +1,21 @@
 <?php return array (
+    'change_plan.warning' => 'You have a change plan invoice.
+        Click <a href=":link">here</a> to checkout the invoice.',
+    'invoice.subscription.change_plan_pending' => 'There are change plan invoice with amount: <strong>:amount</strong>.
+        <br><a href=":url"><strong>Click here</strong></a> to see more details.',
+    'invoice.subscription.renew_pending' => 'There are renew invoice with amount: <strong>:amount</strong>.
+        <br><a href=":url"><strong>Click here</strong></a> to see more details.',
+
+    'direct.invoice.pay_invoice' => 'Pay Invoice',
+    'direct.invoice.pay_invoice.intro' => 'You have a pending invoice with billing
+        amount is <strong>:amount</strong>. Please make the payment following the guideline bellow.',
+    'direct.invoice.claimed' => 'Invoice payment claimed.',
+    'direct.invoice.claimed.intro' => '<p>Thanks for your payment. Please wait for the payment confirmation.<br>
+        Normally it may take 1 - 2 days for subscription to be reviewed and approved. Should you have any question, please contact us at:<br>
+        - <strong>mobile</strong>: +88900200300<br>
+        - <strong>Email</strong>: admin@acellemail.com</p>',
+
+    'invoice.item_list' => 'Item List',
     'stripe.checkout.page_title' => 'Checkout',
     'stripe.checkout_with_stripe' => 'Checkout with Stripe',
     'stripe.card_list' => 'Your card information',
@@ -126,9 +143,8 @@
     'direct.plan' => 'Plan',
     'direct.description' => 'Description',
     'direct.amount' => 'Amount',
-    'direct.pending.intro' => 'Thank you for subscribing to our <strong>:plan</strong> plan, your billing
-        amount is <strong>:price</strong>. Please make the payment following the guideline bellow and your
-        subscription will be activated quickly.',
+    'direct.pending.intro' => 'You have a pending invoice with billing
+        amount is <strong>:amount</strong>. Please make the payment following the guideline bellow.',
     'coinpayments.plan' => 'Plan',
     'coinpayments.next_period_day' => 'Next period end day',
     'coinpayments.amount' => 'Amount',
@@ -491,4 +507,5 @@
     'paypal.connected.intro' => 'Make payment outside of application',
     'coinpayments.cancel_subscription' => 'Click here to cancel this subscription. This can not be undone',
     'razorpay.cancel_subscription' => 'Click here to cancel the transaction. This can not be undone.',
+    'subscription.log.plan_change_canceled' => 'Change plan invoice was canceled',
 ) ?>

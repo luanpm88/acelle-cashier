@@ -33,18 +33,20 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     Route::get('/cashier/paypal/{subscription_id}/checkout', 'PaypalController@checkout');
 
     // Braintree
+    Route::match(['get', 'post'], '/cashier/braintree/{invoice_uid}/checkout', 'BraintreeController@checkout');
     Route::match(['get', 'post'], '/cashier/braintree/connect', 'BraintreeController@connect');
-    Route::get('/cashier/braintree/payment-redirect', 'BraintreeController@paymentRedirect');
-    Route::match(['get', 'post'], '/cashier/braintree/{subscription_id}/fix-payment', 'BraintreeController@fixPayment');
-    Route::get('/cashier/braintree/{subscription_id}/renew/pending', 'BraintreeController@renewPending');
-    Route::match(['get', 'post'], '/cashier/braintree/{subscription_id}/renew', 'BraintreeController@renew');
-    Route::get('/cashier/braintree/{subscription_id}/change-plan-pending', 'BraintreeController@changePlanPending');
-    Route::match(['get', 'post'], '/cashier/braintree/{subscription_id}/change-plan', 'BraintreeController@changePlan');
-    Route::post('/cashier/braintree/{subscription_id}/cancel-now', 'BraintreeController@cancelNow');
-    Route::get('/cashier/braintree/{subscription_id}/pending', 'BraintreeController@pending');
-    Route::match(['get', 'post'], '/cashier/braintree/{subscription_id}/charge', 'BraintreeController@charge');
-    Route::post('/cashier/braintree/{subscription_id}/update-card', 'BraintreeController@updateCard');
-    Route::get('/cashier/braintree/{subscription_id}/checkout', 'BraintreeController@checkout');
+    // Route::match(['get', 'post'], '/cashier/braintree/connect', 'BraintreeController@connect');
+    // Route::get('/cashier/braintree/payment-redirect', 'BraintreeController@paymentRedirect');
+    // Route::match(['get', 'post'], '/cashier/braintree/{subscription_id}/fix-payment', 'BraintreeController@fixPayment');
+    // Route::get('/cashier/braintree/{subscription_id}/renew/pending', 'BraintreeController@renewPending');
+    // Route::match(['get', 'post'], '/cashier/braintree/{subscription_id}/renew', 'BraintreeController@renew');
+    // Route::get('/cashier/braintree/{subscription_id}/change-plan-pending', 'BraintreeController@changePlanPending');
+    // Route::match(['get', 'post'], '/cashier/braintree/{subscription_id}/change-plan', 'BraintreeController@changePlan');
+    // Route::post('/cashier/braintree/{subscription_id}/cancel-now', 'BraintreeController@cancelNow');
+    // Route::get('/cashier/braintree/{subscription_id}/pending', 'BraintreeController@pending');
+    // Route::match(['get', 'post'], '/cashier/braintree/{subscription_id}/charge', 'BraintreeController@charge');
+    // Route::post('/cashier/braintree/{subscription_id}/update-card', 'BraintreeController@updateCard');
+    // Route::get('/cashier/braintree/{subscription_id}/checkout', 'BraintreeController@checkout');
     
     // Coinpayments
     Route::get('/cashier/coinpayments/connect', 'CoinpaymentsController@connect');
@@ -57,28 +59,33 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     Route::get('/cashier/coinpayments/{subscription_id}/checkout', 'CoinpaymentsController@checkout');
     
     // Direct
+    Route::post('/cashier/direct/{invoice_uid}/claim', 'DirectController@claim');
+    Route::post('/cashier/direct/{invoice_uid}/unclaim', 'DirectController@unclaim');
+    Route::get('/cashier/direct/{invoice_uid}/checkout', 'DirectController@checkout');
     Route::get('/cashier/direct/connect', 'DirectController@connect');
-    Route::post('/cashier/direct/{subscription_id}/cancel-now', 'DirectController@cancelNow');
-    Route::match(['get', 'post'], '/cashier/direct/{subscription_id}/change-plan', 'DirectController@changePlan');
-    Route::match(['get', 'post'], '/cashier/direct/{subscription_id}/renew', 'DirectController@renew');
-    Route::post('/cashier/direct/{subscription_id}/pending-unclaim', 'DirectController@pendingUnclaim');
-    Route::post('/cashier/direct/{subscription_id}/pending-claim', 'DirectController@pendingClaim');
-    Route::get('/cashier/direct/{subscription_id}/pending', 'DirectController@pending');
-    Route::post('/cashier/direct/{subscription_id}/unclaim', 'DirectController@unclaim');
-    Route::post('/cashier/direct/{subscription_id}/claim', 'DirectController@claim');
-    Route::get('/cashier/direct/{subscription_id}/checkout', 'DirectController@checkout');
+    
+    // Route::post('/cashier/direct/{subscription_id}/cancel-now', 'DirectController@cancelNow');
+    // Route::match(['get', 'post'], '/cashier/direct/{subscription_id}/change-plan', 'DirectController@changePlan');
+    // Route::match(['get', 'post'], '/cashier/direct/{subscription_id}/renew', 'DirectController@renew');
+    // Route::post('/cashier/direct/{subscription_id}/pending-unclaim', 'DirectController@pendingUnclaim');
+    // Route::post('/cashier/direct/{subscription_id}/pending-claim', 'DirectController@pendingClaim');
+    // Route::get('/cashier/direct/{subscription_id}/pending', 'DirectController@pending');
+    // 
+    // 
+    
     
     // Stripe
-    Route::match(['get', 'post'], '/cashier/stripe/{subscription_id}/renew', 'StripeController@renew');
+    // Route::match(['get', 'post'], '/cashier/stripe/{subscription_id}/renew', 'StripeController@renew');
+    // Route::match(['get', 'post'], '/cashier/stripe/connect', 'StripeController@connect');
+    // Route::get('/cashier/stripe/payment-redirect', 'StripeController@paymentRedirect');
+    // Route::match(['get', 'post'], '/cashier/stripe/{subscription_id}/fix-payment', 'StripeController@fixPayment');
+    // Route::post('/cashier/stripe/{subscription_id}/cancel-now', 'StripeController@cancelNow');
+    // Route::get('/cashier/stripe/{subscription_id}/change-plan-pending', 'StripeController@changePlanPending');
+    // Route::match(['get', 'post'], '/cashier/stripe/{subscription_id}/change-plan', 'StripeController@changePlan');
+    // Route::match(['get', 'post'], '/cashier/stripe/{subscription_id}/charge', 'StripeController@charge');
+    // Route::post('/cashier/stripe/{subscription_id}/update-card', 'StripeController@updateCard');
+    Route::match(['get', 'post'], '/cashier/stripe/{invoice_uid}/checkout', 'StripeController@checkout');
     Route::match(['get', 'post'], '/cashier/stripe/connect', 'StripeController@connect');
-    Route::get('/cashier/stripe/payment-redirect', 'StripeController@paymentRedirect');
-    Route::match(['get', 'post'], '/cashier/stripe/{subscription_id}/fix-payment', 'StripeController@fixPayment');
-    Route::post('/cashier/stripe/{subscription_id}/cancel-now', 'StripeController@cancelNow');
-    Route::get('/cashier/stripe/{subscription_id}/change-plan-pending', 'StripeController@changePlanPending');
-    Route::match(['get', 'post'], '/cashier/stripe/{subscription_id}/change-plan', 'StripeController@changePlan');
-    Route::match(['get', 'post'], '/cashier/stripe/{subscription_id}/charge', 'StripeController@charge');
-    Route::post('/cashier/stripe/{subscription_id}/update-card', 'StripeController@updateCard');
-    Route::get('/cashier/stripe/{subscription_id}/checkout', 'StripeController@checkout');
     
     // Razorpay
     Route::post('/cashier/razorpay/{subscription_id}/cancel-now', 'RazorpayController@cancelNow');
