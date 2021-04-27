@@ -121,12 +121,6 @@ class RazorpayController extends Controller
             'user_id' => $request->user()->customer->getBillableEmail(),
         ]);
 
-        // cancel subscription
-        $subscription = $request->user()->customer->subscription;
-        if (is_object($subscription) && $request->user()->customer->can('cancel', $subscription)) {
-            $service->cancel($subscription);
-        }
-
         // Save return url
         if ($request->return_url) {
             return redirect()->away($request->return_url);

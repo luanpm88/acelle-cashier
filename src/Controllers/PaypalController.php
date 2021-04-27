@@ -106,12 +106,6 @@ class PaypalController extends Controller
             'user_id' => $request->user()->customer->getBillableEmail(),
         ]);
 
-        // cancel auto recurring if current subscription is recurring
-        $subscription = $request->user()->customer->subscription;
-        if (is_object($subscription) && $request->user()->customer->can('cancel', $subscription)) {
-            $gateway->cancel($subscription);
-        }
-
         // Save return url
         if ($request->return_url) {
             return redirect()->away($request->return_url);
