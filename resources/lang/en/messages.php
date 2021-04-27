@@ -115,7 +115,7 @@
     'coinpayments.renew_plan.intro' => 'You are about to renew :plan plan. Please check the renew information below before proceeding.',
     'coinpayments.checkout.page_title' => 'Checkout',
     'coinpayments.title' => 'Checkout',
-    'coinpayments.checkout.intro' => 'You are checking out <strong>:plan</strong> with <strong>:price</strong>.
+    'coinpayments.checkout.intro' => 'You are paying invoice with <strong>:price</strong>.
         Please click the button bellow to proceed with the payment information.',
     'coinpayments.subscribe_to_plan' => 'Subscribe to plan <strong>:plan</strong>',
     'coinpayments.pay_now' => 'Pay now',
@@ -195,7 +195,7 @@
     'stripe.resume_plan' => 'Resume <strong>:plan</strong> plan',
     'stripe.cancel_now_plan' => 'Cancel now <strong>:plan</strong> plan',
     'paypal.title' => 'Pay with PayPal',
-    'paypal.checkout.intro' => 'You are checking out <strong>:plan</strong> with <strong>:price</strong>.
+    'paypal.checkout.intro' => 'You are paying an invoice with amount <strong>:price</strong>.
         Click on the button below to finish your payment with PayPal before using plan.',    
     'paypal.subscribe_to_plan' => 'Subscribe to plan <strong>:plan</strong>',
     'paypal.new_plan' => 'New plan',
@@ -253,10 +253,10 @@
     'coinpayments.checkout_url' => 'Checkout URL',
     'coinpayments.status_url' => 'Status URL',
     'coinpayments.status' => 'Status',
-    'coinpayments.pending.intro' => 'You are subscribing to <strong>:plan</strong> plan.
+    'coinpayments.pending.intro' => 'You are paying an invoice.
         Click on the <strong>checkout url</strong> to pay or <strong>status url</strong> below to pay/check your payment status',
     'subscription.log.subscribe' => 'Subscribing to <strong>:plan</strong> plan',
-    'subscription.log.claimed' => 'The payment (<strong>:price</strong>) was <strong>claimed</strong> by customer',
+    'subscription.log.claimed' => 'The payment was <strong>claimed</strong> by customer',
     'subscription.log.admin_approved' => 'Subscription for <strong>:plan</strong> plan was
         <strong>approved</strong> by Admin',
     'subscription.log.admin_cancelled_now' => 'Subscription for <strong>:plan</strong> plan was
@@ -272,7 +272,7 @@
     'subscription.log.cancelled' => 'Subscription for <strong>:plan</strong> plan was <strong>cancelled</strong>',
     'subscription.log.resumed' => 'Subscription for <strong>:plan</strong> plan was <strong>resumed</strong>',
     'subscription.log.plan_changed' => 'Changed plan to
-        <strong>:plan</strong> (<strong>:price</strong>)',
+        <strong>:plan</strong>',
     'subscription.log.renewed' => 'Renewed <strong>:plan</strong> plan (<strong>:price</strong>)',
     'subscription.log.renew_failed' => 'Can not renew <strong>:plan</strong> plan. Error: :error',
     'subscription.log.expired' => 'Subscription for <strong>:plan</strong> plan was <strong>expired</strong>',
@@ -416,7 +416,7 @@
     'razorpay.next_period_day' => 'Next period end day',
     'razorpay.amount' => 'Amount',
     'razorpay.next_period_day' => 'Next period end day',
-    'razorpay.checkout.intro' => 'You are checking out <strong>:plan</strong> with <strong>:price</strong>.
+    'razorpay.checkout.intro' => 'You are paying an invoice with amount <strong>:price</strong>.
         Please click the button bellow to proceed with the payment information.',
     'razorpay.pay_with_razorpay' => 'Pay with Razorpay',
 
@@ -467,7 +467,7 @@
         <br><a href=":url"><strong>Click here</strong></a> to see more details.',
     'change_plan.failed' => 'Can not change plan: :error',
     'paystack.checkout_with_paystack' => 'Pay with Paystack',
-    'paystack.click_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with Stripe with <strong>:price</strong>.
+    'paystack.click_bellow_to_pay' => 'You are paying an invoice with amount <strong>:price</strong>.
         Please click the button bellow to proceed with the payment information.',
     'paystack.pay' => 'Pay Now',
     'paystack.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
@@ -507,5 +507,7 @@
     'paypal.connected.intro' => 'Make payment outside of application',
     'coinpayments.cancel_subscription' => 'Click here to cancel this subscription. This can not be undone',
     'razorpay.cancel_subscription' => 'Click here to cancel the transaction. This can not be undone.',
-    'subscription.log.plan_change_canceled' => 'Change plan invoice was canceled',
+    'subscription.log.plan_change_canceled' => 'Change plan invoice was canceled',    
+    'coinpayments.status_code' => 'Status code',
+    'transaction.method.razorpay' => 'Razorpay',
 ) ?>

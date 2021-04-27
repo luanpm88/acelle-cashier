@@ -4,17 +4,12 @@ namespace Acelle\Cashier\Services;
 
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
-use Acelle\Cashier\Subscription;
-use Acelle\Cashier\SubscriptionParam;
-use Acelle\Cashier\InvoiceParam;
 use Carbon\Carbon;
 use Sample\PayPalClient;
 use PayPalCheckoutSdk\Orders\OrdersGetRequest;
 use PayPalCheckoutSdk\Core\PayPalHttpClient;
 use PayPalCheckoutSdk\Core\SandboxEnvironment;
 use PayPalCheckoutSdk\Core\ProductionEnvironment;
-use Acelle\Cashier\SubscriptionTransaction;
-use Acelle\Cashier\SubscriptionLog;
 
 class PaypalPaymentGateway implements PaymentGatewayInterface
 {
@@ -39,30 +34,6 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Gateway check method.
-     *
-     * @return void
-     */
-    public function check($subscription)
-    {
-
-        if (!$subscription->hasError()) {
-            // check renew pending
-            if ($subscription->isExpiring() && $subscription->canRenewPlan()) {
-                $subscription->error = json_encode([
-                    'status' => 'warning',
-                    'type' => 'renew',
-                    'message' => trans('cashier::messages.renew.warning', [
-                        'date' => $subscription->current_period_ends_at,
-                        'link' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@renew'),
-                    ]),
-                ]);
-                $subscription->save();
-            }
-        }
-    }
-
-    /**
      * Check if service is valid.
      *
      * @return void
@@ -82,63 +53,38 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Create a new subscription.
+     * Check invoice for paying.
      *
-     * @param  mixed                $token
-     * @param  Subscription         $subscription
      * @return void
-     */
-    public function create($customer, $plan)
+    */
+    public function charge($invoice, $options=[])
     {
-        // update subscription model
-        if ($customer->subscription) {
-            $subscription = $customer->subscription;
-        } else {
-            $subscription = new Subscription();
-            $subscription->user_id = $customer->getBillableId();
-        } 
-        // @todo when is exactly started at?
-        $subscription->started_at = \Carbon\Carbon::now();
-        
-        $subscription->user_id = $customer->getBillableId();
-        $subscription->plan_id = $plan->getBillableId();
-        $subscription->status = Subscription::STATUS_NEW;
-        
-        // set dates and save
-        $subscription->ends_at = $subscription->getPeriodEndsAt(Carbon::now());
-        $subscription->current_period_ends_at = $subscription->ends_at;
-        $subscription->save();
+        try {
+            $this->doCharge($invoice, $options);
 
-        // set gateway
-        $customer->updatePaymentMethod([
-            'method' => 'paypal',
-            'user_id' => $customer->getBillableEmail(),
-        ]);
-        
-        // If plan is free: enable subscription & update transaction
-        if ($plan->getBillableAmount() == 0) {
-            // subscription transaction
-            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
-                'ends_at' => $subscription->ends_at,
-                'current_period_ends_at' => $subscription->current_period_ends_at,
-                'status' => SubscriptionTransaction::STATUS_SUCCESS,
-                'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
-                    'plan' => $subscription->plan->getBillableName(),
-                ]),
-                'amount' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-            
-            // set active
-            $subscription->setActive();
+            // pay invoice 
+            $invoice->pay();
 
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
-                'plan' => $plan->getBillableName(),
-                'price' => $plan->getBillableFormattedPrice(),
-            ]);
+            return [
+                'status' => 'success',
+            ];
+        } catch(\Stripe\Exception\CardException $e) {
+            // pay failed
+            $invoice->payFailed($e->getError()->message);
+
+            return [
+                'status' => 'error',
+                'error' => $e->getError()->message,
+            ];
+        } catch (\Exception $e) {
+            // pay failed
+            $invoice->payFailed($e->getMessage());
+
+            return [
+                'status' => 'error',
+                'error' => $e->getMessage(),
+            ];
         }
-        
-        return $subscription;
     }
     
     /**
@@ -148,59 +94,10 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
      * @param  SubscriptionParam  $param
      * @return void
      */
-    public function charge($subscription, $options=[])
+    public function doCharge($invoice, $options=[])
     {
         // check order ID
         $this->checkOrderID($options['orderID']);
-    }
-
-    /**
-     * Get remote transaction.
-     *
-     * @return Boolean
-     */
-    public function getTransactions($subscription)
-    {
-        $metadata = $subscription->getMetadata();
-        $transactions = isset($metadata['transactions']) ? $metadata['transactions'] : [];
-        
-        return $transactions;
-    }
-
-    /**
-     * Get transaction by subscription id.
-     *
-     * @return void
-     */
-    public function getTransaction($subscription)
-    {
-        $transactions = $this->getTransactions($subscription);
-        if (empty($transactions)) {
-            return null;
-        } else {
-            return $transactions[0];
-        }
-    }
-    
-    /**
-     * Allow admin approve pending subscription.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function setActive($subscription)
-    {
-        return true;
-    }
-    
-    /**
-     * Retrieve subscription param.
-     *
-     * @param  Subscription  $subscription
-     * @return SubscriptionParam
-     */
-    public function sync($subscription)
-    {
     }
     
     /**
@@ -209,7 +106,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
      * @param  string    $userId
      * @return Boolean
      */
-    public function isSupportRecurring()
+    public function supportsAutoBilling()
     {
         return false;
     }
@@ -249,162 +146,19 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
             throw new \Exception('Something went wrong:' . json_encode($response->result));
         }
     }
-    
-    /**
-     * Get subscription invoices.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function getInvoices($subscription)
-    {
-        $invoices = [];     
-        
-        foreach($this->getTransactions($subscription) as $transaction) {
-            $invoices[] = new InvoiceParam([
-                'createdAt' => $transaction['createdAt'],
-                'periodEndsAt' => $transaction['periodEndsAt'],
-                'amount' => $transaction['amount'],
-                'description' => $transaction['description'],
-                'status' => $transaction['status'],
-            ]);
-        }
-        
-        return $invoices;
-    }
-    
-    /**
-     * Get subscription raw invoices.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function getRawInvoices($subscription)
-    {
-        $invoices = [];
-
-        foreach($this->getTransactions($subscription) as $transaction) {
-            $invoices[] = new InvoiceParam([
-                'createdAt' => $transaction['createdAt'],
-                'periodEndsAt' => $transaction['periodEndsAt'],
-                'amount' => $transaction['amount'],
-                'description' => $transaction['description'],
-                'status' => $transaction['status'],
-            ]);
-        }
-        
-        return $invoices;
-    }
-    
-    /**
-     * Get renew url.
-     *
-     * @return string
-     */
-    public function getRenewUrl($subscription, $returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\PaypalController@renew", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-        ]);
-    }
 
     /**
      * Get checkout url.
      *
      * @return string
      */
-    public function getCheckoutUrl($subscription, $returnUrl='/') {
+    public function getCheckoutUrl($invoice, $returnUrl='/') {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaypalController@checkout", [
-            'subscription_id' => $subscription->uid,
+            'invoice_uid' => $invoice->uid,
             'return_url' => $returnUrl,
         ]);
     }
     
-    /**
-     * Get renew url.
-     *
-     * @return string
-     */
-    public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\PaypalController@changePlan", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-            'plan_id' => $plan_id,
-        ]);
-    }
-    
-    /**
-     * Get renew url.
-     *
-     * @return string
-     */
-    public function getPendingUrl($subscription, $returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\PaypalController@pending", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-        ]);
-    }
-
-    /**
-     * Get last transaction
-     *
-     * @return boolean
-     */
-    public function getLastTransaction($subscription) {
-        return $subscription->subscriptionTransactions()
-            ->where('type', '<>', SubscriptionLog::TYPE_SUBSCRIBE)
-            ->orderBy('created_at', 'desc')
-            ->first();
-    }
-
-    /**
-     * Cancel subscription.
-     *
-     * @return string
-     */
-    public function cancel($subscription) {
-        $subscription->cancel();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED, [
-            'plan' => $subscription->plan->getBillableName(),
-            'price' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
-    }
-
-    /**
-     * Cancel now subscription.
-     *
-     * @return string
-     */
-    public function cancelNow($subscription) {
-        $subscription->cancelNow();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
-            'plan' => $subscription->plan->getBillableName(),
-            'price' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
-    }
-
-    /**
-     * Resume now subscription.
-     *
-     * @return string
-     */
-    public function resume($subscription) {
-        $subscription->resume();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_RESUMED, [
-            'plan' => $subscription->plan->getBillableName(),
-            'price' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
-    }
-
     /**
      * Get connect url.
      *

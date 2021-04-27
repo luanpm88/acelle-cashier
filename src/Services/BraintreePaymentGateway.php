@@ -5,10 +5,6 @@ namespace Acelle\Cashier\Services;
 use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
 use Acelle\Cashier\Cashier;
 use Carbon\Carbon;
-use Acelle\Cashier\Subscription;
-use Acelle\Cashier\InvoiceParam;
-use Acelle\Cashier\SubscriptionTransaction;
-use Acelle\Cashier\SubscriptionLog;
 
 class BraintreePaymentGateway implements PaymentGatewayInterface
 {
@@ -34,43 +30,6 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
 
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
     }
-
-    // /**
-    //  * Create a new subscription.
-    //  *
-    //  * @param  Customer                $customer
-    //  * @param  Subscription         $subscription
-    //  * @return void
-    //  */
-    // public function create($customer, $plan)
-    // {
-    //     // update subscription model
-    //     if ($customer->subscription) {
-    //         $subscription = $customer->subscription;
-    //     } else {
-    //         $subscription = new Subscription();
-    //         $subscription->user_id = $customer->getBillableId();
-    //     } 
-    //     // @todo when is exactly started at?
-    //     $subscription->started_at = \Carbon\Carbon::now();
-        
-    //     $subscription->user_id = $customer->getBillableId();
-    //     $subscription->plan_id = $plan->getBillableId();
-    //     $subscription->status = Subscription::STATUS_NEW;
-        
-    //     $subscription->save();
-
-    //     // set gateway
-    //     $customer->updatePaymentMethod([
-    //         'method' => 'braintree',
-    //         'user_id' => $customer->getBillableEmail(),
-    //     ]);
-        
-    //     return $subscription;
-    // }
-
-    // public function sync($subscription) {
-    // }
 
     /**
      * Check if service is valid.
@@ -103,7 +62,16 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
 
         $cards = $braintreeCustomer->paymentMethods;
 
-        return empty($cards) ? NULL : $cards[0];
+        return empty($cards) ? null : $cards[0];
+    }
+
+    /**
+     * Get user has card.
+     *
+     * @return string
+     */
+     public function hasCard($user) {
+        return $this->getCardInformation($user) !== null;
     }
 
     /**
@@ -159,35 +127,68 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         );
     }
 
-    // /**
-    //  * Chareg subscription.
-    //  *
-    //  * @param  mixed              $token
-    //  * @param  SubscriptionParam  $param
-    //  * @return void
-    //  */
-    // public function charge($subscription, $data)
-    // {
-    //     $user = $subscription->user;
-    //     $braintreeUser = $this->getBraintreeCustomer($user);
-    //     $card = $this->getCardInformation($user);
+    /**
+     * Check invoice for paying.
+     *
+     * @return void
+     */
+    public function charge($invoice)
+    {
+        try {
+            // charge invoice
+            $this->doCharge($invoice->customer, [
+                'amount' => $invoice->total(),
+                'currency' => $invoice->currency->code,
+                'description' => trans('messages.pay_invoice', [
+                    'id' => $invoice->uid,
+                ]),
+            ]);
 
-    //     if (!is_object($card)) {
-    //         throw new \Exception('Can not find card information');
-    //     }
+            // pay invoice 
+            $invoice->pay();
+
+            return [
+                'status' => 'success',
+            ];
+        } catch (\Exception $e) {
+            // pay failed
+            $invoice->payFailed($e->getMessage());
+
+            return [
+                'status' => 'error',
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Chareg subscription.
+     *
+     * @param  mixed              $token
+     * @param  SubscriptionParam  $param
+     * @return void
+     */
+    public function doCharge($user, $data)
+    {
+        $braintreeUser = $this->getBraintreeCustomer($user);
+        $card = $this->getCardInformation($user);
+
+        if (!is_object($card)) {
+            throw new \Exception('Can not find card information');
+        }
         
-    //     $result = $this->serviceGateway->transaction()->sale([
-    //         'amount' => $data['amount'],
-    //         'paymentMethodToken' => $card->token,
-    //     ]);
+        $result = $this->serviceGateway->transaction()->sale([
+            'amount' => $data['amount'],
+            'paymentMethodToken' => $card->token,
+        ]);
           
-    //     if ($result->success) {
-    //     } else {
-    //         foreach($result->errors->deepAll() AS $error) {
-    //             throw new \Exception($error->code . ": " . $error->message . "\n");
-    //         }
-    //     }
-    // }
+        if ($result->success) {
+        } else {
+            foreach($result->errors->deepAll() AS $error) {
+                throw new \Exception($error->code . ": " . $error->message . "\n");
+            }
+        }
+    }
 
     /**
      * Service does not support auto recurring.
@@ -203,178 +204,16 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($subscription, $returnUrl='/') {
+    public function getCheckoutUrl($invoice, $returnUrl='/') {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
             'invoice_uid' => $invoice->uid,
             'return_url' => $returnUrl,
         ]);
     }
-    
-    // /**
-    //  * Get change plan url.
-    //  *
-    //  * @return string
-    //  */
-    // public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/')
-    // {
-    //     return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\BraintreeController@changePlan", [
-    //         'subscription_id' => $subscription->uid,
-    //         'return_url' => $returnUrl,
-    //         'plan_id' => $plan_id,
-    //     ]);
-    // }
 
-    // public function getRenewUrl($subscription, $returnUrl='/') {
-    //     return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\BraintreeController@renew", [
-    //         'subscription_id' => $subscription->uid,
-    //         'return_url' => $returnUrl,
-    //     ]);
-    // }
-
-    // public function renew($subscription) {        
-    //     // add transaction
-    //     $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_AUTO_CHARGE, [
-    //         'ends_at' => null,
-    //         'current_period_ends_at' => $subscription->nextPeriod(),
-    //         'status' => SubscriptionTransaction::STATUS_PENDING,
-    //         'title' => trans('cashier::messages.transaction.recurring_charge', [
-    //             'plan' => $subscription->plan->getBillableName(),
-    //         ]),
-    //         'amount' => $subscription->plan->getBillableFormattedPrice(),
-    //     ]);
-
-    //     // charge
-    //     try {
-    //         $this->charge($subscription, [
-    //             'amount' => $subscription->plan->getBillableAmount(),
-    //             'currency' => $subscription->plan->getBillableCurrency(),
-    //             'description' => trans('cashier::messages.transaction.recurring_charge', [
-    //                 'plan' => $subscription->plan->getBillableName(),
-    //             ]),
-    //         ]);
-
-    //         // set active
-    //         $transaction->setSuccess();
-
-    //         // check new states from transaction
-    //         $subscription->ends_at = $transaction->ends_at;
-    //         // save last period
-    //         $subscription->last_period_ends_at = $subscription->current_period_ends_at;
-    //         // set new current period
-    //         $subscription->current_period_ends_at = $transaction->current_period_ends_at;
-    //         $subscription->save();
-
-    //         // add log
-    //         $subscription->addLog(SubscriptionLog::TYPE_RENEWED, [
-    //             'plan' => $subscription->plan->getBillableName(),
-    //             'price' => $subscription->plan->getBillableFormattedPrice(),
-    //         ]);
-
-    //         return true;
-    //     } catch (\Exception $e) {
-    //         $transaction->setFailed();
-
-    //         // update error message
-    //         $transaction->description = $e->getMessage();
-    //         $transaction->save();
-
-    //         // set subscription last_error_type
-    //         $subscription->error = json_encode([
-    //             'status' => 'error',
-    //             'type' => 'renew',
-    //             'message' => trans('cashier::messages.renew.card_error', [
-    //                 'date' => $subscription->current_period_ends_at,
-    //                 'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\BraintreeController@fixPayment", [
-    //                     'subscription_id' => $subscription->uid,
-    //                     'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
-    //                 ]),
-    //             ]),
-    //         ]);
-    //         $subscription->save();
-
-    //         // add log
-    //         $subscription->addLog(SubscriptionLog::TYPE_RENEW_FAILED, [
-    //             'plan' => $subscription->plan->getBillableName(),
-    //             'price' => $subscription->plan->getBillableFormattedPrice(),
-    //             'error' => $e->getMessage(),
-    //         ]);
-
-    //         return false;
-    //     }
-    // }
-
-    // /**
-    //  * Get last transaction
-    //  *
-    //  * @return boolean
-    //  */
-    // public function getLastTransaction($subscription) {
-    //     return $subscription->subscriptionTransactions()
-    //         ->where('type', '<>', SubscriptionLog::TYPE_SUBSCRIBE)
-    //         ->orderBy('created_at', 'desc')
-    //         ->first();
-    // }
-
-    // /**
-    //  * Cancel subscription.
-    //  *
-    //  * @return string
-    //  */
-    // public function cancel($subscription) {
-    //     $subscription->cancel();
-
-    //     // add log
-    //     $subscription->addLog(SubscriptionLog::TYPE_CANCELLED, [
-    //         'plan' => $subscription->plan->getBillableName(),
-    //         'price' => $subscription->plan->getBillableFormattedPrice(),
-    //     ]);
-    // }
-
-    // /**
-    //  * Cancel now subscription.
-    //  *
-    //  * @return string
-    //  */
-    // public function cancelNow($subscription) {
-    //     $subscription->cancelNow();
-
-    //     // add log
-    //     $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
-    //         'plan' => $subscription->plan->getBillableName(),
-    //         'price' => $subscription->plan->getBillableFormattedPrice(),
-    //     ]);
-    // }
-
-    // /**
-    //  * Resume now subscription.
-    //  *
-    //  * @return string
-    //  */
-    // public function resume($subscription) {
-    //     $subscription->resume();
-
-    //     // add log
-    //     $subscription->addLog(SubscriptionLog::TYPE_RESUMED, [
-    //         'plan' => $subscription->plan->getBillableName(),
-    //         'price' => $subscription->plan->getBillableFormattedPrice(),
-    //     ]);
-    // }
-
-    // /**
-    //  * Gateway check method.
-    //  *
-    //  * @return void
-    //  */
-    // public function check($subscription)
-    // {
-    //     // clear renew message
-    //     $subscription->removeError('renew');
-
-    //     // check from service: recurring/transaction
-    //     if ($subscription->isRecurring() && $subscription->isExpiring()) {
-    //         $this->renew($subscription);
-    //     }
-    // }
+    public function supportsAutoBilling() {
+        return true;
+    }
 
     /**
      * Get connect url.

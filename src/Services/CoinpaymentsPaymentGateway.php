@@ -2,51 +2,22 @@
 namespace Acelle\Cashier\Services;
 
 use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
-use Acelle\Cashier\SubscriptionParam;
-use Acelle\Cashier\Subscription;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Library\CoinPayment\CoinpaymentsAPI;
-use Acelle\Cashier\InvoiceParam;
-use Acelle\Cashier\SubscriptionTransaction;
-use Acelle\Cashier\SubscriptionLog;
 
 class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 {
     public $coinPaymentsAPI;
+    public $receive_currency;
     
     // Contruction
-    public function __construct($merchantId, $publicKey, $privateKey, $ipnSecret)
+    public function __construct($merchantId, $publicKey, $privateKey, $ipnSecret, $receive_currency)
     {
+        $this->receive_currency = $receive_currency;
         $this->coinPaymentsAPI = new CoinpaymentsAPI($privateKey, $publicKey, 'json'); // new CoinPayments($privateKey, $publicKey, $merchantId, $ipnSecret, null);
 
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
-    }
-
-    /**
-     * Gateway check method.
-     *
-     * @return void
-     */
-    public function check($subscription)
-    {
-        if (!$subscription->hasError()) {
-            // check renew pending
-            if ($subscription->isExpiring() && $subscription->canRenewPlan()) {
-                $subscription->error = json_encode([
-                    'status' => 'warning',
-                    'type' => 'renew',
-                    'message' => trans('cashier::messages.renew.warning', [
-                        'date' => $subscription->current_period_ends_at,
-                        'link' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@renew'),
-                    ]),
-                ]);
-                $subscription->save();
-            }
-        }
-
-        //
-        $this->sync($subscription);
     }
     
     /**
@@ -62,23 +33,88 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             throw new \Exception($info["error"]);
         }
     }
+
+    public function supportsAutoBilling() {
+        return false;
+    }
+
+    /**
+     * Check invoice for paying.
+     *
+     * @return void
+    */
+    public function charge($invoice)
+    {
+        try {
+            // charge invoice
+            $result = $this->doCharge($invoice->customer, [
+                'id' => $invoice->uid,
+                'amount' => $invoice->total(),
+                'currency' => $invoice->currency->code,
+                'description' => trans('messages.pay_invoice', [
+                    'id' => $invoice->uid,
+                ]),
+            ]);
+
+            $invoice->updateMetadata([
+                'txn_id' => $result["txn_id"],
+                'checkout_url' => $result["checkout_url"],
+                'status_url' => $result["status_url"],
+                'qrcode_url' => $result["qrcode_url"],
+            ]);
+
+            return [
+                'status' => 'success',
+            ];
+        } catch(\Stripe\Exception\CardException $e) {
+            // transaction
+            $transaction = $invoice->addTransaction([
+                'status' => \Acelle\Model\Transaction::STATUS_FAILED,
+                'message' => trans('messages.pay_invoice', [
+                    'id' => $invoice->uid,
+                    'title' => $invoice->getBillingInfo()['title'],
+                ]),
+                'error' => $e->getError()->message,
+            ]);
+
+            return [
+                'status' => 'error',
+                'error' => $transaction->error,
+            ];
+        } catch (\Exception $e) {
+            // transaction
+            $transaction = $invoice->addTransaction([
+                'status' => \Acelle\Model\Transaction::STATUS_FAILED,
+                'message' => trans('messages.pay_invoice', [
+                    'id' => $invoice->uid,
+                    'title' => $invoice->getBillingInfo()['title'],
+                ]),
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'status' => 'error',
+                'error' => $transaction->error,
+            ];
+        }
+    }
     
     /**
      * create new transaction
      *
      * @return void
      */
-    public function charge($subscription, $data=[])
+    public function doCharge($customer, $data=[])
     {
         $options = [
-            'currency1' => $subscription->plan->getBillableCurrency(),
+            'currency1' => $data['currency'],
             'currency2' => config('cashier.gateways.coinpayments.fields.receive_currency'),
             'amount' => $data['amount'],
-            'item_name' => $data['desc'],
-            'item_number' => $subscription->uid,
-            'buyer_email' => $subscription->user->getBillableEmail(),
+            'item_name' => $data['description'],
+            'item_number' => $data['id'],
+            'buyer_email' => $customer->getBillableEmail(),
             'custom' => json_encode([
-                'tranaction_uid' => $data['id'],
+                'invoice_uid' => $data['id'],
             ]),
         ];
         
@@ -257,12 +293,11 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      *
      * @return Boolean
      */
-    public function updateTransactionRemoteInfo($transaction)
+    public function updateTransactionRemoteInfo($invoice)
     {
-        $data = $transaction->getMetadata();
+        $data = $invoice->getMetadata();
         // get remote information
-        $data['remote'] = $this->getTransactionRemoteInfo($data['txn_id']);
-        $transaction->updateMetadata($data);
+        $invoice->updateMetadata($this->getTransactionRemoteInfo($data['txn_id']));
     }
     
     /**
@@ -285,6 +320,27 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         }
         
         return $transaction;
+    }
+
+    /**
+     * Check if paid.
+     *
+     * @param  Subscription  $subscription
+     * @return SubscriptionParam
+    */
+    public function checkPay($invoice)
+    {
+        $this->updateTransactionRemoteInfo($invoice);
+
+        if ($invoice->getMetadata()['status'] == 100) {
+            // pay invoice 
+            $invoice->pay();
+        }
+
+        if ($invoice->getMetadata()['status'] < 0) {
+            // set transaction failed
+            $invoice->pendingTransaction()->setFailed($invoice->getMetadata()['status_text']);
+        }
     }
     
     /**
@@ -627,89 +683,6 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     }
     
     /**
-     * Get subscription invoices.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function getInvoices($subscription)
-    {
-        $transactions = [];
-        
-        $transaction = $this->getInitTransaction($subscription);
-        if ($transaction) {
-            $transactions[] = $transaction;
-        }
-        
-        $invoices = [];
-        foreach($transactions as $transaction) {
-            $custom = json_decode($transaction['checkout']['custom']);
-            $invoices[] = new InvoiceParam([
-                'createdAt' => $transaction['time_created'],
-                'periodEndsAt' => $custom->periodEndsAt,
-                'amount' => $custom->amount,
-                'description' => $transaction['checkout']['item_name'],
-                'status' => ($subscription->isActive() ? 'active' : $this->getTransactionStatus($transaction['status']))
-            ]);
-        }
-        
-        // other transactions
-        $transactions = $this->getTransactions($subscription);
-        foreach($transactions as $tran) {
-            $transaction = [];
-            
-            if (isset($tran['txn_id'])) {
-                $transaction = $this->getTransactionRemoteInfo($tran['txn_id']);
-            }
-            
-            $custom = json_decode($tran['custom']);
-            $invoices[] = new InvoiceParam([
-                'createdAt' => $custom->createdAt,
-                'periodEndsAt' => $custom->periodEndsAt,
-                'amount' => $custom->amount,
-                'description' => $tran['item_name'],
-                'status' => (isset($tran['force_status']) ? $tran['force_status'] : $this->getTransactionStatus($transaction['status']))
-            ]);
-        }
-        
-        return $invoices;
-    }
-    
-    /**
-     * Get subscription raw invoices.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function getRawInvoices($subscription)
-    {
-        $transactions = [];
-        
-        $transaction = $this->getInitTransaction($subscription);
-        if ($transaction) {
-            $transactions[] = $transaction;
-        }
-        
-        $invoices = [];
-        foreach($transactions as $transaction) {
-            $invoices[] = $transaction;
-        }
-        
-        // other transactions
-        $transactions = $this->getTransactions($subscription);
-        foreach($transactions as $tran) {
-            if (isset($tran['txn_id'])) {
-                $transaction = $this->getTransactionRemoteInfo($tran['txn_id']);
-                $invoices[] = $transaction;
-            } else {
-                $invoices[] = $tran;
-            }
-        }
-        
-        return $invoices;
-    }
-    
-    /**
      * Check if subscription has future payment pending.
      *
      * @param  Subscription    $subscription
@@ -765,28 +738,6 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     }
     
     /**
-     * Allow admin update payment status without service without payment.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function setDone($subscription)
-    {
-        throw new \Exception('The Payment service dose not support this feature!');
-    }
-    
-    /**
-     * Approve future invoice
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function approvePendingInvoice($subscription)
-    {
-        throw new \Exception('The Payment service dose not support this feature!');
-    }
-    
-    /**
      * Get all coins
      *
      * @return date
@@ -795,229 +746,16 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     {
         return $this->coinPaymentsAPI->getRates();
     }
-    
-    /**
-     * Force check subscription is active.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function setActive($subscription)
-    {
-        $transaction = $this->getInitTransaction($subscription);
-        $transaction->setSuccess();
-
-        // set active subscription
-        $subscription->setActive();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_ADMIN_APPROVED, [
-            'plan' => $subscription->plan->getBillableName(),
-            'price' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
-        sleep(1);
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
-            'plan' => $subscription->plan->getBillableName(),
-            'price' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
-    }
-    
-    /**
-     * Get renew url.
-     *
-     * @return string
-     */
-    public function getRenewUrl($subscription, $returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-        ]);
-    }
 
     /**
      * Get checkout url.
      *
      * @return string
      */
-    public function getCheckoutUrl($subscription, $returnUrl='/') {
+    public function getCheckoutUrl($invoice, $returnUrl='/') {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\CoinpaymentsController@checkout", [
-            'subscription_id' => $subscription->uid,
+            'invoice_uid' => $invoice->uid,
             'return_url' => $returnUrl,
-        ]);
-    }
-    
-    /**
-     * Get change plan url.
-     *
-     * @return string
-     */
-    public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\CoinpaymentsController@changePlan", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-            'plan_id' => $plan_id,
-        ]);
-    }
-    
-    /**
-     * Get renew url.
-     *
-     * @return string
-     */
-    public function getPendingUrl($subscription, $returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\CoinpaymentsController@pending", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-        ]);
-    }
-
-    /**
-     * Set subscription active if it is pending.
-     *
-     * @return boolean
-     */
-    public function approvePending($subscription) {
-        $transaction = $this->getLastTransaction($subscription);
-        $transaction->setSuccess();
-
-        // check new states
-        $subscription->ends_at = $transaction->ends_at;
-        
-        // period date update
-        if ($subscription->current_period_ends_at != $transaction->current_period_ends_at) {
-            // save last period
-            $subscription->last_period_ends_at = $subscription->current_period_ends_at;
-            // set new current period
-            $subscription->current_period_ends_at = $transaction->current_period_ends_at;
-        }
-
-        // check new plan
-        $data = $transaction->getMetadata();
-        if (isset($data['plan_id'])) {
-            $subscription->plan_id = $data['plan_id'];
-        }
-
-        // remove last_error
-        $subscription->error = null;
-
-        $subscription->save();
-    }
-
-    /**
-     * Reject renew/change plan pending.
-     *
-     * @return boolean
-     */
-    public function rejectPending($subscription, $reason) {
-        $transaction = $this->getLastTransaction($subscription);
-        $transaction->setFailed();
-
-        // log
-        if ($transaction->type == SubscriptionTransaction::TYPE_RENEW) {
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_ADMIN_RENEW_REJECTED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-                'reason' => $reason,
-            ]);
-
-            // add error notice
-            $subscription->error = json_encode([
-                'status' => 'error',
-                'type' => 'renew_rejected',
-                'message' => trans('cashier::messages.renew_rejected', [
-                    'reason' => $reason,
-                    'date' => $subscription->current_period_ends_at,
-                    'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\CoinpaymentsController@renew", [
-                        'subscription_id' => $subscription->uid,
-                        'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
-                    ]),
-                ]),
-            ]);
-            $subscription->save();
-        } else {
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_ADMIN_PLAN_CHANGE_REJECTED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $transaction->amount,
-                'reason' => $reason,
-            ]);
-
-            // add error notice
-            if ($subscription->isExpiring() && $subscription->canRenewPlan()) {
-                $subscription->error = json_encode([
-                    'status' => 'error',
-                    'type' => 'change_plan_rejected',                    
-                    'message' => trans('cashier::messages.change_plan_rejected_with_renew', [
-                        'reason' => $reason,
-                        'date' => $subscription->current_period_ends_at,
-                        'link' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@renew'),
-                    ]),
-                ]);
-            } else {
-                $subscription->error = json_encode([
-                    'status' => 'error',
-                    'type' => 'change_plan_rejected',
-                    'message' => trans('cashier::messages.change_plan_rejected', [
-                        'reason' => $reason,
-                    ]),
-                ]);
-            }
-            $subscription->save();
-        }
-
-        // save reason
-        $data = $transaction->getMetadata();
-        $data['reject-reason'] = $reason;
-        $transaction->updateMetadata($data);
-    }
-
-    /**
-     * Cancel subscription.
-     *
-     * @return string
-     */
-    public function cancel($subscription) {
-        $subscription->cancel();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED, [
-            'plan' => $subscription->plan->getBillableName(),
-            'price' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
-    }
-
-    /**
-     * Cancel now subscription.
-     *
-     * @return string
-     */
-    public function cancelNow($subscription) {
-        $subscription->cancelNow();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
-            'plan' => $subscription->plan->getBillableName(),
-            'price' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
-    }
-
-    /**
-     * Resume now subscription.
-     *
-     * @return string
-     */
-    public function resume($subscription) {
-        $subscription->resume();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_RESUMED, [
-            'plan' => $subscription->plan->getBillableName(),
-            'price' => $subscription->plan->getBillableFormattedPrice(),
         ]);
     }
 

@@ -3,9 +3,6 @@
 namespace Acelle\Cashier;
 
 use Illuminate\Support\ServiceProvider;
-use Acelle\Cashier\Subscription;
-use Acelle\Cashier\SubscriptionTransaction;
-use Acelle\Cashier\SubscriptionLog;
 
 class Cashier
 {
@@ -79,7 +76,8 @@ class Cashier
                     $config['fields']['merchant_id'],
                     $config['fields']['public_key'],
                     $config['fields']['private_key'],
-                    $config['fields']['ipn_secret']
+                    $config['fields']['ipn_secret'],
+                    $config['fields']['receive_currency'],
                 );
             case 'paypal':
                 return new \Acelle\Cashier\Services\PaypalPaymentGateway(

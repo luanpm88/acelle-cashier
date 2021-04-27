@@ -4,13 +4,8 @@ namespace Acelle\Cashier\Services;
 
 use Illuminate\Support\Facades\Log;
 use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
-use Acelle\Cashier\Subscription;
-use Acelle\Cashier\SubscriptionParam;
-use Acelle\Cashier\InvoiceParam;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
-use Acelle\Cashier\SubscriptionTransaction;
-use Acelle\Cashier\SubscriptionLog;
 
 class RazorpayPaymentGateway implements PaymentGatewayInterface
 {
@@ -57,73 +52,13 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Create a new subscription.
-     *
-     * @param  Customer                $customer
-     * @param  Subscription         $subscription
-     * @return void
-     */
-    public function create($customer, $plan)
-    {
-        // update subscription model
-        if ($customer->subscription) {
-            $subscription = $customer->subscription;
-        } else {
-            $subscription = new Subscription();
-            $subscription->user_id = $customer->getBillableId();            
-        } 
-        // @todo when is exactly started at?
-        $subscription->started_at = \Carbon\Carbon::now();
-
-        $subscription->user_id = $customer->getBillableId();
-        $subscription->plan_id = $plan->getBillableId();
-        $subscription->status = Subscription::STATUS_NEW;
-        
-        // set dates and save
-        $subscription->ends_at = $subscription->getPeriodEndsAt(Carbon::now());
-        $subscription->current_period_ends_at = $subscription->ends_at;
-        $subscription->save();
-
-        // set gateway
-        $customer->updatePaymentMethod([
-            'method' => 'razorpay',
-            'user_id' => $customer->getBillableEmail(),
-        ]);
-        
-        // If plan is free: enable subscription & update transaction
-        if ($plan->getBillableAmount() == 0) {
-            // subscription transaction
-            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
-                'ends_at' => $subscription->ends_at,
-                'current_period_ends_at' => $subscription->current_period_ends_at,
-                'status' => SubscriptionTransaction::STATUS_SUCCESS,
-                'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
-                    'plan' => $subscription->plan->getBillableName(),
-                ]),
-                'amount' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-            
-            // set active
-            $subscription->setActive();
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
-                'plan' => $plan->getBillableName(),
-                'price' => $plan->getBillableFormattedPrice(),
-            ]);
-        }
-
-        return $subscription;
-    }
-
-    /**
      * Get checkout url.
      *
      * @return string
      */
-    public function getCheckoutUrl($subscription, $returnUrl='/') {
+    public function getCheckoutUrl($invoice, $returnUrl='/') {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\RazorpayController@checkout", [
-            'subscription_id' => $subscription->uid,
+            'invoice_uid' => $invoice->uid,
             'return_url' => $returnUrl,
         ]);
     }
@@ -179,22 +114,14 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      * @param  string    $currency
      * @return integer
      */
-    public function createRazorpayOrder($subscription, $plan=null)
+    public function createRazorpayOrder($invoice, $plan=null)
     {
-        if (!$plan) {
-            $plan = $subscription->plan;
-        }
-
-        if ($plan->price == 0) {
-            return false;
-        }
-
         return $this->request('POST', 'orders', [
             "content-type" => "application/json"
         ], [
-            "amount" => $this->convertPrice($plan->getBillableAmount(), $plan->getBillableCurrency()),
-            "currency" => $plan->getBillableCurrency(),
-            "receipt" => "rcptid_" . $subscription->uid,
+            "amount" => $this->convertPrice($invoice->total(), $invoice->currency->code),
+            "currency" => $invoice->currency->code,
+            "receipt" => "rcptid_" . $invoice->uid,
             "payment_capture" => 1,
         ]);
     }
@@ -206,9 +133,9 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      * @param  string    $currency
      * @return integer
      */
-    public function getRazorpayCustomer($subscription)
+    public function getRazorpayCustomer($invoice)
     {
-        $data = $subscription->getMetadata();
+        $data = $invoice->getMetadata();
 
         // get customer
         if (isset($data["customer"])) {
@@ -217,19 +144,19 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
             $customer = $this->request('POST', 'customers', [
                 "Content-Type" => "application/json"
             ], [
-                "name" => $subscription->user->displayName(),
-                "email" => $subscription->user->getBillableEmail(),
+                "name" => $invoice->customer->displayName(),
+                "email" => $invoice->customer->getBillableEmail(),
                 "contact" => "",
                 "fail_existing" => "0",
                 "notes" => [
-                    "uid" => $subscription->user->getBillableId()
+                    "uid" => $invoice->customer->getBillableId()
                 ]
             ]);
         }
         
         // save customer        
         $data['customer'] = $customer;
-        $subscription->updateMetadata($data);
+        $invoice->updateMetadata($data);
 
         return $customer;
     }
@@ -315,38 +242,11 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         return $this->accessToken;
     }
 
-    public function sync($subscription) {
-    }
+    // public function sync($subscription) {
+    // }
 
-    public function isSupportRecurring() {
+    public function supportsAutoBilling() {
         return false;
-    }
-
-    /**
-     * Get renew url.
-     *
-     * @return string
-     */
-    public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\RazorpayController@changePlan", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-            'plan_id' => $plan_id,
-        ]);
-    }
-
-    /**
-     * Get renew url.
-     *
-     * @return string
-     */
-    public function getRenewUrl($subscription, $returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\RazorpayController@renew", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-        ]);
     }
 
     /**
@@ -363,87 +263,6 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
 
         return $price / $rate;
-    }
-
-    /**
-     * Get last transaction
-     *
-     * @return boolean
-     */
-    public function getLastTransaction($subscription) {
-        return $subscription->subscriptionTransactions()
-            ->where('type', '<>', SubscriptionLog::TYPE_SUBSCRIBE)
-            ->orderBy('created_at', 'desc')
-            ->first();
-    }
-
-    /**
-     * Cancel subscription.
-     *
-     * @return string
-     */
-    public function cancel($subscription) {
-        $subscription->cancel();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED, [
-            'plan' => $subscription->plan->getBillableName(),
-            'price' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
-    }
-
-    /**
-     * Cancel now subscription.
-     *
-     * @return string
-     */
-    public function cancelNow($subscription) {
-        $subscription->cancelNow();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
-            'plan' => $subscription->plan->getBillableName(),
-            'price' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
-    }
-
-    /**
-     * Resume now subscription.
-     *
-     * @return string
-     */
-    public function resume($subscription) {
-        $subscription->resume();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_RESUMED, [
-            'plan' => $subscription->plan->getBillableName(),
-            'price' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
-    }
-
-    /**
-     * Gateway check method.
-     *
-     * @return void
-     */
-    public function check($subscription)
-    {
-
-        if (!$subscription->hasError()) {
-            // check renew pending
-            if ($subscription->isExpiring() && $subscription->canRenewPlan()) {
-                $subscription->error = json_encode([
-                    'status' => 'warning',
-                    'type' => 'renew',
-                    'message' => trans('cashier::messages.renew.warning', [
-                        'date' => $subscription->current_period_ends_at,
-                        'link' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@renew'),
-                    ]),
-                ]);
-                $subscription->save();
-            }
-        }
     }
     
     /**

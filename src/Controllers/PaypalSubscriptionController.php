@@ -3,12 +3,9 @@
 namespace Acelle\Cashier\Controllers;
 
 use Acelle\Http\Controllers\Controller;
-use Acelle\Cashier\Subscription;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
-use Acelle\Cashier\SubscriptionTransaction;
-use Acelle\Cashier\SubscriptionLog;
 use Acelle\Cashier\Services\PaypalSubscriptionPaymentGateway;
 
 class PaypalSubscriptionController extends Controller

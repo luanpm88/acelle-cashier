@@ -4,12 +4,7 @@ namespace Acelle\Cashier\Services;
 
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
-use Acelle\Cashier\Subscription;
-use Acelle\Cashier\SubscriptionParam;
-use Acelle\Cashier\InvoiceParam;
 use Carbon\Carbon;
-use Acelle\Cashier\SubscriptionTransaction;
-use Acelle\Cashier\SubscriptionLog;
 
 class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
 {
@@ -989,83 +984,6 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
     }
     
     /**
-     * Get subscription invoices.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function getInvoices($subscription)
-    {
-        $invoices = [];     
-        
-        foreach($this->getTransactions($subscription) as $transaction) {
-            $invoices[] = new InvoiceParam([
-                'createdAt' => $transaction['createdAt'],
-                'periodEndsAt' => $transaction['periodEndsAt'],
-                'amount' => $transaction['amount'],
-                'description' => $transaction['description'],
-                'status' => $transaction['status'],
-            ]);
-        }
-        
-        return $invoices;
-    }
-    
-    /**
-     * Get subscription raw invoices.
-     *
-     * @param  Int  $subscriptionId
-     * @return date
-     */
-    public function getRawInvoices($subscription)
-    {
-        $invoices = [];
-
-        foreach($this->getTransactions($subscription) as $transaction) {
-            $invoices[] = new InvoiceParam([
-                'createdAt' => $transaction['createdAt'],
-                'periodEndsAt' => $transaction['periodEndsAt'],
-                'amount' => $transaction['amount'],
-                'description' => $transaction['description'],
-                'status' => $transaction['status'],
-            ]);
-        }
-        
-        return $invoices;
-    }
-    
-    // /**
-    //  * Check for notice.
-    //  *
-    //  * @param  Subscription  $subscription
-    //  * @return date
-    //  */
-    // public function hasPending($subscription)
-    // {
-    //     $transaction = $this->getLastTransaction($subscription);
-    //     return $transaction && $transaction->isPending() && !in_array($transaction->type, [
-    //         SubscriptionTransaction::TYPE_SUBSCRIBE,
-    //     ]);
-    // }
-    
-    // /**
-    //  * Get notice message.
-    //  *
-    //  * @param  Subscription  $subscription
-    //  * @return date
-    //  */
-    // public function getPendingNotice($subscription)
-    // {
-    //     $transaction = $this->getLastTransaction($subscription);
-        
-    //     return trans('cashier::messages.paypal_subscription.has_transaction_pending', [
-    //         'description' => $transaction->title,
-    //         'amount' => $transaction->amount,
-    //         'url' => $this->getTransactionPendingUrl($subscription, \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index')),
-    //     ]);
-    // }
-    
-    /**
      * Get renew url.
      *
      * @return string
@@ -1154,21 +1072,6 @@ class PaypalSubscriptionPaymentGateway implements PaymentGatewayInterface
             ->orderBy('created_at', 'desc')
             ->first();
     }
-
-    // /**
-    //  * Check if has failed transaction
-    //  *
-    //  * @return boolean
-    //  */
-    // public function hasError($subscription) {
-    //     $transaction = $this->getLastTransaction($subscription);
-
-    //     return isset($subscription->last_error_type) && $transaction->isFailed();
-    // }
-
-    // public function getErrorNotice($subscription) {
-    //     return trans('cashier::messages.paypal_subscription.error.something_went_wrong');
-    // }
 
     /**
      * Cancel subscription.

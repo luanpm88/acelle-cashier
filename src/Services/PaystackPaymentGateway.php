@@ -4,13 +4,8 @@ namespace Acelle\Cashier\Services;
 
 use Illuminate\Support\Facades\Log;
 use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
-use Acelle\Cashier\Subscription;
-use Acelle\Cashier\SubscriptionParam;
-use Acelle\Cashier\InvoiceParam;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
-use Acelle\Cashier\SubscriptionTransaction;
-use Acelle\Cashier\SubscriptionLog;
 
 class PaystackPaymentGateway implements PaymentGatewayInterface
 {
@@ -65,71 +60,11 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Create a new subscription.
-     *
-     * @param  Customer                $customer
-     * @param  Subscription         $subscription
-     * @return void
-     */
-    public function create($customer, $plan)
-    {
-        // update subscription model
-        if ($customer->subscription) {
-            $subscription = $customer->subscription;
-        } else {
-            $subscription = new Subscription();
-            $subscription->user_id = $customer->getBillableId();            
-        } 
-        // @todo when is exactly started at?
-        $subscription->started_at = \Carbon\Carbon::now();
-
-        $subscription->user_id = $customer->getBillableId();
-        $subscription->plan_id = $plan->getBillableId();
-        $subscription->status = Subscription::STATUS_NEW;
-        
-        // set dates and save
-        $subscription->ends_at = $subscription->getPeriodEndsAt(Carbon::now());
-        $subscription->current_period_ends_at = $subscription->ends_at;
-        $subscription->save();
-
-        // set gateway
-        $customer->updatePaymentMethod([
-            'method' => 'paystack',
-            'user_id' => $customer->getBillableEmail(),
-        ]);
-        
-        // // If plan is free: enable subscription & update transaction
-        // if ($plan->getBillableAmount() == 0) {
-        //     // subscription transaction
-        //     $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
-        //         'ends_at' => $subscription->ends_at,
-        //         'current_period_ends_at' => $subscription->current_period_ends_at,
-        //         'status' => SubscriptionTransaction::STATUS_SUCCESS,
-        //         'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
-        //             'plan' => $subscription->plan->getBillableName(),
-        //         ]),
-        //         'amount' => $subscription->plan->getBillableFormattedPrice(),
-        //     ]);
-            
-        //     // set active
-        //     $subscription->setActive();
-
-        //     // add log
-        //     $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
-        //         'plan' => $plan->getBillableName(),
-        //         'price' => $plan->getBillableFormattedPrice(),
-        //     ]);
-        // }
-
-        return $subscription;
-    }
-
-    /**
      * Verify payment transaction.
      *
      * @return void
      */
-    public function verifyPayment($subscription, $ref)
+    public function verifyPayment($invoice, $ref)
     {
         $result = $this->request('GET', 'transaction/verify/' . $ref, []);
 
@@ -149,29 +84,13 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
         }
 
         // update metadata
-        $subscription->updateMetadata(['last_transaction' => $result]);
+        $invoice->customer->updatePaymentMethodData(['last_transaction' => $result]);
 
         return $result;
     }
 
-    /**
-     * Gateway check method.
-     *
-     * @return void
-     */
-    public function check($subscription)
-    {
-        // clear renew message
-        $subscription->removeError('renew');
-        
-        // check from service: recurring/transaction
-        if ($subscription->isRecurring() && $subscription->isExpiring()) {
-            $this->renew($subscription);
-        }
-    }
-
-    public function getCard($subscription) {
-        $metadata = $subscription->getMetadata();
+    public function getCard($customer) {
+        $metadata = $customer->getPaymentMethod();
 
         // check last transaction
         if (!isset($metadata['last_transaction']) ||
@@ -192,14 +111,70 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
     }
 
     /**
+     * Check invoice for paying.
+     *
+     * @return void
+    */
+    public function charge($invoice)
+    {
+        try {
+            // charge invoice
+            $this->doCharge($invoice->customer, [
+                'amount' => $invoice->total(),
+                'currency' => $invoice->currency->code,
+                'description' => trans('messages.pay_invoice', [
+                    'id' => $invoice->uid,
+                ]),
+            ]);
+
+            // pay invoice 
+            $invoice->pay();
+
+            return [
+                'status' => 'success',
+            ];
+        } catch(\Stripe\Exception\CardException $e) {
+            // transaction
+            $transaction = $invoice->addTransaction([
+                'status' => \Acelle\Model\Transaction::STATUS_FAILED,
+                'message' => trans('messages.pay_invoice', [
+                    'id' => $invoice->uid,
+                    'title' => $invoice->getBillingInfo()['title'],
+                ]),
+                'error' => $e->getError()->message,
+            ]);
+
+            return [
+                'status' => 'error',
+                'error' => $transaction->error,
+            ];
+        } catch (\Exception $e) {
+            // transaction
+            $transaction = $invoice->addTransaction([
+                'status' => \Acelle\Model\Transaction::STATUS_FAILED,
+                'message' => trans('messages.pay_invoice', [
+                    'id' => $invoice->uid,
+                    'title' => $invoice->getBillingInfo()['title'],
+                ]),
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'status' => 'error',
+                'error' => $transaction->error,
+            ];
+        }
+    }
+
+    /**
      * Charge customer with subscription.
      *
      * @param  Customer                $customer
      * @param  Subscription         $subscription
      * @return void
      */
-    public function charge($subscription, $data) {
-        $card = $this->getCard($subscription);
+    public function doCharge($customer, $data) {
+        $card = $this->getCard($customer);
 
         // card not found
         if (!$card) {
@@ -231,168 +206,20 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
         return $result;
     }
 
-    public function renew($subscription) {
-        // add transaction
-        $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_AUTO_CHARGE, [
-            'ends_at' => null,
-            'current_period_ends_at' => $subscription->nextPeriod(),
-            'status' => SubscriptionTransaction::STATUS_PENDING,
-            'title' => trans('cashier::messages.transaction.recurring_charge', [
-                'plan' => $subscription->plan->getBillableName(),
-            ]),
-            'amount' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
-
-        // charge
-        try {
-            $this->charge($subscription, [
-                'amount' => $subscription->plan->getBillableAmount(),
-                'currency' => $subscription->plan->getBillableCurrency(),
-                'description' => trans('cashier::messages.transaction.recurring_charge', [
-                    'plan' => $subscription->plan->getBillableName(),
-                ]),
-            ]);
-
-            // set active
-            $transaction->setSuccess();
-
-            // check new states from transaction
-            $subscription->ends_at = $transaction->ends_at;
-            // save last period
-            $subscription->last_period_ends_at = $subscription->current_period_ends_at;
-            // set new current period
-            $subscription->current_period_ends_at = $transaction->current_period_ends_at;
-            $subscription->save();
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_RENEWED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-
-            return true;        
-        } catch (\Exception $e) {
-            $transaction->setFailed();
-
-            // update error message
-            $transaction->description = $e->getMessage();
-            $transaction->save();
-
-            // set subscription last_error_type
-            $subscription->error = json_encode([
-                'status' => 'error',
-                'type' => 'renew',
-                'message' => trans('cashier::messages.renew.card_error', [
-                    'date' => $subscription->current_period_ends_at,
-                    'error' => $e->getMessage(),
-                    'link' => \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\PaystackController@renew", [
-                        'subscription_id' => $subscription->uid,
-                        'return_url' => \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index'),
-                    ]),
-                ]),
-            ]);
-            $subscription->save();
-
-            // add log
-            $subscription->addLog(SubscriptionLog::TYPE_RENEW_FAILED, [
-                'plan' => $subscription->plan->getBillableName(),
-                'price' => $subscription->plan->getBillableFormattedPrice(),
-                'error' => $e->getMessage(),
-            ]);
-
-            return false;
-        }
-    }
-
     /**
      * Get checkout url.
      *
      * @return string
      */
-    public function getCheckoutUrl($subscription, $returnUrl='/') {
+    public function getCheckoutUrl($invoice, $returnUrl='/') {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaystackController@checkout", [
-            'subscription_id' => $subscription->uid,
+            'invoice_uid' => $invoice->uid,
             'return_url' => $returnUrl,
         ]);
     }
 
-    public function sync($subscription) {
-    }
-
-    public function isSupportRecurring() {
+    public function supportsAutoBilling() {
         return true;
-    }
-
-    /**
-     * Get renew url.
-     *
-     * @return string
-     */
-    public function getChangePlanUrl($subscription, $plan_id, $returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\PaystackController@changePlan", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-            'plan_id' => $plan_id,
-        ]);
-    }
-
-    /**
-     * Get renew url.
-     *
-     * @return string
-     */
-    public function getRenewUrl($subscription, $returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\\PaystackController@renew", [
-            'subscription_id' => $subscription->uid,
-            'return_url' => $returnUrl,
-        ]);
-    }
-
-    /**
-     * Cancel subscription.
-     *
-     * @return string
-     */
-    public function cancel($subscription) {
-        $subscription->cancel();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED, [
-            'plan' => $subscription->plan->getBillableName(),
-            'price' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
-    }
-
-    /**
-     * Cancel now subscription.
-     *
-     * @return string
-     */
-    public function cancelNow($subscription) {
-        $subscription->cancelNow();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_CANCELLED_NOW, [
-            'plan' => $subscription->plan->getBillableName(),
-            'price' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
-    }
-
-    /**
-     * Resume now subscription.
-     *
-     * @return string
-     */
-    public function resume($subscription) {
-        $subscription->resume();
-
-        // add log
-        $subscription->addLog(SubscriptionLog::TYPE_RESUMED, [
-            'plan' => $subscription->plan->getBillableName(),
-            'price' => $subscription->plan->getBillableFormattedPrice(),
-        ]);
     }
 
     /**

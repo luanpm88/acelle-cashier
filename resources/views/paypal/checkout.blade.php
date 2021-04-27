@@ -1,6 +1,6 @@
 <html lang="en">
     <head>
-        <title>{{ trans('cashier::messages.direct.checkout.page_title') }}</title>
+        <title>{{ trans('cashier::messages.paypal.checkout.page_title') }}</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
         
@@ -20,53 +20,26 @@
                     <img width="60%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/paypal-logo.png') }}" />
                 </div>
             </div>
-            <div class="col-md-4 mt-40 pd-60">
-                <label>{{ $subscription->plan->getBillableName() }}</label>               
-                <h2 class="mb-40">{{ $subscription->plan->getBillableFormattedPrice() }}</h2>   
+            <div class="col-md-4 mt-40 pd-60">            
+                <h2 class="mb-40">{{ $invoice->title }}</h2>   
 
                 <p>{!! trans('cashier::messages.paypal.checkout.intro', [
-                    'plan' => $subscription->plan->getBillableName(),
-                    'price' => $subscription->plan->getBillableFormattedPrice(),
+                    'price' => $invoice->formattedTotal(),
                 ]) !!}</p>
 
-                <ul class="dotted-list topborder section mb-4">
-                    <li>
-                        <div class="unit size1of2">
-                            {{ trans('cashier::messages.paypal.plan') }}
-                        </div>
-                        <div class="lastUnit size1of2">
-                            <mc:flag>{{ $subscription->plan->getBillableName() }}</mc:flag>
-                        </div>
-                    </li>
-                    <li>
-                        <div class="unit size1of2">
-                            {{ trans('cashier::messages.paypal.next_period_day') }}
-                        </div>
-                        <div class="lastUnit size1of2">
-                            <mc:flag>{{ $subscription->current_period_ends_at }}</mc:flag>
-                        </div>
-                    </li>
-                    <li>
-                        <div class="unit size1of2">
-                            {{ trans('cashier::messages.paypal.amount') }}
-                        </div>
-                        <div class="lastUnit size1of2">
-                            <mc:flag>{{ $subscription->plan->getBillableFormattedPrice() }}</mc:flag>
-                        </div>
-                    </li>
-                </ul>
-
                 <script
-                    src="https://www.paypal.com/sdk/js?client-id={{ $gatewayService->client_id }}&currency={{ $subscription->plan->getBillableCurrency() }}"> // Required. Replace SB_CLIENT_ID with your sandbox client ID.
+                    src="https://www.paypal.com/sdk/js?client-id={{ $service->client_id }}&currency={{ $invoice->currency->code }}"> // Required. Replace SB_CLIENT_ID with your sandbox client ID.
                 </script>
                     
                 <div id="paypal-button-container"></div>
 
                 <script>
                     var form = jQuery('<form>', {
-                        'action': '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaypalController@paymentRedirect') }}',
+                        'action': '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaypalController@checkout', [
+                            'invoice_uid' => $invoice->uid,
+                        ]) }}',
                         'target': '_top',
-                        'method': 'GET'
+                        'method': 'POST'
                     }).append(jQuery('<input>', {
                         'name': '_token',
                         'value': '{{ csrf_token() }}',
@@ -81,7 +54,7 @@
                             return actions.order.create({
                                 purchase_units: [{
                                     amount: {
-                                        value: '{{ $subscription->plan->getBillableAmount() }}',
+                                        value: '{{ $invoice->total() }}',
                                     }
                                 }]
                             });
@@ -94,26 +67,25 @@
                                     'value': data.orderID,
                                     'type': 'hidden'
                                 }));
-                                form.append(jQuery('<input>', {
-                                    'name': 'redirect',
-                                    'value': '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaypalController@checkout', $subscription->uid) }}',
-                                    'type': 'hidden'
-                                }));
                                 form.submit();
                             });
                         }
                     }).render('#paypal-button-container');
                 </script>
 
-                <form class="mt-5" method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaypalController@cancelNow', ['subscription_id' => $subscription->uid]) }}">
-                    {{ csrf_field() }}
+                <div class="my-4">
+                    <hr>
+                    <form id="cancelForm" method="POST" action="{{ action('AccountSubscriptionController@cancelInvoice', [
+                                'invoice_uid' => $invoice->uid,
+                    ]) }}">
+                        {{ csrf_field() }}
+                        <a href="javascript:;" onclick="$('#cancelForm').submit()">
+                            {{ trans('messages.subscription.cancel_now_change_other_plan') }}
+                        </a>
+                    </form>
                     
-                    <a href="javascript:;" onclick="$(this).closest('form').submit()"
-                        class="text-muted" style="font-size: 12px; text-decoration: underline"
-                    >{{ trans('cashier::messages.direct.cancel_new_subscription') }}</a>
-                </form>
+                </div>
             </div>
-            <div class="col-md-2"></div>
         </div>
         <br />
         <br />
