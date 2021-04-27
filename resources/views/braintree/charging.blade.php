@@ -37,9 +37,9 @@
                             </form>
         
                             <script>
-                                // setTimeout(function() {
-                                //     $('#pay_now').submit();
-                                // }, 2000);
+                                setTimeout(function() {
+                                    $('#pay_now').submit();
+                                }, 2000);
                             </script>
                         </div>
                     </div>
