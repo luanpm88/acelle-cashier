@@ -160,62 +160,6 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
 
         return $customer;
     }
-    
-    /**
-     * Get Razorpay Plan.
-     *
-     * @param  mixed    $price
-     * @param  string    $currency
-     * @return integer
-     */
-    public function createRazorpayPlan($subscription)
-    {
-        $plan = $this->request('POST', 'plans', [
-            "Content-Type" => "application/json"
-        ], [
-            "period" => $subscription->plan->getBillableInterval() . 'ly',
-            "interval" => $subscription->plan->getBillableIntervalCount(),
-            "item" => [
-                "name" => $subscription->plan->getBillableName(),
-                "amount" => $this->convertPrice($subscription->plan->getBillableAmount(), $subscription->plan->getBillableCurrency()),
-                "currency" => $subscription->plan->getBillableCurrency(),
-                "description" => $subscription->plan->description
-            ],
-            "notes" => [
-                "uid" => $subscription->plan->getBillableId()
-            ]
-        ]);
-
-        return $plan;
-    }
-
-    /**
-     * Get Razorpay Subscription.
-     *
-     * @param  mixed    $price
-     * @param  string    $currency
-     * @return integer
-     */
-    public function createRazorpaySubscription($subscription)
-    {        
-        $plan = $this->createRazorpayPlan($subscription);
-
-        $sub = $this->request('POST', 'subscriptions', [
-            "Content-Type" => "application/json"
-        ], [
-            "plan_id" => $plan["id"],
-            "total_count" => 300,
-            "quantity" => 1,
-            "customer_notify" => 1,
-            "start_at" => \Carbon\Carbon::now()->timestamp,
-            "expire_by" => \Carbon\Carbon::now()->addYears(10)->timestamp,
-            "notes" => [
-                "notes_key_1" => $subscription->uid
-            ]
-        ]);
-        var_dump($sub);
-        die();
-    }
 
     /**
      * Get access token.
@@ -242,9 +186,6 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         return $this->accessToken;
     }
 
-    // public function sync($subscription) {
-    // }
-
     public function supportsAutoBilling() {
         return false;
     }
@@ -263,38 +204,6 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
 
         return $price / $rate;
-    }
-    
-    /**
-     * Get sig value.
-     *
-     * @return void
-     */
-    public function getSig($subscription)
-    {
-        // EURtest@test.comen145227TEST12345
-        $str = '';
-        // currency-code
-        $str .= $subscription->plan->getBillableCurrency();
-        // customer-email
-        $str .= $subscription->user->getBillableEmail();
-        // customer-language
-        $str .= \Auth::user()->customer->getLanguageCode();
-        // merchant-pos-id
-        $str .= $this->client_id; 
-        // recurring-payment
-        $str .= 'true';
-        // shop-name
-        $str .= \Acelle\Model\Setting::get('site_name');    
-        // store-card
-        $str .= 'true';        
-        // total-amount
-        $str .= $subscription->plan->getBillableAmount();
-
-        // second key
-        $str .= $this->second_key;
-
-        return hash('sha256', $str);
     }
 
     function verifyCharge($request) {

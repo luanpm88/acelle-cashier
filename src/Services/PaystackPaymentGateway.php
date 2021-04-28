@@ -170,7 +170,6 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      * Charge customer with subscription.
      *
      * @param  Customer                $customer
-     * @param  Subscription         $subscription
      * @return void
      */
     public function doCharge($customer, $data) {

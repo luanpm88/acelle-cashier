@@ -109,7 +109,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * Charge customer with subscription.
      *
      * @param  Customer                $customer
-     * @param  Subscription         $subscription
      * @return void
      */
     public function doCharge($customer, $data) {
@@ -159,7 +158,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
     /**
      * Get card information from Stripe user.
      *
-     * @param  Subscription    $subscription
+     * @param  User    $user
      * @return Boolean
      */
     public function getCardInformation($user)
@@ -177,7 +176,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
     /**
      * Get the Stripe customer instance for the current user and token.
      *
-     * @param  SubscriptionParam    $subscriptionParam
+     * @param  User    $user
      * @return \Stripe\Customer
      */
     protected function getStripeCustomer($user)
