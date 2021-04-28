@@ -9,8 +9,6 @@ use Acelle\Cashier\Cashier;
 
 class RazorpayPaymentGateway implements PaymentGatewayInterface
 {
-    const ERROR_CHARGE_FAILED = 'charge-failed';
-
     public $key_id;
     public $key_secret;
 
@@ -204,6 +202,25 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
 
         return $price / $rate;
+    }
+
+    /**
+     * Check invoice for paying.
+     *
+     * @return void
+    */
+    public function charge($request)
+    {
+        try {
+            // charge invoice
+            $this->verifyCharge($request);
+
+            // pay invoice 
+            $invoice->fulfill();
+        } catch (\Exception $e) {
+            // transaction
+            $invoice->payFailed($e->getMessage());
+        }
     }
 
     function verifyCharge($request) {

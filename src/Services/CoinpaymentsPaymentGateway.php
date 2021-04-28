@@ -62,40 +62,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                 'status_url' => $result["status_url"],
                 'qrcode_url' => $result["qrcode_url"],
             ]);
-
-            return [
-                'status' => 'success',
-            ];
-        } catch(\Stripe\Exception\CardException $e) {
-            // transaction
-            $transaction = $invoice->addTransaction([
-                'status' => \Acelle\Model\Transaction::STATUS_FAILED,
-                'message' => trans('messages.pay_invoice', [
-                    'id' => $invoice->uid,
-                    'title' => $invoice->getBillingInfo()['title'],
-                ]),
-                'error' => $e->getError()->message,
-            ]);
-
-            return [
-                'status' => 'error',
-                'error' => $transaction->error,
-            ];
         } catch (\Exception $e) {
             // transaction
-            $transaction = $invoice->addTransaction([
-                'status' => \Acelle\Model\Transaction::STATUS_FAILED,
-                'message' => trans('messages.pay_invoice', [
-                    'id' => $invoice->uid,
-                    'title' => $invoice->getBillingInfo()['title'],
-                ]),
-                'error' => $e->getMessage(),
-            ]);
-
-            return [
-                'status' => 'error',
-                'error' => $transaction->error,
-            ];
+            $invoice->payFailed($e->getMessage());
         }
     }
     
@@ -334,7 +303,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 
         if ($invoice->getMetadata()['status'] == 100) {
             // pay invoice 
-            $invoice->pay();
+            $invoice->fulfill();
         }
 
         if ($invoice->getMetadata()['status'] < 0) {

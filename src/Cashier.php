@@ -105,49 +105,4 @@ class Cashier
                 throw new \Exception("Can not find payment service: " . $config['name']);
         }
     }
-    
-    /**
-     * user want to change plan.
-     *
-     * @return bollean
-     */
-    public static function calcChangePlan($subscription, $plan)
-    {
-        if (($subscription->plan->getBillableInterval() != $plan->getBillableInterval()) ||
-            ($subscription->plan->getBillableIntervalCount() != $plan->getBillableIntervalCount()) ||
-            ($subscription->plan->getBillableCurrency() != $plan->getBillableCurrency())
-        ) {
-            throw new \Exception(trans('cashier::messages.can_not_change_to_diff_currency_period_plan'));
-        }
-        
-        // new ends at
-        $newEndsAt = $subscription->current_period_ends_at;
-
-        // amout per day of current plan
-        $currentAmount = $subscription->plan->getBillableAmount();
-        $periodDays = $subscription->current_period_ends_at->diffInDays($subscription->periodStartAt()->startOfDay());
-        $remainDays = $subscription->current_period_ends_at->diffInDays(\Carbon\Carbon::now()->startOfDay());
-        $currentPerDayAmount = ($currentAmount/$periodDays);
-        $newAmount = ($plan->price/$periodDays)*$remainDays;
-        $remainAmount = $currentPerDayAmount*$remainDays;
-
-        $amount = $newAmount - $remainAmount;
-        
-        // if amount < 0
-        if ($amount < 0) {
-            $days = (int) ceil(-($amount/$currentPerDayAmount));
-            $amount = 0;
-            $newEndsAt->addDays($days);
-            
-            // if free plan
-            if ($plan->getBillableAmount() == 0) {
-                $newEndsAt = $subscription->current_period_ends_at;
-            }
-        }
-
-        return [
-            'amount' => round($amount, 2),
-            'endsAt' => $newEndsAt,
-        ];
-    }
 }

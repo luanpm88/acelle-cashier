@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 
+use \Acelle\Model\Invoice;
+
 class DirectController extends Controller
 {
     public function __construct(Request $request)
@@ -48,7 +50,7 @@ class DirectController extends Controller
     public function checkout(Request $request, $invoice_uid)
     {
         $service = $this->getPaymentService();
-        $invoice = \Acelle\Model\Invoice::findByUid($invoice_uid);
+        $invoice = Invoice::findByUid($invoice_uid);
         
         // Save return url
         if ($request->return_url) {
@@ -62,7 +64,7 @@ class DirectController extends Controller
 
         // free plan. No charge
         if ($invoice->total() == 0) {
-            $invoice->pay();
+            $invoice->fulfill();
 
             return redirect()->away($this->getReturnUrl($request));
         }
@@ -83,7 +85,7 @@ class DirectController extends Controller
     public function claim(Request $request, $invoice_uid)
     {
         $service = $this->getPaymentService();
-        $invoice = \Acelle\Model\Invoice::findByUid($invoice_uid);
+        $invoice = Invoice::findByUid($invoice_uid);
 
         // not new
         if (!$invoice->isNew()) {
@@ -111,7 +113,7 @@ class DirectController extends Controller
 
         $request->user()->customer->updatePaymentMethod([
             'method' => 'direct',
-            'user_id' => $request->user()->customer->getBillableEmail(),
+            'description' => trans('messages.payment.direct.description'),
         ]);
 
         // Save return url

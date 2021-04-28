@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Services\StripePaymentGateway;
 
+use \Acelle\Model\Invoice;
+
 class PaystackController extends Controller
 {
     public function getReturnUrl(Request $request) {
@@ -39,7 +41,7 @@ class PaystackController extends Controller
     public function checkout(Request $request, $invoice_uid)
     {
         $service = $this->getPaymentService();
-        $invoice = \Acelle\Model\Invoice::findByUid($invoice_uid);
+        $invoice = Invoice::findByUid($invoice_uid);
         
         // Save return url
         if ($request->return_url) {
@@ -53,7 +55,7 @@ class PaystackController extends Controller
 
         // free plan. No charge
         if ($invoice->total() == 0) {
-            $invoice->pay();
+            $invoice->fulfill();
 
             return redirect()->away($this->getReturnUrl($request));
         }
@@ -70,7 +72,7 @@ class PaystackController extends Controller
                 // check pay
                 $service->verifyPayment($invoice, $request->reference);
 
-                $invoice->pay();
+                $invoice->fulfill();
 
                 return redirect()->away($this->getReturnUrl($request));
             } catch (\Exception $e) {
@@ -96,21 +98,12 @@ class PaystackController extends Controller
     public function charge(Request $request, $invoice_uid)
     {
         $service = $this->getPaymentService();
-        $invoice = \Acelle\Model\Invoice::findByUid($invoice_uid);
+        $invoice = Invoice::findByUid($invoice_uid);
         
-        try {
-            // autopay
-            $service->charge($invoice);
+        // autopay
+        $service->charge($invoice);
 
-            return redirect()->away($this->getReturnUrl($request));
-        } catch (\Exception $e) {
-            // reset invoice to new
-            $invoice->pendingTransaction()->setFailed($e->getMessage());
-
-            // return with error message
-            $request->session()->flash('alert-error', $e->getMessage());
-            return redirect()->away($this->getReturnUrl($request));
-        }
+        return redirect()->away($this->getReturnUrl($request));
     }
 
     /**

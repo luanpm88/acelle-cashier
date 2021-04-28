@@ -10,9 +10,8 @@ use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
 use Carbon\Carbon;
 
-class DirectPaymentGateway implements PaymentGatewayInterface {
-    const ERROR_PENDING_REJECTED = 'pending-rejected';
-
+class DirectPaymentGateway implements PaymentGatewayInterface
+{
     public $payment_instruction;
     public $confirmation_message;
 

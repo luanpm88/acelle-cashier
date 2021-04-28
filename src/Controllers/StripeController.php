@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Services\StripePaymentGateway;
 
+use \Acelle\Model\Invoice;
+
 class StripeController extends Controller
 {
     public function getReturnUrl(Request $request) {
@@ -40,7 +42,7 @@ class StripeController extends Controller
     {
         $customer = $request->user()->customer;
         $service = $this->getPaymentService();
-        $invoice = \Acelle\Model\Invoice::findByUid($invoice_uid);
+        $invoice = Invoice::findByUid($invoice_uid);
         
         // Save return url
         if ($request->return_url) {
@@ -54,7 +56,7 @@ class StripeController extends Controller
 
         // free plan. No charge
         if ($invoice->total() == 0) {
-            $invoice->pay();
+            $invoice->fulfill();
 
             return redirect()->away($this->getReturnUrl($request));
         }
@@ -70,13 +72,7 @@ class StripeController extends Controller
         }
 
         if ($request->isMethod('post')) {
-            $result = $service->charge($invoice);
-
-            if ($result['status'] == 'error') {
-                // return with error message
-                $request->session()->flash('alert-error', $result['error']);
-                return redirect()->away($this->getReturnUrl($request));
-            }
+            $service->charge($invoice);
 
             // return back
             return redirect()->away($this->getReturnUrl($request));

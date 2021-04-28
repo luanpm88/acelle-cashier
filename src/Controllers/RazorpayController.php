@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 
+use \Acelle\Model\Invoice;
+
 class RazorpayController extends Controller
 {
     public function __construct()
@@ -44,7 +46,7 @@ class RazorpayController extends Controller
     {
         $customer = $request->user()->customer;
         $service = $this->getPaymentService();
-        $invoice = \Acelle\Model\Invoice::findByUid($invoice_uid);
+        $invoice = Invoice::findByUid($invoice_uid);
         
         // Save return url
         if ($request->return_url) {
@@ -58,27 +60,13 @@ class RazorpayController extends Controller
 
         // free plan. No charge
         if ($invoice->total() == 0) {
-            $invoice->pay();
+            $invoice->fulfill();
 
             return redirect()->away($this->getReturnUrl($request));
         }
 
         if ($request->isMethod('post')) {
-            try {
-                $service->verifyCharge($request);
-
-                // pay invoice 
-                $invoice->pay();
-
-                
-            } catch (\Exception $e) {
-                // pay failed
-                $invoice->payFailed($e->getError()->message);
-
-                // Redirect to my subscription page
-                $request->session()->flash('alert-error', trans('cashier::messages.charge.something_went_wrong', ['error' => $e->getMessage()]));
-                return redirect()->away($this->getReturnUrl($request));
-            }
+            $service->charge($request);
 
             // Redirect to my subscription page
             return redirect()->away($this->getReturnUrl($request));
@@ -92,8 +80,6 @@ class RazorpayController extends Controller
             // pay failed
             $invoice->payFailed($e->getMessage());
 
-            // Redirect to my subscription page
-            $request->session()->flash('alert-error', trans('cashier::messages.charge.something_went_wrong', ['error' => $e->getMessage()]));
             return redirect()->away($this->getReturnUrl($request));
         }
 

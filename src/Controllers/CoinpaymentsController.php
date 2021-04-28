@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Services\CoinpaymentsPaymentGateway;
 
+use \Acelle\Model\Invoice;
+
 class CoinpaymentsController extends Controller
 {
     public function __construct()
@@ -49,7 +51,7 @@ class CoinpaymentsController extends Controller
     public function checkout(Request $request, $invoice_uid)
     {
         $service = $this->getPaymentService();
-        $invoice = \Acelle\Model\Invoice::findByUid($invoice_uid);
+        $invoice = Invoice::findByUid($invoice_uid);
         
         // Save return url
         if ($request->return_url) {
@@ -63,22 +65,13 @@ class CoinpaymentsController extends Controller
 
         // free plan. No charge
         if ($invoice->total() == 0) {
-            $invoice->pay();
+            $invoice->fulfill();
 
             return redirect()->away($this->getReturnUrl($request));
         }
 
         if ($request->isMethod('post')) {
             $result = $service->charge($invoice);
-
-            if ($result['status'] == 'error') {
-                // reset invoice to new
-                $invoice->pendingTransaction()->setFailed($result['error']);
-
-                // return with error message
-                $request->session()->flash('alert-error', $result['error']);
-                return redirect()->away($this->getReturnUrl($request));
-            }
 
             // redirect to checkout page
             return redirect()->away($invoice->getMetadata()['checkout_url']);

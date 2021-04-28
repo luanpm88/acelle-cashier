@@ -13,8 +13,6 @@ use PayPalCheckoutSdk\Core\ProductionEnvironment;
 
 class PaypalPaymentGateway implements PaymentGatewayInterface
 {
-    const ERROR_CHARGE_FAILED = 'charge-failed';
-
     public $client_id;
     public $secret;
     public $client;
@@ -63,27 +61,10 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
             $this->doCharge($invoice, $options);
 
             // pay invoice 
-            $invoice->pay();
-
-            return [
-                'status' => 'success',
-            ];
-        } catch(\Stripe\Exception\CardException $e) {
-            // pay failed
-            $invoice->payFailed($e->getError()->message);
-
-            return [
-                'status' => 'error',
-                'error' => $e->getError()->message,
-            ];
+            $invoice->fulfill();
         } catch (\Exception $e) {
             // pay failed
             $invoice->payFailed($e->getMessage());
-
-            return [
-                'status' => 'error',
-                'error' => $e->getMessage(),
-            ];
         }
     }
     

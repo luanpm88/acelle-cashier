@@ -9,8 +9,6 @@ use Acelle\Cashier\Cashier;
 
 class PaystackPaymentGateway implements PaymentGatewayInterface
 {
-    const ERROR_CHARGE_FAILED = 'charge-failed';
-
     public $public_key;
     public $secret_key;
 
@@ -128,41 +126,10 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
             ]);
 
             // pay invoice 
-            $invoice->pay();
-
-            return [
-                'status' => 'success',
-            ];
-        } catch(\Stripe\Exception\CardException $e) {
-            // transaction
-            $transaction = $invoice->addTransaction([
-                'status' => \Acelle\Model\Transaction::STATUS_FAILED,
-                'message' => trans('messages.pay_invoice', [
-                    'id' => $invoice->uid,
-                    'title' => $invoice->getBillingInfo()['title'],
-                ]),
-                'error' => $e->getError()->message,
-            ]);
-
-            return [
-                'status' => 'error',
-                'error' => $transaction->error,
-            ];
+            $invoice->fulfill();
         } catch (\Exception $e) {
             // transaction
-            $transaction = $invoice->addTransaction([
-                'status' => \Acelle\Model\Transaction::STATUS_FAILED,
-                'message' => trans('messages.pay_invoice', [
-                    'id' => $invoice->uid,
-                    'title' => $invoice->getBillingInfo()['title'],
-                ]),
-                'error' => $e->getMessage(),
-            ]);
-
-            return [
-                'status' => 'error',
-                'error' => $transaction->error,
-            ];
+            $invoice->payFailed($e->getMessage());
         }
     }
 

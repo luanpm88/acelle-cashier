@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Services\PaypalSubscriptionPaymentGateway;
 
+use \Acelle\Model\Invoice;
+
 class PaypalSubscriptionController extends Controller
 {
     public function __construct()
