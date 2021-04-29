@@ -65,7 +65,7 @@ class CoinpaymentsController extends Controller
 
         // free plan. No charge
         if ($invoice->total() == 0) {
-            $invoice->fulfill();
+            $invoice->approve();
 
             return redirect()->away($this->getReturnUrl($request));
         }

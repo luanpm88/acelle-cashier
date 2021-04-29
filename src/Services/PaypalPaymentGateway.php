@@ -61,7 +61,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
             $this->doCharge($invoice, $options);
 
             // pay invoice 
-            $invoice->fulfill();
+            $invoice->approve();
         } catch (\Exception $e) {
             // pay failed
             $invoice->payFailed($e->getMessage());

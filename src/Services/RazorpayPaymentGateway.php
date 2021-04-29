@@ -216,7 +216,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
             $this->verifyCharge($request);
 
             // pay invoice 
-            $invoice->fulfill();
+            $invoice->approve();
         } catch (\Exception $e) {
             // transaction
             $invoice->payFailed($e->getMessage());
