@@ -77,7 +77,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     {
         $options = [
             'currency1' => $data['currency'],
-            'currency2' => config('cashier.gateways.coinpayments.fields.receive_currency'),
+            'currency2' => $this->receive_currency,
             'amount' => $data['amount'],
             'item_name' => $data['description'],
             'item_number' => $data['id'],

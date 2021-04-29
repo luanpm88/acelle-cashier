@@ -28,7 +28,7 @@ class BraintreeController extends Controller
      **/
     public function getPaymentService()
     {
-        return Cashier::getPaymentGateway('braintree');
+        return \Acelle\Model\Setting::getPaymentGateway('braintree');
     }
 
     /**

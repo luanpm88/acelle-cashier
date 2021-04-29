@@ -28,7 +28,7 @@ class PaystackController extends Controller
      **/
     public function getPaymentService()
     {
-        return Cashier::getPaymentGateway('paystack');
+        return \Acelle\Model\Setting::getPaymentGateway('paystack');
     }
 
     /**

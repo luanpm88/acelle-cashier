@@ -24,7 +24,7 @@ class PaypalController extends Controller
      **/
     public function getPaymentService()
     {
-        return Cashier::getPaymentGateway('paypal');
+        return \Acelle\Model\Setting::getPaymentGateway('paypal');
     }
 
     /**

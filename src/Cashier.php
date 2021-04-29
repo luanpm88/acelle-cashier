@@ -41,68 +41,66 @@ class Cashier
      *
      * @var array
      */
-    public static function getPaymentGateway($name, $fields=null)
+    public static function getPaymentGateway($meta, $fields=null)
     {
-        $config = config('cashier.gateways.' . $name);
-        
-        // overide fields
+        // overide fields, for validate before save
         if (isset($fields)) {
-            $config['fields'] = $fields;
+            $meta['fields'] = $fields;
         }
-        
-        switch ($config['name']) {
+
+        switch ($meta['name']) {
             case 'direct':
                 return new \Acelle\Cashier\Services\DirectPaymentGateway(
-                    $config['fields']['payment_instruction'],
-                    $config['fields']['confirmation_message']
+                    $meta['fields']['payment_instruction'],
+                    $meta['fields']['confirmation_message']
                 );
             case 'stripe':
                 return new \Acelle\Cashier\Services\StripePaymentGateway(
-                    $config['fields']['secret_key'],
-                    $config['fields']['publishable_key'],
-                    $config['fields']['always_ask_for_valid_card'],
-                    $config['fields']['billing_address_required']
+                    $meta['fields']['secret_key'],
+                    $meta['fields']['publishable_key'],
+                    $meta['fields']['always_ask_for_valid_card'],
+                    $meta['fields']['billing_address_required']
                 );
             case 'braintree':
                 return new \Acelle\Cashier\Services\BraintreePaymentGateway(
-                    $config['fields']['environment'],
-                    $config['fields']['merchant_id'],
-                    $config['fields']['public_key'],
-                    $config['fields']['private_key'],
-                    $config['fields']['always_ask_for_valid_card']
+                    $meta['fields']['environment'],
+                    $meta['fields']['merchant_id'],
+                    $meta['fields']['public_key'],
+                    $meta['fields']['private_key'],
+                    $meta['fields']['always_ask_for_valid_card']
                 );
             case 'coinpayments':
                 return new \Acelle\Cashier\Services\CoinpaymentsPaymentGateway(
-                    $config['fields']['merchant_id'],
-                    $config['fields']['public_key'],
-                    $config['fields']['private_key'],
-                    $config['fields']['ipn_secret'],
-                    $config['fields']['receive_currency'],
+                    $meta['fields']['merchant_id'],
+                    $meta['fields']['public_key'],
+                    $meta['fields']['private_key'],
+                    $meta['fields']['ipn_secret'],
+                    $meta['fields']['receive_currency'],
                 );
             case 'paypal':
                 return new \Acelle\Cashier\Services\PaypalPaymentGateway(
-                    $config['fields']['environment'],
-                    $config['fields']['client_id'],
-                    $config['fields']['secret']
+                    $meta['fields']['environment'],
+                    $meta['fields']['client_id'],
+                    $meta['fields']['secret']
                 );
             case 'paypal_subscription':
                 return new \Acelle\Cashier\Services\PaypalSubscriptionPaymentGateway(
-                    $config['fields']['environment'],
-                    $config['fields']['client_id'],
-                    $config['fields']['secret']
+                    $meta['fields']['environment'],
+                    $meta['fields']['client_id'],
+                    $meta['fields']['secret']
                 );
             case 'razorpay':
                 return new \Acelle\Cashier\Services\RazorpayPaymentGateway(
-                    $config['fields']['key_id'],
-                    $config['fields']['key_secret']
+                    $meta['fields']['key_id'],
+                    $meta['fields']['key_secret']
                 );
             case 'paystack':
                 return new \Acelle\Cashier\Services\PaystackPaymentGateway(
-                    $config['fields']['public_key'],
-                    $config['fields']['secret_key']
+                    $meta['fields']['public_key'],
+                    $meta['fields']['secret_key']
                 );
             default:
-                throw new \Exception("Can not find payment service: " . $config['name']);
+                throw new \Exception("Can not find payment service: " . $meta['name']);
         }
     }
 }

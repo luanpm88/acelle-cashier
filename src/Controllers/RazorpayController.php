@@ -32,7 +32,7 @@ class RazorpayController extends Controller
      **/
     public function getPaymentService()
     {
-        return Cashier::getPaymentGateway('razorpay');
+        return \Acelle\Model\Setting::getPaymentGateway('razorpay');
     }
 
     /**

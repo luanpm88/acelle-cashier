@@ -30,12 +30,36 @@ class DirectPaymentGateway implements PaymentGatewayInterface
      */
     public function getPaymentInstruction()
     {
-        if (config('cashier.gateways.direct.fields.payment_instruction')) {
-            return config('cashier.gateways.direct.fields.payment_instruction');
+        if ($this->payment_instruction) {
+            return $this->payment_instruction;
         } else {
             return trans('cashier::messages.direct.payment_instruction.demo');
         }
             
+    }
+
+    /**
+     * Get payment guiline message.
+     *
+     * @return Boolean
+     */
+    public function getPaymentConfirmationMessage()
+    {
+        if ($this->confirmation_message) {
+            return $this->confirmation_message;
+        } else {
+            return trans('cashier::messages.direct.confirmation_message.demo');
+        }
+            
+    }
+
+    /**
+     * Gateway validate.
+     *
+     * @return void
+     */
+    public function validate()
+    {        
     }
 
     /**

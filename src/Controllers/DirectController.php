@@ -37,7 +37,7 @@ class DirectController extends Controller
      **/
     public function getPaymentService()
     {
-        return Cashier::getPaymentGateway('direct');
+        return \Acelle\Model\Setting::getPaymentGateway('direct');
     }
     
     /**

@@ -28,7 +28,7 @@ class StripeController extends Controller
      **/
     public function getPaymentService()
     {
-        return Cashier::getPaymentGateway('stripe');
+        return \Acelle\Model\Setting::getPaymentGateway('stripe');
     }
     
     /**

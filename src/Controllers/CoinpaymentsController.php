@@ -38,7 +38,7 @@ class CoinpaymentsController extends Controller
      **/
     public function getPaymentService()
     {
-        return Cashier::getPaymentGateway('coinpayments');
+        return \Acelle\Model\Setting::getPaymentGateway('coinpayments');
     }
 
     /**
