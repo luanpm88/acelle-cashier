@@ -108,65 +108,6 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     }
     
     /**
-     * Create a new subscription.
-     *
-     * @param  mixed                $token
-     * @param  Subscription         $subscription
-     * @return void
-     */
-    public function create($customer, $plan)
-    {
-        // update subscription model
-        if ($customer->subscription) {
-            $subscription = $customer->subscription;
-        } else {
-            $subscription = new Subscription();
-            $subscription->user_id = $customer->getBillableId();
-        } 
-        // @todo when is exactly started at?
-        $subscription->started_at = \Carbon\Carbon::now();
-        
-        $subscription->user_id = $customer->getBillableId();
-        $subscription->plan_id = $plan->getBillableId();
-        $subscription->status = Subscription::STATUS_NEW;
-        
-        // set dates and save
-        $subscription->ends_at = $subscription->getPeriodEndsAt(Carbon::now());
-        $subscription->current_period_ends_at = $subscription->ends_at;
-        $subscription->save();
-
-        // set gateway
-        $customer->updatePaymentMethod([
-            'method' => 'coinpayments',
-            'user_id' => $customer->getBillableEmail(),
-        ]);
-        
-        // Free plan
-        if ($plan->getBillableAmount() == 0) {
-            // subscription transaction
-            $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
-                'ends_at' => $subscription->ends_at,
-                'current_period_ends_at' => $subscription->current_period_ends_at,
-                'status' => SubscriptionTransaction::STATUS_SUCCESS,
-                'title' => trans('cashier::messages.transaction.subscribed_to_plan', [
-                    'plan' => $subscription->plan->getBillableName(),
-                ]),
-                'amount' => $subscription->plan->getBillableFormattedPrice(),
-            ]);
-            
-            // set active
-            $subscription->setActive();
-
-            $subscription->addLog(SubscriptionLog::TYPE_SUBSCRIBED, [
-                'plan' => $plan->getBillableName(),
-                'price' => $plan->getBillableFormattedPrice(),
-            ]);
-        }
-        
-        return $subscription;
-    }
-    
-    /**
      * Check if customer has valid card.
      *
      * @param  string    $userId
