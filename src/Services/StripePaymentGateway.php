@@ -79,16 +79,18 @@ class StripePaymentGateway implements PaymentGatewayInterface
                     'id' => $invoice->uid,
                 ]),
             ]);
-
-            // pay invoice 
-            $invoice->fulfill();
         } catch(\Stripe\Exception\CardException $e) {
             // pay failed
             $invoice->payFailed($e->getError()->message);
+            return;
         } catch (\Exception $e) {
             // pay failed
             $invoice->payFailed($e->getMessage());
+            return;
         }
+
+        // pay invoice 
+        $invoice->fulfill();
     }
     
     /**
