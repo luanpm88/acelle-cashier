@@ -145,7 +145,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
             ]);
 
             // pay invoice 
-            $invoice->approve();
+            $invoice->fulfill();
         } catch (\Exception $e) {
             // pay failed
             $invoice->payFailed($e->getMessage());

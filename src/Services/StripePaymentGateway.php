@@ -90,7 +90,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
         }
 
         // pay invoice 
-        $invoice->approve();
+        $invoice->fulfill();
     }
     
     /**

@@ -55,7 +55,7 @@ class PaystackController extends Controller
 
         // free plan. No charge
         if ($invoice->total() == 0) {
-            $invoice->approve();
+            $invoice->fulfill();
 
             return redirect()->away($this->getReturnUrl($request));
         }
@@ -72,7 +72,7 @@ class PaystackController extends Controller
                 // check pay
                 $service->verifyPayment($invoice, $request->reference);
 
-                $invoice->approve();
+                $invoice->fulfill();
 
                 return redirect()->away($this->getReturnUrl($request));
             } catch (\Exception $e) {

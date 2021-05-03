@@ -64,7 +64,7 @@ class DirectController extends Controller
 
         // free plan. No charge
         if ($invoice->total() == 0) {
-            $invoice->approve();
+            $invoice->fulfill();
 
             return redirect()->away($this->getReturnUrl($request));
         }

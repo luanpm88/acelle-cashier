@@ -244,7 +244,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 
         if ($invoice->getMetadata()['status'] == 100) {
             // pay invoice 
-            $invoice->approve();
+            $invoice->fulfill();
         }
 
         if ($invoice->getMetadata()['status'] < 0) {

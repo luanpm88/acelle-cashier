@@ -126,7 +126,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
             ]);
 
             // pay invoice 
-            $invoice->approve();
+            $invoice->fulfill();
         } catch (\Exception $e) {
             // transaction
             $invoice->payFailed($e->getMessage());
