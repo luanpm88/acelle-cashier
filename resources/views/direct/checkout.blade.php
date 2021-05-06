@@ -60,8 +60,17 @@
                     >
                         {{ csrf_field() }}
                         <button
-                            class="btn btn-primary mr-10 mr-2"
+                            class="btn btn-primary mr-10 mr-4"
                         >{{ trans('cashier::messages.direct.claim_payment') }}</button>
+                    </form>
+
+                    <form id="cancelForm" method="POST" action="{{ action('AccountSubscriptionController@cancelInvoice', [
+                                'invoice_uid' => $invoice->uid,
+                    ]) }}">
+                        {{ csrf_field() }}
+                        <a href="javascript:;" onclick="$('#cancelForm').submit()">
+                            {{ trans('messages.subscription.cancel_now_change_other_plan') }}
+                        </a>
                     </form>
                 </div>
                 
