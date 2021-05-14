@@ -1,4 +1,4 @@
-<?php return array (
+<?php return array(
     'change_plan.warning' => 'You have a change plan invoice.
         Click <a href=":link">here</a> to checkout the invoice.',
     'invoice.subscription.change_plan_pending' => 'There are change plan invoice with amount: <strong>:amount</strong>.
@@ -196,7 +196,7 @@
     'stripe.cancel_now_plan' => 'Cancel now <strong>:plan</strong> plan',
     'paypal.title' => 'Pay with PayPal',
     'paypal.checkout.intro' => 'You are paying an invoice with amount <strong>:price</strong>.
-        Click on the button below to finish your payment with PayPal before using plan.',    
+        Click on the button below to finish your payment with PayPal before using plan.',
     'paypal.subscribe_to_plan' => 'Subscribe to plan <strong>:plan</strong>',
     'paypal.new_plan' => 'New plan',
     'paypal.change_plan' => 'Change plan',
@@ -507,7 +507,7 @@
     'paypal.connected.intro' => 'Make payment outside of application',
     'coinpayments.cancel_subscription' => 'Click here to cancel this subscription. This can not be undone',
     'razorpay.cancel_subscription' => 'Click here to cancel the transaction. This can not be undone.',
-    'subscription.log.plan_change_canceled' => 'Change plan invoice was canceled',    
+    'subscription.log.plan_change_canceled' => 'Change plan invoice was canceled',
     'coinpayments.status_code' => 'Status code',
     'transaction.method.razorpay' => 'Razorpay',
-) ?>
+);

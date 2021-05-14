@@ -43,7 +43,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
     {
         try {
             \Stripe\Customer::all(['limit' => 1]);
-        } catch(\Stripe\Error\Card $e) {
+        } catch (\Stripe\Error\Card $e) {
             // Since it's a decline, \Stripe\Error\Card will be caught
         } catch (\Stripe\Error\RateLimit $e) {
             // Too many requests made to the API too quickly
@@ -79,7 +79,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
                     'id' => $invoice->uid,
                 ]),
             ]);
-        } catch(\Stripe\Exception\CardException $e) {
+        } catch (\Stripe\Exception\CardException $e) {
             // pay failed
             $invoice->payFailed($e->getError()->message);
             return;
@@ -89,7 +89,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
             return;
         }
 
-        // pay invoice 
+        // pay invoice
         $invoice->fulfill();
     }
     
@@ -99,7 +99,8 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  Customer                $customer
      * @return void
      */
-    public function doCharge($customer, $data) {
+    public function doCharge($customer, $data)
+    {
         // get or create plan
         $stripeCustomer = $this->getStripeCustomer($customer);
         $card = $this->getCardInformation($customer);
@@ -118,7 +119,8 @@ class StripePaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
-    public function supportsAutoBilling() {
+    public function supportsAutoBilling()
+    {
         return true;
     }
 
@@ -127,7 +129,8 @@ class StripePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice, $returnUrl='/') {
+    public function getCheckoutUrl($invoice, $returnUrl='/')
+    {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\StripeController@checkout", [
             'invoice_uid' => $invoice->uid,
             'return_url' => $returnUrl,
@@ -139,7 +142,8 @@ class StripePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function hasCard($customer) {
+    public function hasCard($customer)
+    {
         return is_object($this->getCardInformation($customer));
     }
 
@@ -158,7 +162,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
             ['object' => 'card']
         );
 
-        return empty($cards->data) ? NULL : $cards->data["0"];
+        return empty($cards->data) ? null : $cards->data["0"];
     }
 
     /**
@@ -268,7 +272,8 @@ class StripePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getConnectUrl($returnUrl='/') {
+    public function getConnectUrl($returnUrl='/')
+    {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\StripeController@connect", [
             'return_url' => $returnUrl,
         ]);

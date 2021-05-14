@@ -54,7 +54,8 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice, $returnUrl='/') {
+    public function getCheckoutUrl($invoice, $returnUrl='/')
+    {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\RazorpayController@checkout", [
             'invoice_uid' => $invoice->uid,
             'return_url' => $returnUrl,
@@ -152,7 +153,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
             ]);
         }
         
-        // save customer        
+        // save customer
         $data['customer'] = $customer;
         $invoice->updateMetadata($data);
 
@@ -184,7 +185,8 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         return $this->accessToken;
     }
 
-    public function supportsAutoBilling() {
+    public function supportsAutoBilling()
+    {
         return false;
     }
 
@@ -215,7 +217,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
             // charge invoice
             $this->verifyCharge($request);
 
-            // pay invoice 
+            // pay invoice
             $invoice->fulfill();
         } catch (\Exception $e) {
             // transaction
@@ -223,7 +225,8 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         }
     }
 
-    function verifyCharge($request) {
+    public function verifyCharge($request)
+    {
         $sig = hash_hmac('sha256', $request->razorpay_order_id . "|" . $request->razorpay_payment_id, $this->key_secret);
         if ($sig != $request->razorpay_signature) {
             throw new \Exception('Can not verify remote order: ' . $request->razorpay_order_id);
@@ -235,7 +238,8 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getConnectUrl($returnUrl='/') {
+    public function getConnectUrl($returnUrl='/')
+    {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\RazorpayController@connect", [
             'return_url' => $returnUrl,
         ]);

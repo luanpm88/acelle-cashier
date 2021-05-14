@@ -32,7 +32,8 @@ class PaypalSubscriptionController extends Controller
      *
      * @return string
      **/
-    public function getReturnUrl(Request $request) {
+    public function getReturnUrl(Request $request)
+    {
         $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
             $return_url = Cashier::public_url('/');
@@ -74,14 +75,18 @@ class PaypalSubscriptionController extends Controller
             try {
                 // create subscription
                 $paypalSubscription = $service->createPaypalSubscription($subscription, $request->subscriptionID);
-            } catch(\Exception $e) {
-                $request->session()->flash('alert-error', 
-                    trans('cashier::messages.paypal_subscription.create_paypal_subscription_error', [
+            } catch (\Exception $e) {
+                $request->session()->flash(
+                    'alert-error',
+                    trans(
+                        'cashier::messages.paypal_subscription.create_paypal_subscription_error',
+                        [
                         'error' => $e->getMessage()
                     ]
-                ));
+                    )
+                );
                 return redirect()->away($service->getCheckoutUrl($subscription, $request));
-            }   
+            }
 
             // add transaction
             $subscription->addTransaction(SubscriptionTransaction::TYPE_SUBSCRIBE, [
@@ -154,8 +159,8 @@ class PaypalSubscriptionController extends Controller
         $subscription = Subscription::findByUid($subscription_id);
         $service = $this->getPaymentService();
         
-        // @todo dependency injection 
-        $plan = \Acelle\Model\Plan::findByUid($request->plan_id);        
+        // @todo dependency injection
+        $plan = \Acelle\Model\Plan::findByUid($request->plan_id);
         
         // Save return url
         if ($request->return_url) {
@@ -166,7 +171,7 @@ class PaypalSubscriptionController extends Controller
         $accessToken = $service->getAccessToken();
         $paypalPlan = $service->getPaypalPlan($plan);
 
-        if ($request->isMethod('post')) {            
+        if ($request->isMethod('post')) {
             // add transaction
             $transaction = $subscription->addTransaction(SubscriptionTransaction::TYPE_PLAN_CHANGE, [
                 'ends_at' => null,
@@ -223,7 +228,7 @@ class PaypalSubscriptionController extends Controller
 
                 // Redirect to my subscription page
                 return redirect()->away($this->getReturnUrl($request));
-            }            
+            }
 
             // save new plan uid
             $data = $transaction->getMetadata();

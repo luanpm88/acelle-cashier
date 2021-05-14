@@ -11,7 +11,7 @@
 |
 */
 
-Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controllers'], function() {
+Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controllers'], function () {
     // PayPal Subscription
     Route::get('/cashier/paypal-subscription/{subscription_id}/transaction-pending', 'PaypalSubscriptionController@transactionPending');
     Route::get('/cashier/paypal-subscription/{subscription_id}/change-plan/pending', 'PaypalSubscriptionController@ChangePlanpending');
@@ -38,7 +38,7 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     // Direct
     Route::post('/cashier/direct/{invoice_uid}/claim', 'DirectController@claim');
     Route::get('/cashier/direct/{invoice_uid}/checkout', 'DirectController@checkout');
-    Route::get('/cashier/direct/connect', 'DirectController@connect');    
+    Route::get('/cashier/direct/connect', 'DirectController@connect');
     
     // Stripe
     Route::match(['get', 'post'], '/cashier/stripe/{invoice_uid}/checkout', 'StripeController@checkout');

@@ -23,7 +23,7 @@ namespace Acelle\Cashier\Library\CoinPayment;
 
 use Acelle\Cashier\Library\CoinPayment\CoinpaymentsCurlRequest;
 use Exception;
- 
+
 class CoinpaymentsAPI
 {
     private $private_key = '';
@@ -453,7 +453,6 @@ class CoinpaymentsAPI
             'ipn_url' => $ipn_url
         ];
         return $this->request_handler->execute('get_callback_address', $fields);
-
     }
 
     /**
@@ -995,7 +994,6 @@ class CoinpaymentsAPI
         ];
 
         return $this->request_handler->execute('update_pbn_tag', $fields);
-
     }
 
     /**

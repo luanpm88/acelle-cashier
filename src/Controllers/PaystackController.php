@@ -12,7 +12,8 @@ use \Acelle\Model\Invoice;
 
 class PaystackController extends Controller
 {
-    public function getReturnUrl(Request $request) {
+    public function getReturnUrl(Request $request)
+    {
         $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
             $return_url = Cashier::public_url('/');
@@ -60,7 +61,7 @@ class PaystackController extends Controller
             return redirect()->away($this->getReturnUrl($request));
         }
 
-        if($service->getCard($invoice->customer)) {
+        if ($service->getCard($invoice->customer)) {
             return view('cashier::paystack.charging', [
                 'service' => $service,
                 'invoice' => $invoice,
