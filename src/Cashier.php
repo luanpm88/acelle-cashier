@@ -75,7 +75,7 @@ class Cashier
                     $meta['fields']['public_key'],
                     $meta['fields']['private_key'],
                     $meta['fields']['ipn_secret'],
-                    $meta['fields']['receive_currency'],
+                    $meta['fields']['receive_currency']
                 );
             case 'paypal':
                 return new \Acelle\Cashier\Services\PaypalPaymentGateway(
