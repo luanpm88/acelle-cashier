@@ -20,7 +20,8 @@ class CoinpaymentsCurlRequest
         $this->curl_handle = null;
     }
 
-    public function __destruct() {
+    public function __destruct()
+    {
         if ($this->curl_handle !== null) {
             // Close the cURL session
             curl_close($this->curl_handle);
@@ -45,7 +46,7 @@ class CoinpaymentsCurlRequest
         // Validate the passed fields
         $validator = new CoinpaymentsValidator($command, $fields);
         $validate_fields = $validator->validate();
-        if (strpos($validate_fields, 'Error') !== FALSE) {
+        if (strpos($validate_fields, 'Error') !== false) {
             echo $validate_fields;
             exit();
         } else {
@@ -71,10 +72,10 @@ class CoinpaymentsCurlRequest
 
                 // Initiate the cURL handle and set initial options
                 $this->curl_handle = curl_init($api_url);
-                curl_setopt($this->curl_handle, CURLOPT_FAILONERROR, TRUE);
-                curl_setopt($this->curl_handle, CURLOPT_RETURNTRANSFER, TRUE);
+                curl_setopt($this->curl_handle, CURLOPT_FAILONERROR, true);
+                curl_setopt($this->curl_handle, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($this->curl_handle, CURLOPT_SSL_VERIFYPEER, 0);
-                curl_setopt($this->curl_handle, CURLOPT_POST, TRUE);
+                curl_setopt($this->curl_handle, CURLOPT_POST, true);
             }
 
             // Set HMAC header for cURL
@@ -87,7 +88,7 @@ class CoinpaymentsCurlRequest
             $response = curl_exec($this->curl_handle);
 
             // Check the response of the cURL session
-            if ($response !== FALSE) {
+            if ($response !== false) {
                 $result = false;
 
                 // Check the requested format
@@ -97,13 +98,13 @@ class CoinpaymentsCurlRequest
                     if (PHP_INT_SIZE < 8 && version_compare(PHP_VERSION, '5.4.0') >= 0) {
                         // We are on 32-bit PHP, so use the bigint as string option.
                         // If you are using any API calls with Satoshis it is highly NOT recommended to use 32-bit PHP
-                        $decoded = json_decode($response, TRUE, 512, JSON_BIGINT_AS_STRING);
+                        $decoded = json_decode($response, true, 512, JSON_BIGINT_AS_STRING);
                     } else {
-                        $decoded = json_decode($response, TRUE);
+                        $decoded = json_decode($response, true);
                     }
 
                     // Check the json decoding and set an error in the result if it failed
-                    if ($decoded !== NULL && count($decoded)) {
+                    if ($decoded !== null && count($decoded)) {
                         $result = $decoded;
                     } else {
                         $result = ['error' => 'Unable to parse JSON result (' . json_last_error() . ')'];

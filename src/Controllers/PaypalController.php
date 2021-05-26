@@ -32,7 +32,8 @@ class PaypalController extends Controller
      *
      * @return string
      **/
-    public function getReturnUrl(Request $request) {
+    public function getReturnUrl(Request $request)
+    {
         $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
             $return_url = Cashier::public_url('/');
@@ -72,8 +73,6 @@ class PaypalController extends Controller
         }
 
         if ($request->isMethod('post')) {
-
-            
             $result = $service->charge($invoice, [
                 'orderID' => $request->orderID,
             ]);
@@ -96,7 +95,7 @@ class PaypalController extends Controller
      * @return \Illuminate\Http\Response
      **/
     public function connect(Request $request)
-    {        
+    {
         $request->user()->customer->updatePaymentMethod([
             'method' => 'paypal',
             'user_id' => $request->user()->customer->getBillableEmail(),

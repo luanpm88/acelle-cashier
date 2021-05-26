@@ -12,7 +12,8 @@ use \Acelle\Model\Invoice;
 
 class StripeController extends Controller
 {
-    public function getReturnUrl(Request $request) {
+    public function getReturnUrl(Request $request)
+    {
         $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
             $return_url = Cashier::public_url('/');
@@ -62,7 +63,7 @@ class StripeController extends Controller
         }
 
         // Customer has no card
-        if(!$service->hasCard($customer)) {
+        if (!$service->hasCard($customer)) {
             // connect again
             return redirect()->away(
                 $service->getConnectUrl(

@@ -87,7 +87,8 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
         return $result;
     }
 
-    public function getCard($customer) {
+    public function getCard($customer)
+    {
         $metadata = $customer->getPaymentMethod();
 
         // check last transaction
@@ -125,7 +126,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
                 ]),
             ]);
 
-            // pay invoice 
+            // pay invoice
             $invoice->fulfill();
         } catch (\Exception $e) {
             // transaction
@@ -139,7 +140,8 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      * @param  Customer                $customer
      * @return void
      */
-    public function doCharge($customer, $data) {
+    public function doCharge($customer, $data)
+    {
         $card = $this->getCard($customer);
 
         // card not found
@@ -177,14 +179,16 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice, $returnUrl='/') {
+    public function getCheckoutUrl($invoice, $returnUrl='/')
+    {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaystackController@checkout", [
             'invoice_uid' => $invoice->uid,
             'return_url' => $returnUrl,
         ]);
     }
 
-    public function supportsAutoBilling() {
+    public function supportsAutoBilling()
+    {
         return true;
     }
 
@@ -193,7 +197,8 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function currencyValid($currency) {
+    public function currencyValid($currency)
+    {
         return in_array($currency, ['GHS', 'NGN', 'USD', 'ZAR']);
     }
 
@@ -202,7 +207,8 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getConnectUrl($returnUrl='/') {
+    public function getConnectUrl($returnUrl='/')
+    {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaystackController@connect", [
             'return_url' => $returnUrl,
         ]);

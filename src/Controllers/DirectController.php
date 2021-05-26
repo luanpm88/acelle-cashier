@@ -21,7 +21,8 @@ class DirectController extends Controller
      *
      * @return string
      **/
-    public function getReturnUrl(Request $request) {
+    public function getReturnUrl(Request $request)
+    {
         $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
         if (!$return_url) {
             $return_url = Cashier::public_url('/');
@@ -108,7 +109,7 @@ class DirectController extends Controller
      * @return \Illuminate\Http\Response
      **/
     public function connect(Request $request)
-    {        
+    {
         $service = $this->getPaymentService();
 
         $request->user()->customer->updatePaymentMethod([

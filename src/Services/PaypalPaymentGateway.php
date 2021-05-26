@@ -25,9 +25,9 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         $this->secret = $secret;
 
         if ($this->environment == 'sandbox') {
-            $this->client = new PayPalHttpClient(new SandboxEnvironment($this->client_id, $this->secret));        
+            $this->client = new PayPalHttpClient(new SandboxEnvironment($this->client_id, $this->secret));
         } else {
-            $this->client = new PayPalHttpClient(new ProductionEnvironment($this->client_id, $this->secret));    
+            $this->client = new PayPalHttpClient(new ProductionEnvironment($this->client_id, $this->secret));
         }
     }
 
@@ -44,7 +44,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
             $result = json_decode($e->getMessage(), true);
             if (isset($result['error']) && $result['error'] == 'invalid_client') {
                 throw new \Exception($e->getMessage());
-            }            
+            }
         }
         
         return true;
@@ -60,7 +60,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         try {
             $this->doCharge($invoice, $options);
 
-            // pay invoice 
+            // pay invoice
             $invoice->fulfill();
         } catch (\Exception $e) {
             // pay failed
@@ -112,9 +112,8 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         print "Order ID: {$response->result->id}\n";
         print "Intent: {$response->result->intent}\n";
         print "Links:\n";
-        foreach($response->result->links as $link)
-        {
-        print "\t{$link->rel}: {$link->href}\tCall Type: {$link->method}\n";
+        foreach ($response->result->links as $link) {
+            print "\t{$link->rel}: {$link->href}\tCall Type: {$link->method}\n";
         }
         // 4. Save the transaction in your database. Implement logic to save transaction to your database for future reference.
         print "Gross Amount: {$response->result->purchase_units[0]->amount->currency_code} {$response->result->purchase_units[0]->amount->value}\n";
@@ -133,7 +132,8 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice, $returnUrl='/') {
+    public function getCheckoutUrl($invoice, $returnUrl='/')
+    {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaypalController@checkout", [
             'invoice_uid' => $invoice->uid,
             'return_url' => $returnUrl,
@@ -145,7 +145,8 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getConnectUrl($returnUrl='/') {
+    public function getConnectUrl($returnUrl='/')
+    {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaypalController@connect", [
             'return_url' => $returnUrl,
         ]);

@@ -35,7 +35,6 @@ class DirectPaymentGateway implements PaymentGatewayInterface
         } else {
             return trans('cashier::messages.direct.payment_instruction.demo');
         }
-            
     }
 
     /**
@@ -50,7 +49,6 @@ class DirectPaymentGateway implements PaymentGatewayInterface
         } else {
             return trans('cashier::messages.direct.confirmation_message.demo');
         }
-            
     }
 
     /**
@@ -59,7 +57,7 @@ class DirectPaymentGateway implements PaymentGatewayInterface
      * @return void
      */
     public function validate()
-    {        
+    {
     }
 
     /**
@@ -67,7 +65,8 @@ class DirectPaymentGateway implements PaymentGatewayInterface
      *
      * @return boolean
      */
-    public function supportsAutoBilling() {
+    public function supportsAutoBilling()
+    {
         return false;
     }
 
@@ -76,7 +75,8 @@ class DirectPaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice, $returnUrl='/') {
+    public function getCheckoutUrl($invoice, $returnUrl='/')
+    {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\DirectController@checkout", [
             'invoice_uid' => $invoice->uid,
             'return_url' => $returnUrl,
@@ -88,7 +88,8 @@ class DirectPaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getConnectUrl($returnUrl='/') {
+    public function getConnectUrl($returnUrl='/')
+    {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\DirectController@connect", [
             'return_url' => $returnUrl,
         ]);

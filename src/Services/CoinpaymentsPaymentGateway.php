@@ -34,7 +34,8 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         }
     }
 
-    public function supportsAutoBilling() {
+    public function supportsAutoBilling()
+    {
         return false;
     }
 
@@ -91,7 +92,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         
         if ($res["error"] !== 'ok') {
             throw new \Exception($res["error"]);
-        }        
+        }
         
         return $res["result"];
     }
@@ -146,7 +147,8 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      *
      * @return boolean
      */
-    public function getLastTransaction($subscription) {
+    public function getLastTransaction($subscription)
+    {
         // if has only init transaction
         if ($subscription->subscriptionTransactions()->count() <= 1) {
             return null;
@@ -160,7 +162,8 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      *
      * @return boolean
      */
-    public function getLastTransactionWithInit($subscription) {
+    public function getLastTransactionWithInit($subscription)
+    {
         // if has only init transaction
         if ($subscription->subscriptionTransactions()->count() < 1) {
             return null;
@@ -243,7 +246,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         $this->updateTransactionRemoteInfo($invoice);
 
         if ($invoice->getMetadata()['status'] == 100) {
-            // pay invoice 
+            // pay invoice
             $invoice->fulfill();
         }
 
@@ -289,7 +292,8 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice, $returnUrl='/') {
+    public function getCheckoutUrl($invoice, $returnUrl='/')
+    {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\CoinpaymentsController@checkout", [
             'invoice_uid' => $invoice->uid,
             'return_url' => $returnUrl,
@@ -301,7 +305,8 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getConnectUrl($returnUrl='/') {
+    public function getConnectUrl($returnUrl='/')
+    {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\CoinpaymentsController@connect", [
             'return_url' => $returnUrl,
         ]);

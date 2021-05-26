@@ -14,7 +14,8 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
     public $privateKey;
     public $always_ask_for_valid_card;
     
-    public function __construct($environment, $merchantId, $publicKey, $privateKey, $always_ask_for_valid_card) {
+    public function __construct($environment, $merchantId, $publicKey, $privateKey, $always_ask_for_valid_card)
+    {
         $this->environment = $environment;
         $this->merchantId = $merchantId;
         $this->publicKey = $publicKey;
@@ -37,7 +38,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      * @return void
      */
     public function validate()
-    {        
+    {
         try {
             $clientToken = $this->serviceGateway->clientToken()->generate([
                 "customerId" => '123'
@@ -70,7 +71,8 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-     public function hasCard($user) {
+    public function hasCard($user)
+    {
         return $this->getCardInformation($user) !== null;
     }
 
@@ -96,7 +98,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
             if ($result->success) {
                 $braintreeCustomer = $result->customer;
             } else {
-                foreach($result->errors->deepAll() AS $error) {
+                foreach ($result->errors->deepAll() as $error) {
                     throw new \Exception($error->code . ": " . $error->message . "\n");
                 }
             }
@@ -144,7 +146,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
                 ]),
             ]);
 
-            // pay invoice 
+            // pay invoice
             $invoice->fulfill();
         } catch (\Exception $e) {
             // pay failed
@@ -175,7 +177,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
           
         if ($result->success) {
         } else {
-            foreach($result->errors->deepAll() AS $error) {
+            foreach ($result->errors->deepAll() as $error) {
                 throw new \Exception($error->code . ": " . $error->message . "\n");
             }
         }
@@ -186,7 +188,8 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      *
      * @return boolean
      */
-    public function isSupportRecurring() {
+    public function isSupportRecurring()
+    {
         return true;
     }
 
@@ -195,14 +198,16 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice, $returnUrl='/') {
+    public function getCheckoutUrl($invoice, $returnUrl='/')
+    {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
             'invoice_uid' => $invoice->uid,
             'return_url' => $returnUrl,
         ]);
     }
 
-    public function supportsAutoBilling() {
+    public function supportsAutoBilling()
+    {
         return true;
     }
 
@@ -211,7 +216,8 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getConnectUrl($returnUrl='/') {
+    public function getConnectUrl($returnUrl='/')
+    {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\BraintreeController@connect", [
             'return_url' => $returnUrl,
         ]);
