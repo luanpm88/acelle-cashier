@@ -27,9 +27,9 @@
             <div class="col-md-6">
                 <h2>{!! trans('cashier::messages.direct.invoice.claimed') !!}</h2>  
 
-                <p>{!! trans('cashier::messages.direct.invoice.claimed.intro', [
-                    'amount' => format_price($invoice->total(), $invoice->currency->format),
-                ]) !!}</p>
+                <div class="alert alert-info bg-grey-light">
+                    {!! $service->getPaymentConfirmationMessage() !!}
+                </div>
             </div>
             <div class="col-md-2"></div>
             <div class="col-md-4">
@@ -42,10 +42,6 @@
         <div class="row">
             <div class="col-md-6">
                 <h2>{!! trans('cashier::messages.direct.invoice.pay_invoice') !!}</h2>  
-
-                <p>{!! trans('cashier::messages.direct.invoice.pay_invoice.intro', [
-                    'amount' => format_price($invoice->total(), $invoice->currency->format),
-                ]) !!}</p>
 
                 <div class="alert alert-info bg-grey-light">
                     {!! $service->getPaymentInstruction() !!}
