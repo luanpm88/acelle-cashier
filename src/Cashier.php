@@ -82,12 +82,6 @@ class Cashier
                     $meta['fields']['client_id'],
                     $meta['fields']['secret']
                 );
-            case 'paypal_subscription':
-                return new \Acelle\Cashier\Services\PaypalSubscriptionPaymentGateway(
-                    $meta['fields']['environment'],
-                    $meta['fields']['client_id'],
-                    $meta['fields']['secret']
-                );
             case 'razorpay':
                 return new \Acelle\Cashier\Services\RazorpayPaymentGateway(
                     $meta['fields']['key_id'],

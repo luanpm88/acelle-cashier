@@ -59,8 +59,8 @@ class CoinpaymentsController extends Controller
             $request->session()->put('checkout_return_url', $request->return_url);
         }
 
-        // not new
-        if (!$invoice->pendingTransaction() || $invoice->isPaid()) {
+        // not pending
+        if (!$invoice->isPending()) {
             return redirect()->away($this->getReturnUrl($request));
         }
 

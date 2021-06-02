@@ -50,8 +50,8 @@ class StripeController extends Controller
             $request->session()->put('checkout_return_url', $request->return_url);
         }
 
-        // not waiting
-        if (!$invoice->pendingTransaction() || $invoice->isPaid()) {
+        // not pending
+        if (!$invoice->isPending()) {
             return redirect()->away($this->getReturnUrl($request));
         }
 
@@ -128,22 +128,4 @@ class StripeController extends Controller
             'cardInfo' => $card,
         ]);
     }
-
-    // /**
-    //  * Renew subscription.
-    //  *
-    //  * @param \Illuminate\Http\Request $request
-    //  *
-    //  * @return \Illuminate\Http\Response
-    //  **/
-    // public function renew(Request $request, $subscription_id)
-    // {
-    //     // Get current customer
-    //     $subscription = Subscription::findByUid($subscription_id);
-    //     $subscription->resume();
-        
-    //     if ($request->return_url) {
-    //         return redirect()->away($request->return_url);
-    //     }
-    // }
 }

@@ -54,8 +54,8 @@ class RazorpayController extends Controller
             $request->session()->put('checkout_return_url', $request->return_url);
         }
 
-        // not waiting
-        if (!$invoice->pendingTransaction() || $invoice->isPaid()) {
+        // not pending
+        if (!$invoice->isPending()) {
             return redirect()->away($this->getReturnUrl($request));
         }
 

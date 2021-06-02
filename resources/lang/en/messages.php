@@ -291,32 +291,6 @@
     'interval.month' => ':count month|:count months',
     'interval.year' => ':count year|:count years',
     'interval.week' => ':count week|:count weeks',
-    'paypal_subscription.pending.title' => 'Your subscription is currently reviewing...',
-    'paypal_subscription.pending.intro' => 'Thank you for subscribing to our <strong>:plan</strong>, your billing
-        amount is <strong>:price</strong>. Your subscription is currently reviewing by PayPal. It is going to be approved soon.
-        Please wait.',
-    'paypal_subscription.subscribe_to_plan' => 'Subscribe to plan <strong>:plan</strong>',
-    'paypal_subscription.new_plan' => 'New plan',
-    'paypal_subscription.change_plan' => 'Change plan',
-    'paypal_subscription.next_period_day' => 'Next period end day',
-    'paypal_subscription.plan' => 'Plan',
-    'paypal_subscription.description' => 'Description',
-    'paypal_subscription.amount' => 'Amount',
-    'paypal_subscription.renew_proceed' => 'Proceed',
-    'paypal_subscription.change_plan_proceed' => 'Proceed',
-    'paypal_subscription.return_back' => 'Return back',
-    'paypal_subscription.click_to_proceed' => 'Click on one of options below to proceed with payment.',
-    'paypal_subscription.paypal_status' => 'PayPal Status',
-    'paypal_subscription.start_time' => 'Start time',
-    'paypal_subscription.change_mind_cancel_subscription' => 'Change your mind? Choose another plan',
-    'transaction.subscribe_to_plan' => 'Subscribe to :plan plan',
-    'paypal_subscription.status.message' => 'Message',
-    'paypal_subscription.status.message.APPROVAL_PENDING' => 'The subscription is created but not yet approved by the buyer',
-    'paypal_subscription.status.message.APPROVED' => 'The buyer has approved the subscription',
-    'paypal_subscription.status.message.ACTIVE' => 'The subscription is active',
-    'paypal_subscription.status.message.SUSPENDED' => 'The subscription is suspended',
-    'paypal_subscription.status.message.CANCELLED' => 'The subscription is cancelled',
-    'paypal_subscription.status.message.EXPIRED' => 'The subscription is expired',
     'paypal.not_support_change_plan_yet' => 'PayPal subscription service does not support change plan yet.
         You can only <strong>Cancel now</strong> and subscribe to other plan.',
     'paypal.remain_amount' => 'Remain amount of current period',
@@ -353,26 +327,6 @@
         <a href=":url"><strong>Click here</strong></a> to update the payment.',
     'paypal.error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with transaction(s).
         Please check the logs/transactions below for more details.',
-    'paypal_subscription.error.something_went_wrong' => '<p class="mb-3"><strong>Error!</p></strong>Something went wrong with transaction(s).
-        Please check the logs/transactions below for more details.',
-    'paypal_subscription.transaction.pending.title' => 'There is a transaction which is currently reviewing...',
-    'paypal_subscription.transaction.pending.intro' => 'The transaction `:message` is waiting for approval, your billing
-        amount is <strong>:price</strong>. Your subscription is currently reviewing by PayPal. It is going to be approved soon.
-        Please wait.',
-    'paypal_subscription.transaction.period_ends_at' => 'End date',
-    'paypal_subscription.has_transaction_pending' => 'There are pending transaction.
-        <a href=":url"><strong>Click here</strong></a> to see more details.',
-    'paypal_subscription.has_transaction_pending.change_plan' => 'You are changing to :plan plan.
-        <a href=":url"><strong>Click here</strong></a> to see more details.',
-    'paypal_subscription.cancel_new_subscription' => 'Click here to choose another plan',
-    'paypal_subscription.not_support_set_active' => 'Cannot activate subscription. User needs to complete PayPal payment process first.',
-    'paypal_subscription.not_support_approve' => 'PayPal subscription service does not support manual approve pending transaction.',
-    'transaction.paypal_subscription.remote_transaction' => '[REMOTE] Synced from remote PayPal Subscription server.',
-    'paypal_subscription.create_paypal_subscription_error' => 'Can not create PayPal subscription. Error: :error',
-    'paypal_subscription.remote_sub_not_found' => 'Could not found PayPal subscription with id: :id',
-    'subscription.log.error' => 'Something went wrong. Error: :message',
-    'paypal_subscription.remote_subscription_not_found' => 'Paypal subscription does not exist!',
-
     'razorpay.checkout.page_title' => 'Checkout',
     'razorpay.checkout_with_razorpay' => 'Checkout with Razorpay',
     'razorpay.card_list' => 'Your card information',

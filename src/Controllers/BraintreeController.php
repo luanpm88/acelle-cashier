@@ -50,6 +50,11 @@ class BraintreeController extends Controller
             $request->session()->put('checkout_return_url', $request->return_url);
         }
 
+        // not pending
+        if (!$invoice->isPending()) {
+            return redirect()->away($this->getReturnUrl($request));
+        }
+
         // not waiting
         if (!$invoice->pendingTransaction() || $invoice->isPaid()) {
             return redirect()->away($this->getReturnUrl($request));
