@@ -91,22 +91,6 @@
         
         <p class="text-danger" style="color: red">* Above is sample payment information, you can change it in your payment gateway setting page</p>
     ',
-    'direct.confirmation_message.demo' => '
-        <p>Thank you for the payment! Your subscription is now under review and will be activated
-        as soon as the payment is verified. Normally it may take 1 - 2 business days to process.
-        <br>
-        Should you have any question, contact us at:<br><br>
-        
-        <strong>YOUR COMPANY NAME</strong><br>
-        
-        38 Green Lake Court
-        Hoffman Estates, IL 60169<br>---
-        <br>
-        Mobile: +1 (000) 000-0000 <br>
-        Email: support@yourcompany.com</p>
-        
-        <p class="text-danger" style="color: red">* Above is sample confirmation message, you can change it in your payment gateway setting page</p>
-    ',
     'direct.cancel_new_subscription' => 'Click here to choose another plan',
     'direct.claim_payment' => 'I paid already!',
     'direct.unclaim_payment' => 'Sorry! I claimed by mistake. Click to undo.',
