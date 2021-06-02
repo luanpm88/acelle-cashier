@@ -134,49 +134,6 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      *
      * @return Boolean
      */
-    public function getInitTransaction($subscription)
-    {
-        return $subscription->subscriptionTransactions()
-            ->where('type', '=', SubscriptionTransaction::TYPE_SUBSCRIBE)
-            ->orderBy('created_at', 'desc')
-            ->first();
-    }
-
-    /**
-     * Get last transaction
-     *
-     * @return boolean
-     */
-    public function getLastTransaction($subscription)
-    {
-        // if has only init transaction
-        if ($subscription->subscriptionTransactions()->count() <= 1) {
-            return null;
-        }
-        $transaction = $subscription->subscriptionTransactions()->orderBy('created_at', 'desc')->first();
-        return $transaction;
-    }
-
-    /**
-     * Get last transaction
-     *
-     * @return boolean
-     */
-    public function getLastTransactionWithInit($subscription)
-    {
-        // if has only init transaction
-        if ($subscription->subscriptionTransactions()->count() < 1) {
-            return null;
-        }
-        $transaction = $subscription->subscriptionTransactions()->orderBy('created_at', 'desc')->first();
-        return $transaction;
-    }
-    
-    /**
-     * Get remote transaction.
-     *
-     * @return Boolean
-     */
     public function getTransactions($subscription)
     {
         $metadata = $subscription->getMetadata();
