@@ -52,7 +52,6 @@ class Cashier
             case 'direct':
                 return new \Acelle\Cashier\Services\DirectPaymentGateway(
                     $meta['fields']['payment_instruction'],
-                    $meta['fields']['confirmation_message']
                 );
             case 'stripe':
                 return new \Acelle\Cashier\Services\StripePaymentGateway(
