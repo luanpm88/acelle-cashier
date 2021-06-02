@@ -13,12 +13,10 @@ use Carbon\Carbon;
 class DirectPaymentGateway implements PaymentGatewayInterface
 {
     public $payment_instruction;
-    public $confirmation_message;
 
-    public function __construct($payment_instruction, $confirmation_message)
+    public function __construct($payment_instruction)
     {
         $this->payment_instruction = $payment_instruction;
-        $this->confirmation_message = $confirmation_message;
 
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
     }
@@ -34,20 +32,6 @@ class DirectPaymentGateway implements PaymentGatewayInterface
             return $this->payment_instruction;
         } else {
             return trans('cashier::messages.direct.payment_instruction.demo');
-        }
-    }
-
-    /**
-     * Get payment guiline message.
-     *
-     * @return Boolean
-     */
-    public function getPaymentConfirmationMessage()
-    {
-        if ($this->confirmation_message) {
-            return $this->confirmation_message;
-        } else {
-            return trans('cashier::messages.direct.confirmation_message.demo');
         }
     }
 
