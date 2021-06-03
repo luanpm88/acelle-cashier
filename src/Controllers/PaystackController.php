@@ -49,9 +49,12 @@ class PaystackController extends Controller
             $request->session()->put('checkout_return_url', $request->return_url);
         }
 
-        // not pending
+        // exceptions
         if (!$invoice->isPending()) {
-            return redirect()->away($this->getReturnUrl($request));
+            throw new \Exception('Invoice is not pending');
+        }
+        if (!$invoice->pendingTransaction()) {
+            throw new \Exception('Pending invoice dose not have pending transaction');
         }
 
         // free plan. No charge
@@ -101,9 +104,12 @@ class PaystackController extends Controller
         $service = $this->getPaymentService();
         $invoice = Invoice::findByUid($invoice_uid);
 
-        // not pending
+        // exceptions
         if (!$invoice->isPending()) {
-            return redirect()->away($this->getReturnUrl($request));
+            throw new \Exception('Invoice is not pending');
+        }
+        if (!$invoice->pendingTransaction()) {
+            throw new \Exception('Pending invoice dose not have pending transaction');
         }
         
         // autopay

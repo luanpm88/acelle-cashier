@@ -19,6 +19,14 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
     }
+
+    public function getData($invoice) {
+        return $invoice->pendingTransaction()->getMetadata();
+    }
+
+    public function updateData($invoice, $data) {
+        return $invoice->pendingTransaction()->updateMetadata($data);
+    }
     
     /**
      * Check if service is valid.
@@ -57,7 +65,8 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                 ]),
             ]);
 
-            $invoice->updateMetadata([
+            $this->updateData($invoice, [
+                'service' => "coinpayments",
                 'txn_id' => $result["txn_id"],
                 'checkout_url' => $result["checkout_url"],
                 'status_url' => $result["status_url"],
@@ -165,9 +174,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      */
     public function updateTransactionRemoteInfo($invoice)
     {
-        $data = $invoice->getMetadata();
+        $data = $this->getData($invoice);
         // get remote information
-        $invoice->updateMetadata($this->getTransactionRemoteInfo($data['txn_id']));
+        $this->updateData($invoice, $this->getTransactionRemoteInfo($data['txn_id']));
     }
     
     /**
@@ -202,14 +211,14 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     {
         $this->updateTransactionRemoteInfo($invoice);
 
-        if ($invoice->getMetadata()['status'] == 100) {
+        if ($this->getData($invoice)['status'] == 100) {
             // pay invoice
             $invoice->fulfill();
         }
 
-        if ($invoice->getMetadata()['status'] < 0) {
-            // set transaction failed
-            $invoice->pendingTransaction()->setFailed($invoice->getMetadata()['status_text']);
+        if ($this->getData($invoice)['status'] < 0) {
+            // pay failed
+            $invoice->payFailed($this->getData($invoice)['status_text']);
         }
     }
     

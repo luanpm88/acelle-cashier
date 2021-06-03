@@ -38,7 +38,7 @@
                     </div>
                     <div class="lastUnit size2of3">
                         <mc:flag>
-                            {{ $invoice->getMetadata()['status'] }}
+                            {{ $service->getData($invoice)['status'] }}
                         </mc:flag>
                     </div>
                 </li>
@@ -48,7 +48,7 @@
                     </div>
                     <div class="lastUnit size2of3">
                         <mc:flag>
-                            {{ $invoice->getMetadata()['status_text'] }}
+                            {{ $service->getData($invoice)['status_text'] }}
                         </mc:flag>
                     </div>
                 </li>
@@ -77,8 +77,8 @@
                             <a target="_blank" style="white-space: nowrap;
 overflow: hidden;
 text-overflow: ellipsis;
-display: block;" href="{{ $invoice->getMetadata()['checkout_url'] }}">
-                                {{ $invoice->getMetadata()['checkout_url'] }}
+display: block;" href="{{ $service->getData($invoice)['checkout_url'] }}">
+                                {{ $service->getData($invoice)['checkout_url'] }}
                             </a>
                         </mc:flag>
                     </div>
@@ -92,8 +92,8 @@ display: block;" href="{{ $invoice->getMetadata()['checkout_url'] }}">
                             <a target="_blank" style="white-space: nowrap;
 overflow: hidden;
 text-overflow: ellipsis;
-display: block;" href="{{ $invoice->getMetadata()['status_url'] }}">
-                                {{ $invoice->getMetadata()['status_url'] }}
+display: block;" href="{{ $service->getData($invoice)['status_url'] }}">
+                                {{ $service->getData($invoice)['status_url'] }}
                             </a>
                         </mc:flag>
                     </div>

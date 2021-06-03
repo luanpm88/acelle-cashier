@@ -58,9 +58,12 @@ class DirectController extends Controller
             $request->session()->put('checkout_return_url', $request->return_url);
         }
 
-        // not pending
+        // exceptions
         if (!$invoice->isPending()) {
-            return redirect()->away($this->getReturnUrl($request));
+            throw new \Exception('Invoice is not pending');
+        }
+        if (!$invoice->pendingTransaction()) {
+            throw new \Exception('Pending invoice dose not have pending transaction');
         }
 
         // free plan. No charge
@@ -88,17 +91,18 @@ class DirectController extends Controller
         $service = $this->getPaymentService();
         $invoice = Invoice::findByUid($invoice_uid);
 
-        // not pending
+        // exceptions
         if (!$invoice->isPending()) {
-            return redirect()->away($this->getReturnUrl($request));
+            throw new \Exception('Invoice is not pending');
+        }
+        if (!$invoice->pendingTransaction()) {
+            throw new \Exception('Pending invoice dose not have pending transaction');
         }
         
         // claim invoice
         $invoice->claim();
         
-        return redirect()->away(Cashier::wp_action('\Acelle\Cashier\Controllers\DirectController@checkout', [
-            'invoice_uid' => $invoice->uid,
-        ]));
+        return redirect()->away($this->getReturnUrl($request));
     }
 
     /**

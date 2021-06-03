@@ -22,6 +22,14 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         $this->baseUri = 'https://api.razorpay.com/v1/';
     }
 
+    public function getData($invoice) {
+        return $invoice->pendingTransaction()->getMetadata();
+    }
+
+    public function updateData($invoice, $data) {
+        return $invoice->pendingTransaction()->updateMetadata($data);
+    }
+
     /**
      * Request PayPal service.
      *
@@ -134,7 +142,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      */
     public function getRazorpayCustomer($invoice)
     {
-        $data = $invoice->getMetadata();
+        $data = $this->getData($invoice);
 
         // get customer
         if (isset($data["customer"])) {
@@ -155,7 +163,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         
         // save customer
         $data['customer'] = $customer;
-        $invoice->updateMetadata($data);
+        $this->updateData($invoice, $data);
 
         return $customer;
     }

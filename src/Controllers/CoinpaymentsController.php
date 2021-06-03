@@ -59,9 +59,12 @@ class CoinpaymentsController extends Controller
             $request->session()->put('checkout_return_url', $request->return_url);
         }
 
-        // not pending
+        // exceptions
         if (!$invoice->isPending()) {
-            return redirect()->away($this->getReturnUrl($request));
+            throw new \Exception('Invoice is not pending');
+        }
+        if (!$invoice->pendingTransaction()) {
+            throw new \Exception('Pending invoice dose not have pending transaction');
         }
 
         // free plan. No charge
@@ -75,10 +78,10 @@ class CoinpaymentsController extends Controller
             $result = $service->charge($invoice);
 
             // redirect to checkout page
-            return redirect()->away($invoice->getMetadata()['checkout_url']);
+            return redirect()->away($service->getData($invoice)['checkout_url']);
         }
 
-        if ($invoice->getMetadata() !== null && isset($invoice->getMetadata()['txn_id'])) {
+        if ($service->getData($invoice) !== null && isset($service->getData($invoice)['txn_id'])) {
             $service->checkPay($invoice);
 
             return view('cashier::coinpayments.pending', [
