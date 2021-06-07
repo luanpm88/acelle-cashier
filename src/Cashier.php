@@ -51,7 +51,7 @@ class Cashier
         switch ($meta['name']) {
             case 'direct':
                 return new \Acelle\Cashier\Services\DirectPaymentGateway(
-                    $meta['fields']['payment_instruction'],
+                    $meta['fields']['payment_instruction']
                 );
             case 'stripe':
                 return new \Acelle\Cashier\Services\StripePaymentGateway(
