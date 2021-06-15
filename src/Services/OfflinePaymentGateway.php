@@ -37,7 +37,7 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
         return 'Receive payments outside of the application';
     }
 
-    private function validate()
+    public function validate()
     {
         if (!$this->paymentInstruction) {
             $this->active = false;

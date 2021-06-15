@@ -45,7 +45,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
         return action("\Acelle\Cashier\Controllers\PaystackController@settings");
     }
 
-    private function validate()
+    public function validate()
     {
         if (!$this->publicKey || !$this->secretKey) {
             $this->active = false;

@@ -56,7 +56,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         return action("\Acelle\Cashier\Controllers\BraintreeController@settings");
     }
 
-    private function validate()
+    public function validate()
     {
         if (!$this->environment || !$this->merchantId || !$this->privateKey || !$this->publicKey) {
             $this->active = false;

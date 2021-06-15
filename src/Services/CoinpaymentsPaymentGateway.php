@@ -46,7 +46,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         return 'Receive payment from a cryptocurrency like Bitcoin, Monero, ZCash, etc.';
     }
 
-    private function validate()
+    public function validate()
     {
         if (!$this->merchantId || !$this->publicKey || !$this->privateKey || !$this->ipnSecret || !$this->receiveCurrency) {
             $this->active = false;

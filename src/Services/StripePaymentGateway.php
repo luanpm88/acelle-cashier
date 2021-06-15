@@ -49,7 +49,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return 'Receive payments from Credit / Debit card to your Stripe account';
     }
 
-    private function validate()
+    public function validate()
     {
         if (!$this->publishableKey || !$this->secretKey) {
             $this->active = false;

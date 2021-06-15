@@ -52,11 +52,11 @@
 
                     @include('helpers.form_control', [
                         'type' => 'text',
-                        'name' => 'private_key',
-                        'value' => $gateway->getPrivateKey(),
-                        'label' => trans('cashier::messages.stripe.private_key'),
+                        'name' => 'secret_key',
+                        'value' => $gateway->getSecretKey(),
+                        'label' => trans('cashier::messages.stripe.secretKey'),
                         'help_class' => 'payment',
-                        'rules' => ['private_key' => 'required'],
+                        'rules' => ['secretKey' => 'required'],
                     ])
                 </div>
             </div>

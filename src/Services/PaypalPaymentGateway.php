@@ -49,7 +49,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         return 'PayPal is the fast/safe way to send money, make an online payment, receive money or set up a merchant account';
     }
 
-    private function validate()
+    public function validate()
     {
         if (!$this->environment || !$this->clientId || !$this->secret) {
             $this->active = false;
