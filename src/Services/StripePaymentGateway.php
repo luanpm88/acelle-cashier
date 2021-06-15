@@ -7,31 +7,87 @@ use Stripe\Card as StripeCard;
 use Stripe\Token as StripeToken;
 use Stripe\Customer as StripeCustomer;
 use Stripe\Subscription as StripeSubscription;
-use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
+use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
+use Acelle\Library\AutoBillingData;
 
 class StripePaymentGateway implements PaymentGatewayInterface
 {
-    public $secretKey;
-    public $publishableKey;
-    public $always_ask_for_valid_card;
-    public $billing_address_required;
+    protected $secretKey;
+    protected $publishableKey;
+    protected $active = false;
 
     /**
      * Construction
      */
-    public function __construct($secret_key, $publishable_key, $always_ask_for_valid_card, $billing_address_required)
+    public function __construct($publishableKey, $secretKey)
     {
-        $this->secretKey = $secret_key;
-        $this->publishableKey = $publishable_key;
-        $this->always_ask_for_valid_card = $always_ask_for_valid_card;
-        $this->billing_address_required = $billing_address_required;
-        
-        \Stripe\Stripe::setApiKey($secret_key);
+        $this->publishableKey = $publishableKey;
+        $this->secretKey = $secretKey;
+
+        $this->validate();
+
+        \Stripe\Stripe::setApiKey($this->secretKey);
         \Stripe\Stripe::setApiVersion("2019-12-03");
 
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
+    }
+
+    public function getName() : string
+    {
+        return 'Stripe';
+    }
+
+    public function getType() : string
+    {
+        return 'stripe';
+    }
+
+    public function getDescription() : string
+    {
+        return 'Receive payments from Credit / Debit card to your Stripe account';
+    }
+
+    private function validate()
+    {
+        if (!$this->publishableKey || !$this->secretKey) {
+            $this->active = false;
+        } else {
+            $this->active = true;
+        }
+    }
+
+    public function isActive() : bool
+    {
+        return $this->active;
+    }
+
+    public function getSecretKey()
+    {
+        return $this->secretKey;
+    }
+
+    public function getPublishableKey()
+    {
+        return $this->publishableKey;
+    }
+
+    public function getSettingsUrl() : string
+    {
+        return action("\Acelle\Cashier\Controllers\StripeController@settings");
+    }
+
+    public function getAutoBillingDataUpdateUrl($returnUrl='/') : string
+    {
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\StripeController@autoBillingDataUpdate", [
+            'return_url' => $returnUrl,
+        ]);
+    }
+
+    public function supportsAutoBilling() : bool
+    {
+        return true;
     }
 
     /**
@@ -39,7 +95,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    public function validate()
+    public function test()
     {
         try {
             \Stripe\Customer::all(['limit' => 1]);
@@ -68,11 +124,15 @@ class StripePaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    public function charge($invoice)
+    public function autoCharge($invoice)
     {
+        $autoBillingData = $invoice->customer->getAutoBillingData();
+
         try {
             // charge invoice
-            $this->doCharge($invoice->customer, [
+            $this->doCharge([
+                'customer' => $autoBillingData->getData()['customer'],
+                'source' => $autoBillingData->getData()['source'],
                 'amount' => $invoice->total(),
                 'currency' => $invoice->currency->code,
                 'description' => trans('messages.pay_invoice', [
@@ -99,29 +159,16 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  Customer                $customer
      * @return void
      */
-    public function doCharge($customer, $data)
+    public function doCharge($data)
     {
-        // get or create plan
-        $stripeCustomer = $this->getStripeCustomer($customer);
-        $card = $this->getCardInformation($customer);
-
-        if (!is_object($card)) {
-            throw new \Exception('Can not find card information');
-        }
-
         // Charge customter with current card
         \Stripe\Charge::create([
             'amount' => $this->convertPrice($data['amount'], $data['currency']),
             'currency' => $data['currency'],
-            'customer' => $stripeCustomer->id,
-            'source' => $card->id,
+            'customer' => $data['customer'],
+            'source' => $data['source'],
             'description' => $data['description'],
         ]);
-    }
-
-    public function supportsAutoBilling()
-    {
-        return true;
     }
 
     /**
@@ -129,11 +176,10 @@ class StripePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice, $returnUrl='/')
+    public function getCheckoutUrl($invoice) : string
     {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\StripeController@checkout", [
+        return action("\Acelle\Cashier\Controllers\StripeController@checkout", [
             'invoice_uid' => $invoice->uid,
-            'return_url' => $returnUrl,
         ]);
     }
 
@@ -171,7 +217,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  User    $user
      * @return \Stripe\Customer
      */
-    protected function getStripeCustomer($user)
+    public function getStripeCustomer($user)
     {
         // Find in gateway server
         $stripeCustomers = \Stripe\Customer::all();
@@ -203,8 +249,11 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $stripeCustomer = $this->getStripeCustomer($user);
 
         $card = $stripeCustomer->sources->create(['source' => $params['stripeToken']]);
+        
         $stripeCustomer->default_source = $card->id;
         $stripeCustomer->save();
+
+        return $card;
     }
 
     /**
@@ -265,17 +314,5 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
 
         return $price / $rate;
-    }
-
-    /**
-     * Get connect url.
-     *
-     * @return string
-     */
-    public function getConnectUrl($returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\StripeController@connect", [
-            'return_url' => $returnUrl,
-        ]);
     }
 }

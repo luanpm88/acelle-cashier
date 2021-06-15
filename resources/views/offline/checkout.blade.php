@@ -24,7 +24,7 @@
 
     <div class="row">
         <div class="col-md-6">
-            <h2>{!! trans('cashier::messages.direct.invoice.pay_invoice') !!}</h2>  
+            <h2>{!! trans('cashier::messages.pay_invoice') !!}</h2>  
 
             <div class="alert alert-info bg-grey-light">
                 {!! $service->getPaymentInstruction() !!}
@@ -33,14 +33,14 @@
                 
             <div class="d-flex align-items-center">
                 <form method="POST"
-                    action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\DirectController@claim', [
+                    action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\OfflineController@claim', [
                         'invoice_uid' => $invoice->uid
                     ]) }}"
                 >
                     {{ csrf_field() }}
                     <button
                         class="btn btn-primary mr-10 mr-4"
-                    >{{ trans('cashier::messages.direct.claim_payment') }}</button>
+                    >{{ trans('cashier::messages.offline.claim_payment') }}</button>
                 </form>
 
                 <form id="cancelForm" method="POST" action="{{ action('AccountSubscriptionController@cancelInvoice', [

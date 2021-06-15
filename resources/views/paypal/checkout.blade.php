@@ -1,6 +1,6 @@
 <html lang="en">
     <head>
-        <title>{{ trans('cashier::messages.paypal.checkout.page_title') }}</title>
+        <title>{{ trans('cashier::messages.paypal') }}</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
         
@@ -13,7 +13,7 @@
             <div class="col-md-4 mt-40 pd-60">
                 <label class="text-semibold text-muted mb-20 mt-0">
                     <strong>
-                        {{ trans('cashier::messages.paypal.title') }}
+                        {{ trans('cashier::messages.paypal') }}
                     </strong>
                 </label>
                 <div class="text-center">
@@ -28,7 +28,7 @@
                 ]) !!}</p>
 
                 <script
-                    src="https://www.paypal.com/sdk/js?client-id={{ $service->client_id }}&currency={{ $invoice->currency->code }}"> // Required. Replace SB_CLIENT_ID with your sandbox client ID.
+                    src="https://www.paypal.com/sdk/js?client-id={{ $service->clientId }}&currency={{ $invoice->currency->code }}"> // Required. Replace SB_clientId with your sandbox client ID.
                 </script>
                     
                 <div id="paypal-button-container"></div>

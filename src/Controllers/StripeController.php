@@ -7,19 +7,48 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Services\StripePaymentGateway;
+use Acelle\Library\Facades\Billing;
+use Acelle\Model\Setting;
 
 use \Acelle\Model\Invoice;
+use Acelle\Library\AutoBillingData;
+
 
 class StripeController extends Controller
 {
-    public function getReturnUrl(Request $request)
+    public function settings(Request $request)
     {
-        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
-        if (!$return_url) {
-            $return_url = Cashier::public_url('/');
+        $gateway = Billing::getGateway('stripe');
+
+        if ($request->isMethod('post')) {
+            // validate
+            $this->validate($request, [
+                'secret_key' => 'required',
+                'publishable_key' => 'required',
+            ]);
+
+            // save settings
+            Setting::set('cashier.stripe.secret_key', $request->secret_key);
+            Setting::set('cashier.stripe.publishable_key', $request->publishable_key);
+
+            // enable if not validate
+            if ($gateway->validate()) {
+                \Acelle\Model\Setting::enablePaymentGateway($gateway->getType());
+            }
+
+            return redirect()->action('Admin\PaymentController@index');
         }
 
-        return $return_url;
+        return view('cashier::stripe.settings', [
+            'gateway' => $gateway,
+        ]);
+    }
+
+    public function getCheckoutUrl($invoice)
+    {
+        return action("\Acelle\Cashier\Controllers\StripeController@checkout", [
+            'invoice_uid' => $invoice->uid,
+        ]);
     }
 
     /**
@@ -29,7 +58,7 @@ class StripeController extends Controller
      **/
     public function getPaymentService()
     {
-        return \Acelle\Model\Setting::getPaymentGateway('stripe');
+        return Billing::getGateway('stripe');
     }
     
     /**
@@ -44,11 +73,6 @@ class StripeController extends Controller
         $customer = $request->user()->customer;
         $service = $this->getPaymentService();
         $invoice = Invoice::findByUid($invoice_uid);
-        
-        // Save return url
-        if ($request->return_url) {
-            $request->session()->put('checkout_return_url', $request->return_url);
-        }
 
         // exceptions
         if (!$invoice->isPending()) {
@@ -62,24 +86,24 @@ class StripeController extends Controller
         if ($invoice->total() == 0) {
             $invoice->fulfill();
 
-            return redirect()->away($this->getReturnUrl($request));
+            return redirect()->action('AccountSubscriptionController@index');
         }
 
         // Customer has no card
         if (!$service->hasCard($customer)) {
             // connect again
             return redirect()->away(
-                $service->getConnectUrl(
-                    $service->getCheckoutUrl($invoice, $this->getReturnUrl($request))
+                $service->getAutoBillingDataUpdateUrl(
+                    $service->getCheckoutUrl($invoice)
                 )
             );
         }
 
         if ($request->isMethod('post')) {
-            $service->charge($invoice);
+            $service->autoCharge($invoice);
 
             // return back
-            return redirect()->away($this->getReturnUrl($request));
+            return redirect()->action('AccountSubscriptionController@index');
         }
 
         return view('cashier::stripe.charging', [
@@ -94,41 +118,43 @@ class StripeController extends Controller
      *
      * @return \Illuminate\Http\Response
      **/
-    public function connect(Request $request)
+    public function autoBillingDataUpdate(Request $request)
     {
         // Get current customer
-        $service = $this->getPaymentService();
-
-        // Save return url
-        if ($request->return_url) {
-            $request->session()->put('checkout_return_url', $request->return_url);
-        }
+        $service = Billing::getGateway('stripe');
 
         // get card
         $card = $service->getCardInformation($request->user()->customer);
         
         if ($request->isMethod('post')) {
+            
+            $stripeCustomer = $service->getStripeCustomer($request->user()->customer);
+
             if (!$request->use_current_card) {
                 // update card
-                $service->billableUserUpdateCard($request->user()->customer, $request->all());
+                $card = $service->billableUserUpdateCard($request->user()->customer, $request->all());
+            } else {
+                // set gateway
+                $card = $service->getCardInformation($request->user()->customer);
             }
 
-            // set gateway
-            $card = $service->getCardInformation($request->user()->customer);
-            $request->user()->customer->updatePaymentMethod([
-                'method' => 'stripe',
-                'user_id' => $card->name,
+            // update auto billing data
+            $autoBillingData = new AutoBillingData($service, [
+                'source' => $card->id,
+                'customer' => $stripeCustomer->id,
                 'card_last4' => $card->last4,
             ]);
+            $request->user()->customer->setAutoBillingData($autoBillingData);
             
             // return to billing page
             $request->session()->flash('alert-success', trans('cashier::messages.stripe.connected'));
-            return redirect()->away($this->getReturnUrl($request));
+            return redirect()->action('AccountSubscriptionController@index');
         }
         
-        return view('cashier::stripe.connect', [
+        return view('cashier::stripe.autoBillingDataUpdate', [
             'service' => $service,
             'cardInfo' => $card,
+            'return_url' => $request->return_url,
         ]);
     }
 }

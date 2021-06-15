@@ -6,14 +6,45 @@ use Acelle\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
+use Acelle\Library\Facades\Billing;
+use Acelle\Model\Setting;
 
 use \Acelle\Model\Invoice;
+use Acelle\Library\AutoBillingData;
 
 class RazorpayController extends Controller
 {
     public function __construct()
     {
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
+    }
+
+    public function settings(Request $request)
+    {
+        $gateway = $this->getPaymentService();
+
+        if ($request->isMethod('post')) {
+            // validate
+            $this->validate($request, [
+                'key_id' => 'required',
+                'key_secret' => 'required',
+            ]);
+
+            // save settings
+            Setting::set('cashier.razorpay.key_id', $request->key_id);
+            Setting::set('cashier.razorpay.key_secret', $request->key_secret);
+
+            // enable if not validate
+            if ($gateway->validate()) {
+                \Acelle\Model\Setting::enablePaymentGateway($gateway->getType());
+            }
+
+            return redirect()->action('Admin\PaymentController@index');
+        }
+
+        return view('cashier::razorpay.settings', [
+            'gateway' => $gateway,
+        ]);
     }
 
     public function getReturnUrl(Request $request)
@@ -33,7 +64,7 @@ class RazorpayController extends Controller
      **/
     public function getPaymentService()
     {
-        return \Acelle\Model\Setting::getPaymentGateway('razorpay');
+        return Billing::getGateway('razorpay');
     }
 
     /**
@@ -66,14 +97,19 @@ class RazorpayController extends Controller
         if ($invoice->total() == 0) {
             $invoice->fulfill();
 
-            return redirect()->away($this->getReturnUrl($request));
+            return redirect()->action('AccountSubscriptionController@index');
         }
 
         if ($request->isMethod('post')) {
-            $service->charge($request);
+            try {
+                $service->charge($invoice, $request);
+            } catch (\Exception $e) {    
+                $request->session()->flash('alert-error', $e->getMessage());
+                return redirect()->action('AccountSubscriptionController@index');
+            }
 
             // Redirect to my subscription page
-            return redirect()->away($this->getReturnUrl($request));
+            return redirect()->action('AccountSubscriptionController@index');
         }
 
         // create order
@@ -84,7 +120,8 @@ class RazorpayController extends Controller
             // pay failed
             $invoice->payFailed($e->getMessage());
 
-            return redirect()->away($this->getReturnUrl($request));
+            $request->session()->flash('alert-error', $e->getMessage());
+            return redirect()->action('AccountSubscriptionController@index');
         }
 
         return view('cashier::razorpay.checkout', [

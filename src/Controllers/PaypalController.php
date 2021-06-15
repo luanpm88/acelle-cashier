@@ -7,14 +7,47 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Services\PaypalPaymentGateway;
+use Acelle\Library\Facades\Billing;
+use Acelle\Model\Setting;
 
 use \Acelle\Model\Invoice;
+use Acelle\Library\AutoBillingData;
 
 class PaypalController extends Controller
 {
     public function __construct()
     {
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
+    }
+
+    public function settings(Request $request)
+    {
+        $gateway = $this->getPaymentService();
+
+        if ($request->isMethod('post')) {
+            // validate
+            $this->validate($request, [
+                'environment' => 'required',
+                'client_id' => 'required',
+                'secret' => 'required',
+            ]);
+
+            // save settings
+            Setting::set('cashier.paypal.environment', $request->environment);
+            Setting::set('cashier.paypal.client_id', $request->client_id);
+            Setting::set('cashier.paypal.secret', $request->secret);
+
+            // enable if not validate
+            if ($gateway->validate()) {
+                \Acelle\Model\Setting::enablePaymentGateway($gateway->getType());
+            }
+
+            return redirect()->action('Admin\PaymentController@index');
+        }
+
+        return view('cashier::paypal.settings', [
+            'gateway' => $gateway,
+        ]);
     }
 
     /**
@@ -24,7 +57,7 @@ class PaypalController extends Controller
      **/
     public function getPaymentService()
     {
-        return \Acelle\Model\Setting::getPaymentGateway('paypal');
+        return Billing::getGateway('paypal');
     }
 
     /**
@@ -72,7 +105,7 @@ class PaypalController extends Controller
         if ($invoice->total() == 0) {
             $invoice->fulfill();
 
-            return redirect()->away($this->getReturnUrl($request));
+            return redirect()->action('AccountSubscriptionController@index');
         }
 
         if ($request->isMethod('post')) {
@@ -81,7 +114,7 @@ class PaypalController extends Controller
             ]);
 
             // return back
-            return redirect()->away($this->getReturnUrl($request));
+            return redirect()->action('AccountSubscriptionController@index');
         }
 
         return view('cashier::paypal.checkout', [

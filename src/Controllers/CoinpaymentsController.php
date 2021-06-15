@@ -7,14 +7,52 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Services\CoinpaymentsPaymentGateway;
+use Acelle\Library\Facades\Billing;
+use Acelle\Model\Setting;
 
 use \Acelle\Model\Invoice;
+use Acelle\Library\AutoBillingData;
 
 class CoinpaymentsController extends Controller
 {
     public function __construct()
     {
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
+    }
+
+    public function settings(Request $request)
+    {
+        $gateway = $this->getPaymentService();
+
+        if ($request->isMethod('post')) {
+            // validate
+            $this->validate($request, [
+                'merchant_id' => 'required',
+                'public_key' => 'required',
+                'private_key' => 'required',
+                'merchant_id' => 'required',
+                'ipn_secret' => 'required',
+                'receive_currency' => 'required',
+            ]);
+
+            // save settings
+            Setting::set('cashier.coinpayments.merchant_id', $request->merchant_id);
+            Setting::set('cashier.coinpayments.public_key', $request->public_key);
+            Setting::set('cashier.coinpayments.private_key', $request->private_key);
+            Setting::set('cashier.coinpayments.receive_currency', $request->receive_currency);
+            Setting::set('cashier.coinpayments.ipn_secret', $request->ipn_secret);
+
+            // enable if not validate
+            if ($gateway->validate()) {
+                \Acelle\Model\Setting::enablePaymentGateway($gateway->getType());
+            }
+
+            return redirect()->action('Admin\PaymentController@index');
+        }
+
+        return view('cashier::coinpayments.settings', [
+            'gateway' => $gateway,
+        ]);
     }
 
     /**
@@ -39,7 +77,7 @@ class CoinpaymentsController extends Controller
      **/
     public function getPaymentService()
     {
-        return \Acelle\Model\Setting::getPaymentGateway('coinpayments');
+        return Billing::getGateway('coinpayments');
     }
 
     /**
@@ -59,6 +97,11 @@ class CoinpaymentsController extends Controller
             $request->session()->put('checkout_return_url', $request->return_url);
         }
 
+        // already paid
+        if ($invoice->isPaid()) {
+            return redirect()->action('AccountSubscriptionController@index');
+        }
+
         // exceptions
         if (!$invoice->isPending()) {
             throw new \Exception('Invoice is not pending');
@@ -71,14 +114,18 @@ class CoinpaymentsController extends Controller
         if ($invoice->total() == 0) {
             $invoice->fulfill();
 
-            return redirect()->away($this->getReturnUrl($request));
+            return redirect()->action('AccountSubscriptionController@index');
         }
 
         if ($request->isMethod('post')) {
-            $result = $service->charge($invoice);
+            try {
+                $service->charge($invoice);
 
-            // redirect to checkout page
-            return redirect()->away($service->getData($invoice)['checkout_url']);
+                return redirect()->away($service->getData($invoice)['checkout_url']);
+            } catch (\Exception $e) {
+                $request->session()->flash('alert-error', $e->getMessage());
+                return redirect()->action('AccountSubscriptionController@index');
+            }
         }
 
         if ($service->getData($invoice) !== null && isset($service->getData($invoice)['txn_id'])) {

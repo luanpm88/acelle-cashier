@@ -65,7 +65,7 @@
                         {{ trans('cashier::messages.coinpayments.amount') }}
                     </div>
                     <div class="lastUnit size2of3">
-                        <mc:flag>{{ $invoice->total() }} {{ $service->receive_currency }}</mc:flag>
+                        <mc:flag>{{ $invoice->total() }} {{ $service->receiveCurrency }}</mc:flag>
                     </div>
                 </li>
                 <li>

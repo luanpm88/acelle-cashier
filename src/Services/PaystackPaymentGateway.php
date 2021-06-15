@@ -3,22 +3,109 @@
 namespace Acelle\Cashier\Services;
 
 use Illuminate\Support\Facades\Log;
-use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
+use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
+use Acelle\Library\AutoBillingData;
 
 class PaystackPaymentGateway implements PaymentGatewayInterface
 {
-    public $public_key;
-    public $secret_key;
+    public $publicKey;
+    public $secretKey;
+    public $active=false;
 
     /**
      * Construction
      */
-    public function __construct($public_key, $secret_key)
+    public function __construct($publicKey, $secretKey)
     {
-        $this->public_key = $public_key;
-        $this->secret_key = $secret_key;
+        $this->publicKey = $publicKey;
+        $this->secretKey = $secretKey;
+
+        $this->validate();
+    }
+
+    public function getName() : string
+    {
+        return 'Paystack';
+    }
+
+    public function getType() : string
+    {
+        return 'paystack';
+    }
+
+    public function getDescription() : string
+    {
+        return 'Receive payments from Credit / Debit card to your Paystack account';
+    }
+
+    public function getSettingsUrl() : string
+    {
+        return action("\Acelle\Cashier\Controllers\PaystackController@settings");
+    }
+
+    private function validate()
+    {
+        if (!$this->publicKey || !$this->secretKey) {
+            $this->active = false;
+        } else {
+            $this->active = true;
+        }
+    }
+
+    public function isActive() : bool
+    {
+        return $this->active;
+    }
+
+    public function getEnvironment()
+    {
+        return $this->environment;
+    }
+
+    public function getMerchantId()
+    {
+        return $this->merchantId;
+    }
+
+    public function getPublicKey()
+    {
+        return $this->publicKey;
+    }
+
+    public function getPrivateKey()
+    {
+        return $this->privateKey;
+    }
+
+    public function supportsAutoBilling() : bool
+    {
+        return true;
+    }
+
+    /**
+     * Get connect url.
+     *
+     * @return string
+     */
+    public function getAutoBillingDataUpdateUrl($returnUrl='/') : string
+    {
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaystackController@autoBillingDataUpdate", [
+            'return_url' => $returnUrl,
+        ]);
+    }
+
+    /**
+     * Get checkout url.
+     *
+     * @return string
+     */
+    public function getCheckoutUrl($invoice) : string
+    {
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaystackController@checkout", [
+            'invoice_uid' => $invoice->uid,
+        ]);
     }
 
     /**
@@ -31,7 +118,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
         $client = new \GuzzleHttp\Client();
         $uri = 'https://api.paystack.co/' . $uri;
         $headers = array_merge([
-            'Authorization' => 'Bearer ' . $this->secret_key,
+            'Authorization' => 'Bearer ' . $this->secretKey,
             'Content-Type' => 'application/json',
         ], $headers);
         $response = $client->request($type, $uri, [
@@ -46,7 +133,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    public function validate()
+    public function test()
     {
         try {
             $this->request('GET', 'transaction/verify/' . 'ffffff', []);
@@ -81,15 +168,19 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
             throw new \Exception($result['data']['message']);
         }
 
-        // update metadata
-        $invoice->customer->updatePaymentMethodData(['last_transaction' => $result]);
+        // update auto billing data
+        $autoBillingData = new AutoBillingData($this, [
+            'last_transaction' => $result,
+        ]);
+        $invoice->customer->setAutoBillingData($autoBillingData);
 
         return $result;
     }
 
     public function getCard($customer)
     {
-        $metadata = $customer->getPaymentMethod();
+        $autoBillingData = $customer->getAutoBillingData();
+        $metadata = $autoBillingData->getData();
 
         // check last transaction
         if (!isset($metadata['last_transaction']) ||
@@ -114,16 +205,20 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      *
      * @return void
     */
-    public function charge($invoice)
+    public function autoCharge($invoice)
     {
+        $card = $this->getCard($invoice->customer);
+
         try {
             // charge invoice
-            $this->doCharge($invoice->customer, [
+            $this->doCharge([
                 'amount' => $invoice->total(),
                 'currency' => $invoice->currency->code,
                 'description' => trans('messages.pay_invoice', [
                     'id' => $invoice->uid,
                 ]),
+                'email' => $card['email'],
+                'authorization_code' => $card['authorization_code'],
             ]);
 
             // pay invoice
@@ -140,20 +235,13 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      * @param  Customer                $customer
      * @return void
      */
-    public function doCharge($customer, $data)
+    public function doCharge($data)
     {
-        $card = $this->getCard($customer);
-
-        // card not found
-        if (!$card) {
-            throw new \Exception('Card not found');
-        }
-
         $result = $this->request('POST', 'transaction/charge_authorization', [], [
-            'email' => $card['email'],
+            'email' => $data['email'],
             'amount' => $data['amount'] * 100,
             'currency' => $data['currency'],
-            'authorization_code' => $card['authorization_code'],
+            'authorization_code' => $data['authorization_code'],
         ]);
 
         // transaction failed
@@ -175,24 +263,6 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Get checkout url.
-     *
-     * @return string
-     */
-    public function getCheckoutUrl($invoice, $returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaystackController@checkout", [
-            'invoice_uid' => $invoice->uid,
-            'return_url' => $returnUrl,
-        ]);
-    }
-
-    public function supportsAutoBilling()
-    {
-        return true;
-    }
-
-    /**
      * Check currency valid.
      *
      * @return string
@@ -200,17 +270,5 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
     public function currencyValid($currency)
     {
         return in_array($currency, ['GHS', 'NGN', 'USD', 'ZAR']);
-    }
-
-    /**
-     * Get connect url.
-     *
-     * @return string
-     */
-    public function getConnectUrl($returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaystackController@connect", [
-            'return_url' => $returnUrl,
-        ]);
     }
 }

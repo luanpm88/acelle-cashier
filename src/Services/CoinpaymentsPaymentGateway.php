@@ -1,23 +1,96 @@
 <?php
 namespace Acelle\Cashier\Services;
 
-use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
+use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Library\CoinPayment\CoinpaymentsAPI;
 
 class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 {
+    public $merchantId;
+    public $publicKey;
+    public $privateKey;
+    public $ipnSecret;
+    public $receiveCurrency;
     public $coinPaymentsAPI;
-    public $receive_currency;
+    public $active=false;
     
     // Contruction
-    public function __construct($merchantId, $publicKey, $privateKey, $ipnSecret, $receive_currency)
+    public function __construct($merchantId, $publicKey, $privateKey, $ipnSecret, $receiveCurrency)
     {
-        $this->receive_currency = $receive_currency;
+        $this->merchantId = $merchantId;
+        $this->publicKey = $publicKey;
+        $this->privateKey = $privateKey;
+        $this->ipnSecret = $ipnSecret;
+        $this->receiveCurrency = $receiveCurrency;
         $this->coinPaymentsAPI = new CoinpaymentsAPI($privateKey, $publicKey, 'json'); // new CoinPayments($privateKey, $publicKey, $merchantId, $ipnSecret, null);
 
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
+
+        $this->validate();
+    }
+
+    public function getName() : string
+    {
+        return 'Coinpayments';
+    }
+
+    public function getType() : string
+    {
+        return 'coinpayments';
+    }
+
+    public function getDescription() : string
+    {
+        return 'Receive payment from a cryptocurrency like Bitcoin, Monero, ZCash, etc.';
+    }
+
+    private function validate()
+    {
+        if (!$this->merchantId || !$this->publicKey || !$this->privateKey || !$this->ipnSecret || !$this->receiveCurrency) {
+            $this->active = false;
+        } else {
+            $this->active = true;
+        }
+        
+    }
+
+    public function isActive() : bool
+    {
+        return $this->active;
+    }
+
+    public function getSettingsUrl() : string
+    {
+        return action("\Acelle\Cashier\Controllers\CoinpaymentsController@settings");
+    }
+
+    public function getCheckoutUrl($invoice) : string
+    {
+        return action("\Acelle\Cashier\Controllers\CoinpaymentsController@checkout", [
+            'invoice_uid' => $invoice->uid,
+        ]);
+    }
+
+    public function autoCharge($invoice)
+    {
+        throw new \Exception('Coinpayments payment gateway does not support auto charge!');
+    }
+
+    public function getAutoBillingDataUpdateUrl($returnUrl='/') : string
+    {
+        throw new \Exception('
+            Coinpayments gateway does not support auto charge.
+            Therefor method getAutoBillingDataUpdateUrl is not supported.
+            Something wrong in your design flow!
+            Check if a gateway supports auto billing by calling $gateway->supportsAutoBilling().
+        ');
+    }
+
+    public function supportsAutoBilling() : bool
+    {
+        return false;
     }
 
     public function getData($invoice) {
@@ -33,18 +106,13 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    public function validate()
+    public function test()
     {
         $info = $this->coinPaymentsAPI->getBasicInfo();
         
         if (isset($info["error"]) && $info["error"] != "ok") {
             throw new \Exception($info["error"]);
         }
-    }
-
-    public function supportsAutoBilling()
-    {
-        return false;
     }
 
     /**
@@ -75,6 +143,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         } catch (\Exception $e) {
             // transaction
             $invoice->payFailed($e->getMessage());
+            throw new \Exception($e->getMessage());
         }
     }
     
@@ -87,7 +156,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     {
         $options = [
             'currency1' => $data['currency'],
-            'currency2' => $this->receive_currency,
+            'currency2' => $this->receiveCurrency,
             'amount' => $data['amount'],
             'item_name' => $data['description'],
             'item_number' => $data['id'],
@@ -159,9 +228,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     public function getTransactionRemoteInfo($txn_id)
     {
         $res = $this->coinPaymentsAPI->GetTxInfoSingle($txn_id, 1);
-        
+
         if ($res["error"] !== 'ok') {
-            throw new \Exception($res["Can not find remote transaction tnx_id"]);
+            throw new \Exception($res["error"]);
         }
         
         return $res['result'];
@@ -251,30 +320,5 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     public function getRates()
     {
         return $this->coinPaymentsAPI->getRates();
-    }
-
-    /**
-     * Get checkout url.
-     *
-     * @return string
-     */
-    public function getCheckoutUrl($invoice, $returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\CoinpaymentsController@checkout", [
-            'invoice_uid' => $invoice->uid,
-            'return_url' => $returnUrl,
-        ]);
-    }
-
-    /**
-     * Get connect url.
-     *
-     * @return string
-     */
-    public function getConnectUrl($returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\CoinpaymentsController@connect", [
-            'return_url' => $returnUrl,
-        ]);
     }
 }

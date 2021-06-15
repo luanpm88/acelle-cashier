@@ -1,6 +1,6 @@
 <html lang="en">
     <head>
-        <title>{{ trans('cashier::messages.paystack.checkout.page_title') }}</title>
+        <title>{{ trans('cashier::messages.paystack') }}</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
         <link rel="stylesheet" href="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
@@ -12,7 +12,7 @@
             <div class="col-md-4 mt-40 pd-60">
                 <label class="text-semibold text-muted mb-20 mt-0">
                     <strong>
-                        {{ trans('cashier::messages.paystack.checkout_with_paystack') }}
+                        {{ trans('cashier::messages.paystack') }}
                     </strong>
                 </label>
                 <img class="rounded" width="100%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/paystack.svg') }}" />
@@ -46,7 +46,7 @@
                     paymentForm.addEventListener('submit', payWithPaystack, false);
                     function payWithPaystack() {
                         var handler = PaystackPop.setup({
-                            key: '{{ $service->public_key }}', // Replace with your public key
+                            key: '{{ $service->publicKey }}', // Replace with your public key
                             email: '{{ $invoice->customer->getBillableEmail() }}',
                             amount: {{ $invoice->total() }} * 100, // the amount value is multiplied by 100 to convert to the lowest currency unit
                             currency: '{{ $invoice->currency->code }}', // Use GHS for Ghana Cedis or USD for US Dollars
@@ -82,9 +82,7 @@
             </div>
             <div class="col-md-2"></div>
             <div class="col-md-4">
-                @include('invoices.bill', [
-                    'bill' => $invoice->getBillingInfo(),
-                ])
+               
             </div>
         </div>
         <br />

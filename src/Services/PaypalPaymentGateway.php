@@ -3,7 +3,7 @@
 namespace Acelle\Cashier\Services;
 
 use Acelle\Cashier\Cashier;
-use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
+use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Sample\PayPalClient;
 use PayPalCheckoutSdk\Orders\OrdersGetRequest;
@@ -13,22 +13,87 @@ use PayPalCheckoutSdk\Core\ProductionEnvironment;
 
 class PaypalPaymentGateway implements PaymentGatewayInterface
 {
-    public $client_id;
+    public $clientId;
     public $secret;
     public $client;
     public $environment;
+    public $active=false;
     
-    public function __construct($environment, $client_id, $secret)
+    public function __construct($environment, $clientId, $secret)
     {
         $this->environment = $environment;
-        $this->client_id = $client_id;
+        $this->clientId = $clientId;
         $this->secret = $secret;
 
         if ($this->environment == 'sandbox') {
-            $this->client = new PayPalHttpClient(new SandboxEnvironment($this->client_id, $this->secret));
+            $this->client = new PayPalHttpClient(new SandboxEnvironment($this->clientId, $this->secret));
         } else {
-            $this->client = new PayPalHttpClient(new ProductionEnvironment($this->client_id, $this->secret));
+            $this->client = new PayPalHttpClient(new ProductionEnvironment($this->clientId, $this->secret));
         }
+
+        $this->validate();
+    }
+
+    public function getName() : string
+    {
+        return 'Paypal';
+    }
+
+    public function getType() : string
+    {
+        return 'paypal';
+    }
+
+    public function getDescription() : string
+    {
+        return 'PayPal is the fast/safe way to send money, make an online payment, receive money or set up a merchant account';
+    }
+
+    private function validate()
+    {
+        if (!$this->environment || !$this->clientId || !$this->secret) {
+            $this->active = false;
+        } else {
+            $this->active = true;
+        }
+        
+    }
+
+    public function isActive() : bool
+    {
+        return $this->active;
+    }
+
+    public function getSettingsUrl() : string
+    {
+        return action("\Acelle\Cashier\Controllers\PaypalController@settings");
+    }
+
+    public function getCheckoutUrl($invoice) : string
+    {
+        return action("\Acelle\Cashier\Controllers\PaypalController@checkout", [
+            'invoice_uid' => $invoice->uid,
+        ]);
+    }
+
+    public function autoCharge($invoice)
+    {
+        throw new \Exception('Paypal payment gateway does not support auto charge!');
+    }
+
+    public function getAutoBillingDataUpdateUrl($returnUrl='/') : string
+    {
+        throw new \Exception('
+            Paypal gateway does not support auto charge.
+            Therefor method getAutoBillingDataUpdateUrl is not supported.
+            Something wrong in your design flow!
+            Check if a gateway supports auto billing by calling $gateway->supportsAutoBilling().
+        ');
+    }
+
+    public function supportsAutoBilling() : bool
+    {
+        return false;
     }
 
     /**
@@ -36,7 +101,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    public function validate()
+    public function test()
     {
         try {
             $response = $this->client->execute(new OrdersGetRequest('ssssss'));
@@ -80,17 +145,6 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         // check order ID
         $this->checkOrderID($options['orderID']);
     }
-    
-    /**
-     * Check if support recurring.
-     *
-     * @param  string    $userId
-     * @return Boolean
-     */
-    public function supportsAutoBilling()
-    {
-        return false;
-    }
 
     /**
      * Swap subscription plan.
@@ -125,30 +179,5 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         if ($response->statusCode != 200 || $response->result->status != 'COMPLETED') {
             throw new \Exception('Something went wrong:' . json_encode($response->result));
         }
-    }
-
-    /**
-     * Get checkout url.
-     *
-     * @return string
-     */
-    public function getCheckoutUrl($invoice, $returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaypalController@checkout", [
-            'invoice_uid' => $invoice->uid,
-            'return_url' => $returnUrl,
-        ]);
-    }
-    
-    /**
-     * Get connect url.
-     *
-     * @return string
-     */
-    public function getConnectUrl($returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaypalController@connect", [
-            'return_url' => $returnUrl,
-        ]);
     }
 }

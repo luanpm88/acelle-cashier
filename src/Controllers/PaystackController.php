@@ -7,19 +7,40 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Services\StripePaymentGateway;
-
+use Acelle\Library\Facades\Billing;
+use Acelle\Model\Setting;
+use Acelle\Library\AutoBillingData;
 use \Acelle\Model\Invoice;
 
 class PaystackController extends Controller
 {
-    public function getReturnUrl(Request $request)
+    public function settings(Request $request)
     {
-        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
-        if (!$return_url) {
-            $return_url = Cashier::public_url('/');
+        $gateway = $this->getPaymentService();
+
+        if ($request->isMethod('post')) {
+            
+            // validate
+            $this->validate($request, [
+                'public_key' => 'required',
+                'secret_key' => 'required',
+            ]);
+
+            // save settings
+            Setting::set('cashier.paystack.public_key', $request->public_key);
+            Setting::set('cashier.paystack.secret_key', $request->secret_key);
+
+            // enable if not validate
+            if ($gateway->validate()) {
+                \Acelle\Model\Setting::enablePaymentGateway($gateway->getType());
+            }
+
+            return redirect()->action('Admin\PaymentController@index');
         }
 
-        return $return_url;
+        return view('cashier::paystack.settings', [
+            'gateway' => $gateway,
+        ]);
     }
 
     /**
@@ -29,7 +50,7 @@ class PaystackController extends Controller
      **/
     public function getPaymentService()
     {
-        return \Acelle\Model\Setting::getPaymentGateway('paystack');
+        return Billing::getGateway('paystack');
     }
 
     /**
@@ -61,7 +82,7 @@ class PaystackController extends Controller
         if ($invoice->total() == 0) {
             $invoice->fulfill();
 
-            return redirect()->away($this->getReturnUrl($request));
+            return redirect()->action('AccountSubscriptionController@index');
         }
 
         if ($service->getCard($invoice->customer)) {
@@ -78,11 +99,11 @@ class PaystackController extends Controller
 
                 $invoice->fulfill();
 
-                return redirect()->away($this->getReturnUrl($request));
+                return redirect()->action('AccountSubscriptionController@index');
             } catch (\Exception $e) {
                 // return with error message
                 $request->session()->flash('alert-error', $e->getMessage());
-                return redirect()->away($this->getReturnUrl($request));
+                return redirect()->action('AccountSubscriptionController@index');
             }
         }
 
@@ -113,9 +134,9 @@ class PaystackController extends Controller
         }
         
         // autopay
-        $service->charge($invoice);
+        $service->autoCharge($invoice);
 
-        return redirect()->away($this->getReturnUrl($request));
+        return redirect()->action('AccountSubscriptionController@index');
     }
 
     /**
@@ -125,28 +146,11 @@ class PaystackController extends Controller
      *
      * @return \Illuminate\Http\Response
      **/
-    public function connect(Request $request)
+    public function autoBillingDataUpdate(Request $request)
     {
         // Get current customer
         $service = $this->getPaymentService();
-
-        // Save return url
-        if ($request->return_url) {
-            $request->session()->put('checkout_return_url', $request->return_url);
-        }
         
-        $request->user()->customer->updatePaymentMethod([
-            'method' => 'paystack',
-            'user_id' => $request->user()->customer->getBillableEmail(),
-        ]);
-
-        // Save return url
-        if ($request->return_url) {
-            return redirect()->away($request->return_url);
-        }
-
-        return view('cashier::paystack.connect', [
-            'return_url' => $this->getReturnUrl($request),
-        ]);
+        return redirect()->action('AccountSubscriptionController@index');
     }
 }

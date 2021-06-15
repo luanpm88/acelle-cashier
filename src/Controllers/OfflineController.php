@@ -6,11 +6,39 @@ use Acelle\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
+use Acelle\Model\Setting;
+use Acelle\Library\Facades\Billing;
 
 use \Acelle\Model\Invoice;
 
-class DirectController extends Controller
+class OfflineController extends Controller
 {
+    public function settings(Request $request)
+    {
+        $gateway = Billing::getGateway('offline');
+
+        if ($request->isMethod('post')) {
+            // validate
+            $this->validate($request, [
+                'payment_instruction' => 'required',
+            ]);
+
+            // save settings
+            Setting::set('cashier.offline.payment_instruction', $request->payment_instruction);
+
+            // enable if not validate
+            if ($gateway->validate()) {
+                \Acelle\Model\Setting::enablePaymentGateway($gateway->getType());
+            }
+
+            return redirect()->action('Admin\PaymentController@index');
+        }
+
+        return view('cashier::offline.settings', [
+            'gateway' => $gateway,
+        ]);
+    }
+
     public function __construct(Request $request)
     {
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
@@ -38,7 +66,7 @@ class DirectController extends Controller
      **/
     public function getPaymentService()
     {
-        return \Acelle\Model\Setting::getPaymentGateway('direct');
+        return Billing::getGateway('offline');
     }
     
     /**
@@ -48,15 +76,10 @@ class DirectController extends Controller
      *
      * @return \Illuminate\Http\Response
      **/
-    public function checkout(Request $request, $invoice_uid)
+    public function checkout(Request $request)
     {
         $service = $this->getPaymentService();
-        $invoice = Invoice::findByUid($invoice_uid);
-        
-        // Save return url
-        if ($request->return_url) {
-            $request->session()->put('checkout_return_url', $request->return_url);
-        }
+        $invoice = Invoice::findByUid($request->invoice_uid);
 
         // exceptions
         if (!$invoice->isPending()) {
@@ -70,10 +93,10 @@ class DirectController extends Controller
         if ($invoice->total() == 0) {
             $invoice->fulfill();
 
-            return redirect()->away($this->getReturnUrl($request));
+            return redirect()->action('AccountSubscriptionController@index');
         }
         
-        return view('cashier::direct.checkout', [
+        return view('cashier::offline.checkout', [
             'service' => $service,
             'invoice' => $invoice,
         ]);
@@ -102,32 +125,6 @@ class DirectController extends Controller
         // claim invoice
         $invoice->claim();
         
-        return redirect()->away($this->getReturnUrl($request));
-    }
-
-    /**
-     * Fix transation.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function connect(Request $request)
-    {
-        $service = $this->getPaymentService();
-
-        $request->user()->customer->updatePaymentMethod([
-            'method' => 'direct',
-            'description' => trans('messages.payment.direct.description'),
-        ]);
-
-        // Save return url
-        if ($request->return_url) {
-            return redirect()->away($request->return_url);
-        }
-
-        return view('cashier::direct.connect', [
-            'return_url' => $this->getReturnUrl($request),
-        ]);
+        return redirect()->action('AccountSubscriptionController@index');
     }
 }

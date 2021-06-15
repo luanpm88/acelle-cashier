@@ -3,23 +3,88 @@
 namespace Acelle\Cashier\Services;
 
 use Illuminate\Support\Facades\Log;
-use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
+use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
 
 class RazorpayPaymentGateway implements PaymentGatewayInterface
 {
-    public $key_id;
-    public $key_secret;
+    public $keyId;
+    public $keySecret;
+    public $active=false;
 
     /**
      * Construction
      */
-    public function __construct($key_id, $key_secret)
+    public function __construct($keyId, $keySecret)
     {
-        $this->key_id = $key_id;
-        $this->key_secret = $key_secret;
+        $this->keyId = $keyId;
+        $this->keySecret = $keySecret;
         $this->baseUri = 'https://api.razorpay.com/v1/';
+
+        $this->validate();
+    }
+
+    public function getName() : string
+    {
+        return 'Razorpay';
+    }
+
+    public function getType() : string
+    {
+        return 'razorpay';
+    }
+
+    public function getDescription() : string
+    {
+        return 'Start Accepting Payments Instantly with Razorpay\'s Free Payment Gateway. Supports Netbanking, Credit, Debit Cards etc';
+    }
+
+    public function validate()
+    {
+        if (!$this->keyId || !$this->keySecret) {
+            $this->active = false;
+        } else {
+            $this->active = true;
+        }
+        
+    }
+
+    public function isActive() : bool
+    {
+        return $this->active;
+    }
+
+    public function getSettingsUrl() : string
+    {
+        return action("\Acelle\Cashier\Controllers\RazorpayController@settings");
+    }
+
+    public function getCheckoutUrl($invoice) : string
+    {
+        return action("\Acelle\Cashier\Controllers\RazorpayController@checkout", [
+            'invoice_uid' => $invoice->uid,
+        ]);
+    }
+
+    public function autoCharge($invoice)
+    {
+        throw new \Exception('Razorpay payment gateway does not support auto charge!');
+    }
+
+    public function getAutoBillingDataUpdateUrl($returnUrl='/') : string
+    {
+        throw new \Exception('
+            Razorpay gateway does not support auto charge.
+            Therefor method getAutoBillingDataUpdateUrl is not supported.
+            Something wrong in your design flow!
+            Check if a gateway supports auto billing by calling $gateway->supportsAutoBilling().
+        ');
+    }
+
+    public function supportsAutoBilling() : bool
+    {
+        return false;
     }
 
     public function getData($invoice) {
@@ -42,7 +107,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         $response = $client->request($type, $uri, [
             'headers' => $headers,
             'body' => is_array($body) ? json_encode($body) : $body,
-            'auth' => [$this->key_id, $this->key_secret],
+            'auth' => [$this->keyId, $this->keySecret],
         ]);
         return json_decode($response->getBody(), true);
     }
@@ -52,22 +117,9 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    public function validate()
+    public function test()
     {
         $this->request('GET', 'customers');
-    }
-
-    /**
-     * Get checkout url.
-     *
-     * @return string
-     */
-    public function getCheckoutUrl($invoice, $returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\RazorpayController@checkout", [
-            'invoice_uid' => $invoice->uid,
-            'return_url' => $returnUrl,
-        ]);
     }
 
     /**
@@ -193,11 +245,6 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         return $this->accessToken;
     }
 
-    public function supportsAutoBilling()
-    {
-        return false;
-    }
-
     /**
      * Revert price from Stripe price.
      *
@@ -219,7 +266,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      *
      * @return void
     */
-    public function charge($request)
+    public function charge($invoice, $request)
     {
         try {
             // charge invoice
@@ -235,21 +282,9 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
 
     public function verifyCharge($request)
     {
-        $sig = hash_hmac('sha256', $request->razorpay_order_id . "|" . $request->razorpay_payment_id, $this->key_secret);
+        $sig = hash_hmac('sha256', $request->razorpay_order_id . "|" . $request->razorpay_payment_id, $this->keySecret);
         if ($sig != $request->razorpay_signature) {
             throw new \Exception('Can not verify remote order: ' . $request->razorpay_order_id);
         }
-    }
-
-    /**
-     * Get connect url.
-     *
-     * @return string
-     */
-    public function getConnectUrl($returnUrl='/')
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\RazorpayController@connect", [
-            'return_url' => $returnUrl,
-        ]);
     }
 }

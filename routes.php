@@ -12,33 +12,36 @@
 */
 
 Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controllers'], function () {
-    // PayPal
-    Route::match(['get', 'post'], '/cashier/paypal/{invoice_uid}/checkout', 'PaypalController@checkout');
-    Route::match(['get', 'post'], '/cashier/paypal/connect', 'PaypalController@connect');
+    // direct
+    Route::match(['get', 'post'], '/cashier/offline/settings', 'OfflineController@settings');
+    Route::get('/cashier/offline/checkout/{invoice_uid}', 'OfflineController@checkout');
+    Route::post('/cashier/offline/{invoice_uid}/claim', 'OfflineController@claim');
+
+    // Stripe
+    Route::match(['get', 'post'], '/cashier/stripe/settings', 'StripeController@settings');
+    Route::match(['get', 'post'], '/cashier/stripe/checkout/{invoice_uid}', 'StripeController@checkout');
+    Route::match(['get', 'post'], '/cashier/stripe/auto-billing-update', 'StripeController@autoBillingDataUpdate');
 
     // Braintree
-    Route::match(['get', 'post'], '/cashier/braintree/{invoice_uid}/checkout', 'BraintreeController@checkout');
-    Route::match(['get', 'post'], '/cashier/braintree/connect', 'BraintreeController@connect');
-    
-    // Coinpayments
-    Route::match(['get', 'post'], '/cashier/coinpayments/{invoice_uid}/checkout', 'CoinpaymentsController@checkout');
-    Route::match(['get', 'post'], '/cashier/coinpayments/connect', 'CoinpaymentsController@connect');
-    
-    // Direct
-    Route::post('/cashier/direct/{invoice_uid}/claim', 'DirectController@claim');
-    Route::get('/cashier/direct/{invoice_uid}/checkout', 'DirectController@checkout');
-    Route::get('/cashier/direct/connect', 'DirectController@connect');
-    
-    // Stripe
-    Route::match(['get', 'post'], '/cashier/stripe/{invoice_uid}/checkout', 'StripeController@checkout');
-    Route::match(['get', 'post'], '/cashier/stripe/connect', 'StripeController@connect');
-    
-    // Razorpay
-    Route::match(['get', 'post'], '/cashier/razorpay/{invoice_uid}/checkout', 'RazorpayController@checkout');
-    Route::match(['get', 'post'], '/cashier/razorpay/connect', 'RazorpayController@connect');
+    Route::match(['get', 'post'], '/cashier/braintree/settings', 'BraintreeController@settings');
+    Route::match(['get', 'post'], '/cashier/braintree/checkout/{invoice_uid}', 'BraintreeController@checkout');
+    Route::match(['get', 'post'], '/cashier/braintree/auto-billing-update', 'BraintreeController@autoBillingDataUpdate');
+
+    // direct
+    Route::match(['get', 'post'], '/cashier/coinpayments/settings', 'CoinpaymentsController@settings');
+    Route::match(['get', 'post'], '/cashier/coinpayments/{invoice_uid}', 'CoinpaymentsController@checkout');
 
     // Paystack
+    Route::match(['get', 'post'], '/cashier/paystack/settings', 'PaystackController@settings');
+    Route::match(['get', 'post'], '/cashier/paystack/checkout/{invoice_uid}', 'PaystackController@checkout');
+    Route::match(['get', 'post'], '/cashier/paystack/auto-billing-update', 'PaystackController@autoBillingDataUpdate');
     Route::post('/cashier/paystack/{invoice_uid}/charge', 'PaystackController@charge');
-    Route::match(['get', 'post'], '/cashier/paystack/{invoice_uid}/checkout', 'PaystackController@checkout');
-    Route::match(['get', 'post'], '/cashier/paystack/connect', 'PaystackController@connect');
+
+    // Paypal
+    Route::match(['get', 'post'], '/cashier/paypal/settings', 'PaypalController@settings');
+    Route::match(['get', 'post'], '/cashier/paypal/{invoice_uid}', 'PaypalController@checkout');
+
+    // Razorpay
+    Route::match(['get', 'post'], '/cashier/razorpay/settings', 'RazorpayController@settings');
+    Route::match(['get', 'post'], '/cashier/razorpay/{invoice_uid}', 'RazorpayController@checkout');
 });

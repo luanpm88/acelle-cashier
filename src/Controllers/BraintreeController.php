@@ -7,19 +7,44 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Services\BraintreePaymentGateway;
-
+use Acelle\Library\Facades\Billing;
+use Acelle\Model\Setting;
+use Acelle\Library\AutoBillingData;
 use \Acelle\Model\Invoice;
 
 class BraintreeController extends Controller
 {
-    public function getReturnUrl(Request $request)
+    public function settings(Request $request)
     {
-        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
-        if (!$return_url) {
-            $return_url = Cashier::public_url('/');
+        $gateway = Billing::getGateway('braintree');
+
+        if ($request->isMethod('post')) {
+            
+            // validate
+            $this->validate($request, [
+                'environment' => 'required',
+                'merchant_id' => 'required',
+                'public_key' => 'required',
+                'private_key' => 'required',
+            ]);
+
+            // save settings
+            Setting::set('cashier.braintree.environment', $request->environment);
+            Setting::set('cashier.braintree.merchant_id', $request->merchant_id);
+            Setting::set('cashier.braintree.public_key', $request->public_key);
+            Setting::set('cashier.braintree.private_key', $request->private_key);
+
+            // enable if not validate
+            if ($gateway->validate()) {
+                \Acelle\Model\Setting::enablePaymentGateway($gateway->getType());
+            }
+
+            return redirect()->action('Admin\PaymentController@index');
         }
 
-        return $return_url;
+        return view('cashier::braintree.settings', [
+            'gateway' => $gateway,
+        ]);
     }
 
     /**
@@ -29,7 +54,7 @@ class BraintreeController extends Controller
      **/
     public function getPaymentService()
     {
-        return \Acelle\Model\Setting::getPaymentGateway('braintree');
+        return Billing::getGateway('braintree');
     }
 
     /**
@@ -60,31 +85,31 @@ class BraintreeController extends Controller
 
         // not waiting
         if (!$invoice->pendingTransaction() || $invoice->isPaid()) {
-            return redirect()->away($this->getReturnUrl($request));
+            return redirect()->action('AccountSubscriptionController@index');
         }
 
         // free plan. No charge
         if ($invoice->total() == 0) {
             $invoice->fulfill();
 
-            return redirect()->away($this->getReturnUrl($request));
+            return redirect()->action('AccountSubscriptionController@index');
         }
 
         // Customer has no card
         if (!$service->hasCard($customer)) {
             // connect again
             return redirect()->away(
-                $service->getConnectUrl(
-                    $service->getCheckoutUrl($invoice, $this->getReturnUrl($request))
+                $service->getAutoBillingDataUpdateUrl(
+                    $service->getCheckoutUrl($invoice)
                 )
             );
         }
 
         if ($request->isMethod('post')) {
-            $result = $service->charge($invoice);
+            $result = $service->autoCharge($invoice);
 
             // return back
-            return redirect()->away($this->getReturnUrl($request));
+            return redirect()->action('AccountSubscriptionController@index');
         }
 
         return view('cashier::braintree.charging', [
@@ -99,7 +124,7 @@ class BraintreeController extends Controller
      *
      * @return \Illuminate\Http\Response
      **/
-    public function connect(Request $request)
+    public function autoBillingDataUpdate(Request $request)
     {
         // Get current customer
         $service = $this->getPaymentService();
@@ -118,21 +143,23 @@ class BraintreeController extends Controller
                 $service->updateCard($request->user()->customer, $request->nonce);
             }
 
-            // set gateway
+            // get card
             $card = $service->getCardInformation($request->user()->customer);
-            $request->user()->customer->updatePaymentMethod([
-                'method' => 'braintree',
-                'user_id' => $request->user()->customer->getBillableEmail(),
+
+            // update auto billing data
+            $autoBillingData = new AutoBillingData($service, [
+                'paymentMethodToken' => $card->token,
                 'card_last4' => $card->last4,
                 'card_type' => $card->cardType,
             ]);
+            $request->user()->customer->setAutoBillingData($autoBillingData);
             
             // return to billing page
             $request->session()->flash('alert-success', trans('cashier::messages.braintree.connected'));
-            return redirect()->away($this->getReturnUrl($request));
+            return redirect()->action('AccountSubscriptionController@index');
         }
         
-        return view('cashier::braintree.connect', [
+        return view('cashier::braintree.autoBillingDataUpdate', [
             'service' => $service,
             'clientToken' => $service->serviceGateway->clientToken()->generate(),
             'cardInfo' => $card,

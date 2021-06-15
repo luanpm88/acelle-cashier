@@ -2,7 +2,7 @@
 
 namespace Acelle\Cashier\Services;
 
-use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
+use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Acelle\Cashier\Cashier;
 use Carbon\Carbon;
 
@@ -12,24 +12,82 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
     public $merchantId;
     public $publicKey;
     public $privateKey;
-    public $always_ask_for_valid_card;
+    public $serviceGateway;
+    public $active=false;
     
-    public function __construct($environment, $merchantId, $publicKey, $privateKey, $always_ask_for_valid_card)
+    public function __construct($environment, $merchantId, $publicKey, $privateKey)
     {
         $this->environment = $environment;
         $this->merchantId = $merchantId;
         $this->publicKey = $publicKey;
         $this->privateKey = $privateKey;
-        $this->always_ask_for_valid_card = $always_ask_for_valid_card;
 
-        $this->serviceGateway = new \Braintree_Gateway([
-            'environment' => $environment,
-            'merchantId' => (isset($merchantId) ? $merchantId : 'noname'),
-            'publicKey' => (isset($publicKey) ? $publicKey : 'noname'),
-            'privateKey' => (isset($privateKey) ? $privateKey : 'noname'),
-        ]);
+        $this->validate();
+
+        if ($this->isActive()) {
+            $this->serviceGateway = new \Braintree_Gateway([
+                'environment' => $environment,
+                'merchantId' => (isset($merchantId) ? $merchantId : 'noname'),
+                'publicKey' => (isset($publicKey) ? $publicKey : 'noname'),
+                'privateKey' => (isset($privateKey) ? $privateKey : 'noname'),
+            ]);
+        }
 
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
+    }
+
+    public function getName() : string
+    {
+        return 'Braintree';
+    }
+
+    public function getType() : string
+    {
+        return 'braintree';
+    }
+
+    public function getDescription() : string
+    {
+        return 'Receive payments from Credit / Debit card to your Braintree account';
+    }
+
+    public function getSettingsUrl() : string
+    {
+        return action("\Acelle\Cashier\Controllers\BraintreeController@settings");
+    }
+
+    private function validate()
+    {
+        if (!$this->environment || !$this->merchantId || !$this->privateKey || !$this->publicKey) {
+            $this->active = false;
+        } else {
+            $this->active = true;
+        }
+    }
+
+    public function isActive() : bool
+    {
+        return $this->active;
+    }
+
+    public function getEnvironment()
+    {
+        return $this->environment;
+    }
+
+    public function getMerchantId()
+    {
+        return $this->merchantId;
+    }
+
+    public function getPublicKey()
+    {
+        return $this->publicKey;
+    }
+
+    public function getPrivateKey()
+    {
+        return $this->privateKey;
     }
 
     /**
@@ -37,7 +95,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    public function validate()
+    public function test()
     {
         try {
             $clientToken = $this->serviceGateway->clientToken()->generate([
@@ -134,11 +192,14 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    public function charge($invoice)
+    public function autoCharge($invoice)
     {
+        $autoBillingData = $invoice->customer->getAutoBillingData();
+
         try {
             // charge invoice
-            $this->doCharge($invoice->customer, [
+            $this->doCharge([
+                'paymentMethodToken' => $autoBillingData->getData()['paymentMethodToken'],
                 'amount' => $invoice->total(),
                 'currency' => $invoice->currency->code,
                 'description' => trans('messages.pay_invoice', [
@@ -161,18 +222,11 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      * @param  SubscriptionParam  $param
      * @return void
      */
-    public function doCharge($user, $data)
-    {
-        $braintreeUser = $this->getBraintreeCustomer($user);
-        $card = $this->getCardInformation($user);
-
-        if (!is_object($card)) {
-            throw new \Exception('Can not find card information');
-        }
-        
+    public function doCharge($data)
+    {        
         $result = $this->serviceGateway->transaction()->sale([
             'amount' => $data['amount'],
-            'paymentMethodToken' => $card->token,
+            'paymentMethodToken' => $data['paymentMethodToken'],
         ]);
           
         if ($result->success) {
@@ -184,29 +238,18 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Service does not support auto recurring.
-     *
-     * @return boolean
-     */
-    public function isSupportRecurring()
-    {
-        return true;
-    }
-
-    /**
      * Get checkout url.
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice, $returnUrl='/')
+    public function getCheckoutUrl($invoice) : string
     {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
             'invoice_uid' => $invoice->uid,
-            'return_url' => $returnUrl,
         ]);
     }
 
-    public function supportsAutoBilling()
+    public function supportsAutoBilling() : bool
     {
         return true;
     }
@@ -216,9 +259,9 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getConnectUrl($returnUrl='/')
+    public function getAutoBillingDataUpdateUrl($returnUrl='/') : string
     {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\BraintreeController@connect", [
+        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\BraintreeController@autoBillingDataUpdate", [
             'return_url' => $returnUrl,
         ]);
     }
