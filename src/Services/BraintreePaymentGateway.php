@@ -144,13 +144,13 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
     {
         // Find in gateway server
         $braintreeCustomers = $this->serviceGateway->customer()->search([
-            \Braintree_CustomerSearch::email()->is($user->getBillableEmail())
+            \Braintree_CustomerSearch::email()->is($user->user->email)
         ]);
         
         if ($braintreeCustomers->maximumCount() == 0) {
             // create if not exist
             $result = $this->serviceGateway->customer()->create([
-                'email' => $user->getBillableEmail(),
+                'email' => $user->user->email,
             ]);
             
             if ($result->success) {

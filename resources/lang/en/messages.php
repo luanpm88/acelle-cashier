@@ -117,4 +117,7 @@
     'razorpay.checkout.intro' => 'You are paying an invoice with amount <strong>:price</strong>.
         Click on the button below to finish your payment with PayPal before using plan.',
     'razorpay.pay_with_razorpay' => 'Pay with Razorpay',
+    'payment.options' => 'Payment Options',
+    'go_back' => 'Go back',
+    'stripe.no_card' => 'You have no card. Click the button below to add one.',
 );

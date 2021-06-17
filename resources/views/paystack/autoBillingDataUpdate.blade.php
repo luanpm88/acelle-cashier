@@ -35,7 +35,7 @@
                     function payWithPaystack() {
                         var handler = PaystackPop.setup({
                             key: '{{ $service->publicKey }}', // Replace with your public key
-                            email: '{{ request()->user()->customer->getBillableEmail() }}',  
+                            email: '{{ request()->user()->customer->user->email }}',  
                             amount: 10, // the amount value is multiplied by 100 to convert to the lowest currency unit
                             currency: 'USD', // Use GHS for Ghana Cedis or USD for US Dollars                          
                             firstname: '',

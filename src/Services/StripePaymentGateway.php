@@ -126,31 +126,58 @@ class StripePaymentGateway implements PaymentGatewayInterface
      */
     public function autoCharge($invoice)
     {
-        $autoBillingData = $invoice->customer->getAutoBillingData();
+        $invoice->checkout(function($invoice) {
+            $autoBillingData = $invoice->customer->getAutoBillingData();
 
-        try {
-            // charge invoice
-            $this->doCharge([
-                'customer' => $autoBillingData->getData()['customer'],
-                'source' => $autoBillingData->getData()['source'],
-                'amount' => $invoice->total(),
-                'currency' => $invoice->currency->code,
-                'description' => trans('messages.pay_invoice', [
-                    'id' => $invoice->uid,
-                ]),
-            ]);
-        } catch (\Stripe\Exception\CardException $e) {
-            // pay failed
-            $invoice->payFailed($e->getError()->message);
-            return;
-        } catch (\Exception $e) {
-            // pay failed
-            $invoice->payFailed($e->getMessage());
-            return;
-        }
+            try {
+                // charge invoice
+                $this->doCharge([
+                    'customer' => $autoBillingData->getData()['customer'],
+                    'source' => $autoBillingData->getData()['source'],
+                    'amount' => $invoice->total(),
+                    'currency' => $invoice->currency->code,
+                    'description' => trans('messages.pay_invoice', [
+                        'id' => $invoice->uid,
+                    ]),
+                ]);
 
-        // pay invoice
-        $invoice->fulfill();
+                return true;
+            } catch (\Stripe\Exception\CardException $e) {
+                // pay failed
+                throw new \Exception($e->getError()->message);
+            } catch (\Exception $e) {
+                // pay failed
+                throw new \Exception($e->getMessage());
+            }
+
+            return false;
+        });
+
+        // $autoBillingData = $invoice->customer->getAutoBillingData();
+
+        // try {
+        //     // charge invoice
+        //     $this->doCharge([
+        //         'customer' => $autoBillingData->getData()['customer'],
+        //         'source' => $autoBillingData->getData()['source'],
+        //         'amount' => $invoice->total(),
+        //         'currency' => $invoice->currency->code,
+        //         'description' => trans('messages.pay_invoice', [
+        //             'id' => $invoice->uid,
+        //         ]),
+        //     ]);
+        // } catch (\Stripe\Exception\CardException $e) {
+        //     // pay failed
+        //     $invoice->payFailed($e->getError()->message);
+        //     return;
+        // } catch (\Exception $e) {
+        //     // pay failed
+        //     $invoice->payFailed($e->getMessage());
+        //     return;
+        // }
+
+        // // pay invoice
+        // $invoice->fulfill();
     }
     
     /**
@@ -222,16 +249,16 @@ class StripePaymentGateway implements PaymentGatewayInterface
         // Find in gateway server
         $stripeCustomers = \Stripe\Customer::all();
         foreach ($stripeCustomers as $stripeCustomer) {
-            if ($stripeCustomer->metadata->local_user_id == $user->getBillableId()) {
+            if ($stripeCustomer->metadata->local_user_id == $user->uid) {
                 return $stripeCustomer;
             }
         }
 
         // create if not exist
         $stripeCustomer = \Stripe\Customer::create([
-            'email' => $user->getBillableEmail(),
+            'email' => $user->user->email,
             'metadata' => [
-                'local_user_id' => $user->getBillableId(),
+                'local_user_id' => $user->uid,
             ],
         ]);
 

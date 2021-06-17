@@ -76,11 +76,8 @@ class BraintreeController extends Controller
         }
 
         // exceptions
-        if (!$invoice->isPending()) {
-            throw new \Exception('Invoice is not pending');
-        }
-        if (!$invoice->pendingTransaction()) {
-            throw new \Exception('Pending invoice dose not have pending transaction');
+        if (!$invoice->isNew()) {
+            throw new \Exception('Invoice is not new');
         }
 
         // not waiting

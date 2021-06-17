@@ -47,8 +47,8 @@
                             'invoice_uid' => $invoice->uid,
                 ]) }}">
                     {{ csrf_field() }}
-                    <a href="javascript:;" onclick="$('#cancelForm').submit()">
-                        {{ trans('messages.subscription.cancel_now_change_other_plan') }}
+                    <a href="{{ action('AccountSubscriptionController@index') }}">
+                        {{ trans('cashier::messages.go_back') }}
                     </a>
                 </form>
             </div>

@@ -54,6 +54,7 @@
                         </form>
                     @else
                         <h4 class="text-semibold mb-3 mt-4">{!! trans('cashier::messages.stripe.click_button_to_connect') !!}</h4>
+                        <p>{!! trans('cashier::messages.stripe.no_card') !!}</p>
                         <form id="stripe_button" style=""
                             action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@autoBillingDataUpdate') }}" method="POST">
                                 <a href="javascript:;" class="btn btn-secondary change-card-button">

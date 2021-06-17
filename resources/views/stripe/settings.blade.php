@@ -35,7 +35,7 @@
 			</div>
 		</div>
 			
-		<h3>{{ trans('messages.payment.options') }}</h3>
+		<h3>{{ trans('cashier::messages.payment.options') }}</h3>
 
         <form enctype="multipart/form-data" action="{{ $gateway->getSettingsUrl() }}" method="POST" class="form-validate-jquery">
             {{ csrf_field() }}
@@ -54,7 +54,7 @@
                         'type' => 'text',
                         'name' => 'secret_key',
                         'value' => $gateway->getSecretKey(),
-                        'label' => trans('cashier::messages.stripe.secretKey'),
+                        'label' => trans('cashier::messages.stripe.secret_key'),
                         'help_class' => 'payment',
                         'rules' => ['secretKey' => 'required'],
                     ])

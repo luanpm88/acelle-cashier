@@ -204,11 +204,11 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
                 "Content-Type" => "application/json"
             ], [
                 "name" => $invoice->customer->displayName(),
-                "email" => $invoice->customer->getBillableEmail(),
+                "email" => $invoice->customer->user->email,
                 "contact" => "",
                 "fail_existing" => "0",
                 "notes" => [
-                    "uid" => $invoice->customer->getBillableId()
+                    "uid" => $invoice->customer->uid
                 ]
             ]);
         }

@@ -42,7 +42,7 @@
                             data-buttontext="{{ trans('cashier::messages.razorpay.pay_with_razorpay') }}"
                             data-name="{{ $invoice->title }}"
                             {{-- data-image="{{ \Acelle\Model\Setting::get('site_logo_small') ? \Acelle\Cashier\Cashier::lr_action('SettingController@file', \Acelle\Model\Setting::get('site_logo_small')) : URL::asset('images/default_site_logo_small_' . (Auth::user()->customer->getColorScheme() == "white" ? "dark" : "light") . '.png') }}" --}}
-                            data-prefill.email="{{ $invoice->customer->getBillableEmail() }}"
+                            data-prefill.email="{{ $invoice->customer->user->email }}"
                             data-theme.color="#F37254"
                             data-customer_id="{{ $customer["id"] }}"
                             data-save="1"
