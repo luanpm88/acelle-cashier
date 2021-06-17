@@ -9,8 +9,9 @@ use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Services\PaypalPaymentGateway;
 use Acelle\Library\Facades\Billing;
 use Acelle\Model\Setting;
-
-use \Acelle\Model\Invoice;
+use Acelle\Model\Invoice;
+use Acelle\Library\TransactionVerificationResult;
+use Acelle\Model\Transaction;
 use Acelle\Library\AutoBillingData;
 
 class PaypalController extends Controller
@@ -100,7 +101,9 @@ class PaypalController extends Controller
 
         // free plan. No charge
         if ($invoice->total() == 0) {
-            $invoice->fulfill();
+            $invoice->checkout($service, function($invoice) {
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+            });
 
             return redirect()->action('AccountSubscriptionController@index');
         }

@@ -10,7 +10,9 @@ use Acelle\Cashier\Services\BraintreePaymentGateway;
 use Acelle\Library\Facades\Billing;
 use Acelle\Model\Setting;
 use Acelle\Library\AutoBillingData;
-use \Acelle\Model\Invoice;
+use Acelle\Model\Invoice;
+use Acelle\Library\TransactionVerificationResult;
+use Acelle\Model\Transaction;
 
 class BraintreeController extends Controller
 {
@@ -80,14 +82,11 @@ class BraintreeController extends Controller
             throw new \Exception('Invoice is not new');
         }
 
-        // not waiting
-        if (!$invoice->pendingTransaction() || $invoice->isPaid()) {
-            return redirect()->action('AccountSubscriptionController@index');
-        }
-
         // free plan. No charge
         if ($invoice->total() == 0) {
-            $invoice->fulfill();
+            $invoice->checkout($service, function($invoice) {
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+            });
 
             return redirect()->action('AccountSubscriptionController@index');
         }

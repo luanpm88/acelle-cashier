@@ -5,6 +5,9 @@ use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Library\CoinPayment\CoinpaymentsAPI;
+use Acelle\Model\Invoice;
+use Acelle\Library\TransactionVerificationResult;
+use Acelle\Model\Transaction;
 
 class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 {
@@ -73,6 +76,29 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
+    public function verify(Transaction $transaction) : TransactionVerificationResult
+    {
+        $invoice = $transaction->invoice;
+
+        $this->updateTransactionRemoteInfo($invoice);
+
+        if ($this->getData($invoice)['status'] == 100) {
+            return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+        } elseif ($this->getData($invoice)['status'] < 0) {
+            return new TransactionVerificationResult(
+                TransactionVerificationResult::RESULT_FAILED,
+                'Coinpayments remote transaction is failed with error code: ' . $this->getData($invoice)['status']
+            );
+        } else {
+            return new TransactionVerificationResult(TransactionVerificationResult::RESULT_STILL_PENDING);
+        }
+    }
+
+    public function needApproval() : bool
+    {
+        return false;
+    }
+
     public function autoCharge($invoice)
     {
         throw new \Exception('Coinpayments payment gateway does not support auto charge!');
@@ -94,11 +120,14 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     }
 
     public function getData($invoice) {
-        return $invoice->pendingTransaction()->getMetadata();
+        if (!$invoice->getPendingTransaction()) {
+            return false;
+        }
+        return $invoice->getPendingTransaction()->getMetadata();
     }
 
     public function updateData($invoice, $data) {
-        return $invoice->pendingTransaction()->updateMetadata($data);
+        return $invoice->getPendingTransaction()->updateMetadata($data);
     }
     
     /**
@@ -122,29 +151,35 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     */
     public function charge($invoice)
     {
-        try {
-            // charge invoice
-            $result = $this->doCharge($invoice->customer, [
-                'id' => $invoice->uid,
-                'amount' => $invoice->total(),
-                'currency' => $invoice->currency->code,
-                'description' => trans('messages.pay_invoice', [
-                    'id' => $invoice->uid,
-                ]),
-            ]);
+        $gateway = $this;
 
-            $this->updateData($invoice, [
-                'service' => "coinpayments",
-                'txn_id' => $result["txn_id"],
-                'checkout_url' => $result["checkout_url"],
-                'status_url' => $result["status_url"],
-                'qrcode_url' => $result["qrcode_url"],
-            ]);
-        } catch (\Exception $e) {
-            // transaction
-            $invoice->payFailed($e->getMessage());
-            throw new \Exception($e->getMessage());
-        }
+        $invoice->checkout($gateway, function($invoice) use ($gateway) {
+            $autoBillingData = $invoice->customer->getAutoBillingData();
+
+            try {
+                // charge invoice
+                $result = $gateway->doCharge($invoice->customer, [
+                    'id' => $invoice->uid,
+                    'amount' => $invoice->total(),
+                    'currency' => $invoice->currency->code,
+                    'description' => trans('messages.pay_invoice', [
+                        'id' => $invoice->uid,
+                    ]),
+                ]);
+
+                $gateway->updateData($invoice, [
+                    'service' => "coinpayments",
+                    'txn_id' => $result["txn_id"],
+                    'checkout_url' => $result["checkout_url"],
+                    'status_url' => $result["status_url"],
+                    'qrcode_url' => $result["qrcode_url"],
+                ]);
+
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_STILL_PENDING);
+            } catch (\Exception $e) {
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
+            }
+        });
     }
     
     /**
@@ -270,26 +305,26 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         return $transaction;
     }
 
-    /**
-     * Check if paid.
-     *
-     * @param  Subscription  $subscription
-     * @return SubscriptionParam
-    */
-    public function checkPay($invoice)
-    {
-        $this->updateTransactionRemoteInfo($invoice);
+    // /**
+    //  * Check if paid.
+    //  *
+    //  * @param  Subscription  $subscription
+    //  * @return SubscriptionParam
+    // */
+    // public function checkPay($invoice)
+    // {
+    //     $this->updateTransactionRemoteInfo($invoice);
 
-        if ($this->getData($invoice)['status'] == 100) {
-            // pay invoice
-            $invoice->fulfill();
-        }
+    //     if ($this->getData($invoice)['status'] == 100) {
+    //         // pay invoice
+    //         $invoice->fulfill();
+    //     }
 
-        if ($this->getData($invoice)['status'] < 0) {
-            // pay failed
-            $invoice->payFailed($this->getData($invoice)['status_text']);
-        }
-    }
+    //     if ($this->getData($invoice)['status'] < 0) {
+    //         // pay failed
+    //         $invoice->payFailed($this->getData($invoice)['status_text']);
+    //     }
+    // }
     
     /**
      * Convert transaction status integer to string.

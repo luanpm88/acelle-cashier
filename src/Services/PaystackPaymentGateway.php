@@ -7,6 +7,9 @@ use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
 use Acelle\Library\AutoBillingData;
+use Acelle\Model\Invoice;
+use Acelle\Library\TransactionVerificationResult;
+use Acelle\Model\Transaction;
 
 class PaystackPaymentGateway implements PaymentGatewayInterface
 {
@@ -108,6 +111,47 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
+    public function verify(Transaction $transaction) : TransactionVerificationResult
+    {
+        return new TransactionVerificationResult(TransactionVerificationResult::RESULT_VERIFICATION_NOT_NEEDED);
+    }
+
+    public function needApproval() : bool
+    {
+        return false;
+    }
+
+    /**
+     * Check invoice for paying.
+     *
+     * @return void
+    */
+    public function autoCharge($invoice)
+    {
+        $gateway = $this;
+
+        $invoice->checkout($gateway, function($invoice) use ($gateway) {
+            $card = $gateway->getCard($invoice->customer);
+
+            try {
+                // charge invoice
+                $gateway->doCharge([
+                    'amount' => $invoice->total(),
+                    'currency' => $invoice->currency->code,
+                    'description' => trans('messages.pay_invoice', [
+                        'id' => $invoice->uid,
+                    ]),
+                    'email' => $card['email'],
+                    'authorization_code' => $card['authorization_code'],
+                ]);
+
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+            } catch (\Exception $e) {
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
+            }
+        });
+    }
+
     /**
      * Request PayPal service.
      *
@@ -197,35 +241,6 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
                 'email' => $metadata['last_transaction']['data']['customer']['email'],
                 'last4' => $metadata['last_transaction']['data']['authorization']['last4'],
             ];
-        }
-    }
-
-    /**
-     * Check invoice for paying.
-     *
-     * @return void
-    */
-    public function autoCharge($invoice)
-    {
-        $card = $this->getCard($invoice->customer);
-
-        try {
-            // charge invoice
-            $this->doCharge([
-                'amount' => $invoice->total(),
-                'currency' => $invoice->currency->code,
-                'description' => trans('messages.pay_invoice', [
-                    'id' => $invoice->uid,
-                ]),
-                'email' => $card['email'],
-                'authorization_code' => $card['authorization_code'],
-            ]);
-
-            // pay invoice
-            $invoice->fulfill();
-        } catch (\Exception $e) {
-            // transaction
-            $invoice->payFailed($e->getMessage());
         }
     }
 

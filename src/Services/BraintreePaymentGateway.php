@@ -5,6 +5,9 @@ namespace Acelle\Cashier\Services;
 use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Acelle\Cashier\Cashier;
 use Carbon\Carbon;
+use Acelle\Model\Invoice;
+use Acelle\Library\TransactionVerificationResult;
+use Acelle\Model\Transaction;
 
 class BraintreePaymentGateway implements PaymentGatewayInterface
 {
@@ -68,6 +71,46 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
     public function isActive() : bool
     {
         return $this->active;
+    }
+
+    public function verify(Transaction $transaction) : TransactionVerificationResult
+    {
+        return new TransactionVerificationResult(TransactionVerificationResult::RESULT_VERIFICATION_NOT_NEEDED);
+    }
+
+    public function needApproval() : bool
+    {
+        return false;
+    }
+
+    /**
+     * Check invoice for paying.
+     *
+     * @return void
+     */
+    public function autoCharge($invoice)
+    {
+        $gateway = $this;
+
+        $invoice->checkout($this, function($invoice) use ($gateway) {
+            $autoBillingData = $invoice->customer->getAutoBillingData();
+
+            try {
+                // charge invoice
+                $gateway->doCharge([
+                    'paymentMethodToken' => $autoBillingData->getData()['paymentMethodToken'],
+                    'amount' => $invoice->total(),
+                    'currency' => $invoice->currency->code,
+                    'description' => trans('messages.pay_invoice', [
+                        'id' => $invoice->uid,
+                    ]),
+                ]);
+
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+            } catch (\Exception $e) {
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
+            }
+        });
     }
 
     public function getEnvironment()
@@ -185,34 +228,6 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
               'paymentMethodNonce' => $nonce
             ]
         );
-    }
-
-    /**
-     * Check invoice for paying.
-     *
-     * @return void
-     */
-    public function autoCharge($invoice)
-    {
-        $autoBillingData = $invoice->customer->getAutoBillingData();
-
-        try {
-            // charge invoice
-            $this->doCharge([
-                'paymentMethodToken' => $autoBillingData->getData()['paymentMethodToken'],
-                'amount' => $invoice->total(),
-                'currency' => $invoice->currency->code,
-                'description' => trans('messages.pay_invoice', [
-                    'id' => $invoice->uid,
-                ]),
-            ]);
-
-            // pay invoice
-            $invoice->fulfill();
-        } catch (\Exception $e) {
-            // pay failed
-            $invoice->payFailed($e->getMessage());
-        }
     }
 
     /**

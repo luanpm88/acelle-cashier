@@ -9,6 +9,9 @@ use Stripe\Subscription as StripeSubscription;
 use Acelle\Cashier\Cashier;
 use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Carbon\Carbon;
+use Acelle\Model\Invoice;
+use Acelle\Library\TransactionVerificationResult;
+use Acelle\Model\Transaction;
 
 class OfflinePaymentGateway implements PaymentGatewayInterface
 {
@@ -63,6 +66,21 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
+    public function supportsAutoBilling() : bool
+    {
+        return false;
+    }
+
+    public function verify(Transaction $transaction) : TransactionVerificationResult
+    {
+        return new TransactionVerificationResult(TransactionVerificationResult::RESULT_VERIFICATION_NOT_NEEDED);
+    }
+
+    public function needApproval() : bool
+    {
+        return true;
+    }
+
     public function autoCharge($invoice)
     {
         throw new \Exception('Offline payment gateway does not support auto charge!');
@@ -76,11 +94,6 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
             Something wrong in your design flow!
             Check if a gateway supports auto billing by calling $gateway->supportsAutoBilling().
         ');
-    }
-
-    public function supportsAutoBilling() : bool
-    {
-        return false;
     }
 
     /**

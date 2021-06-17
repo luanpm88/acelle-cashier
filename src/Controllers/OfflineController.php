@@ -8,8 +8,9 @@ use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
 use Acelle\Model\Setting;
 use Acelle\Library\Facades\Billing;
-
-use \Acelle\Model\Invoice;
+use Acelle\Library\TransactionVerificationResult;
+use Acelle\Model\Invoice;
+use Acelle\Model\Transaction;
 
 class OfflineController extends Controller
 {
@@ -88,7 +89,9 @@ class OfflineController extends Controller
 
         // free plan. No charge
         if ($invoice->total() == 0) {
-            $invoice->fulfill();
+            $invoice->checkout($service, function($invoice) {
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+            });
 
             return redirect()->action('AccountSubscriptionController@index');
         }
@@ -117,8 +120,8 @@ class OfflineController extends Controller
         }
         
         // claim invoice
-        $invoice->checkout(function($invoice) {
-            return false;
+        $invoice->checkout($service, function($invoice) {
+            return new TransactionVerificationResult(TransactionVerificationResult::RESULT_STILL_PENDING);
         });
         
         return redirect()->action('AccountSubscriptionController@index');

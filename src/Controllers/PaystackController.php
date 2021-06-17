@@ -10,7 +10,9 @@ use Acelle\Cashier\Services\StripePaymentGateway;
 use Acelle\Library\Facades\Billing;
 use Acelle\Model\Setting;
 use Acelle\Library\AutoBillingData;
-use \Acelle\Model\Invoice;
+use Acelle\Model\Invoice;
+use Acelle\Library\TransactionVerificationResult;
+use Acelle\Model\Transaction;
 
 class PaystackController extends Controller
 {
@@ -77,7 +79,9 @@ class PaystackController extends Controller
 
         // free plan. No charge
         if ($invoice->total() == 0) {
-            $invoice->fulfill();
+            $invoice->checkout($service, function($invoice) {
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+            });
 
             return redirect()->action('AccountSubscriptionController@index');
         }
@@ -94,7 +98,9 @@ class PaystackController extends Controller
                 // check pay
                 $service->verifyPayment($invoice, $request->reference);
 
-                $invoice->fulfill();
+                $invoice->checkout($service, function($invoice) {
+                    return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+                });
 
                 return redirect()->action('AccountSubscriptionController@index');
             } catch (\Exception $e) {

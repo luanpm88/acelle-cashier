@@ -6,6 +6,9 @@ use Illuminate\Support\Facades\Log;
 use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
+use Acelle\Model\Invoice;
+use Acelle\Library\TransactionVerificationResult;
+use Acelle\Model\Transaction;
 
 class RazorpayPaymentGateway implements PaymentGatewayInterface
 {
@@ -67,6 +70,16 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
+    public function verify(Transaction $transaction) : TransactionVerificationResult
+    {
+        return new TransactionVerificationResult(TransactionVerificationResult::RESULT_VERIFICATION_NOT_NEEDED);
+    }
+
+    public function needApproval() : bool
+    {
+        return false;
+    }
+
     public function autoCharge($invoice)
     {
         throw new \Exception('Razorpay payment gateway does not support auto charge!');
@@ -88,11 +101,14 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
     }
 
     public function getData($invoice) {
-        return $invoice->pendingTransaction()->getMetadata();
+        if (!$invoice->getPendingTransaction()) {
+            return [];
+        }
+        return $invoice->getPendingTransaction()->getMetadata();
     }
 
     public function updateData($invoice, $data) {
-        return $invoice->pendingTransaction()->updateMetadata($data);
+        return $invoice->getPendingTransaction()->updateMetadata($data);
     }
 
     /**
@@ -213,9 +229,9 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
             ]);
         }
         
-        // save customer
-        $data['customer'] = $customer;
-        $this->updateData($invoice, $data);
+        // // save customer
+        // $data['customer'] = $customer;
+        // $this->updateData($invoice, $data);
 
         return $customer;
     }
@@ -268,16 +284,18 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
     */
     public function charge($invoice, $request)
     {
-        try {
-            // charge invoice
-            $this->verifyCharge($request);
+        $gateway = $this;
 
-            // pay invoice
-            $invoice->fulfill();
-        } catch (\Exception $e) {
-            // transaction
-            $invoice->payFailed($e->getMessage());
-        }
+        $invoice->checkout($gateway, function($invoice) use ($gateway, $request) {
+            try {
+                // charge invoice
+                $gateway->verifyCharge($request);
+
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+            } catch (\Exception $e) {
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
+            }
+        });
     }
 
     public function verifyCharge($request)

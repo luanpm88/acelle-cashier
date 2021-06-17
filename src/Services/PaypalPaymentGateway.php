@@ -10,6 +10,9 @@ use PayPalCheckoutSdk\Orders\OrdersGetRequest;
 use PayPalCheckoutSdk\Core\PayPalHttpClient;
 use PayPalCheckoutSdk\Core\SandboxEnvironment;
 use PayPalCheckoutSdk\Core\ProductionEnvironment;
+use Acelle\Model\Invoice;
+use Acelle\Library\TransactionVerificationResult;
+use Acelle\Model\Transaction;
 
 class PaypalPaymentGateway implements PaymentGatewayInterface
 {
@@ -91,9 +94,35 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         ');
     }
 
+    public function needApproval() : bool
+    {
+        return false;
+    }
+
     public function supportsAutoBilling() : bool
     {
         return false;
+    }
+
+    public function verify(Transaction $transaction) : TransactionVerificationResult
+    {
+        return new TransactionVerificationResult(TransactionVerificationResult::RESULT_VERIFICATION_NOT_NEEDED);
+    }
+    
+    public function charge($invoice, $options=[])
+    {
+        $gateway = $this;
+
+        $invoice->checkout($gateway, function($invoice) use ($gateway,$options) {
+            try {
+                // charge invoice
+                $gateway->doCharge($invoice, $options);
+
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+            } catch (\Exception $e) {
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
+            }
+        });
     }
 
     /**
@@ -113,24 +142,6 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         }
         
         return true;
-    }
-
-    /**
-     * Check invoice for paying.
-     *
-     * @return void
-    */
-    public function charge($invoice, $options=[])
-    {
-        try {
-            $this->doCharge($invoice, $options);
-
-            // pay invoice
-            $invoice->fulfill();
-        } catch (\Exception $e) {
-            // pay failed
-            $invoice->payFailed($e->getMessage());
-        }
     }
     
     /**

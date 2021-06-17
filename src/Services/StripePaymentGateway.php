@@ -11,6 +11,9 @@ use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
 use Acelle\Library\AutoBillingData;
+use Acelle\Model\Invoice;
+use Acelle\Library\TransactionVerificationResult;
+use Acelle\Model\Transaction;
 
 class StripePaymentGateway implements PaymentGatewayInterface
 {
@@ -90,6 +93,49 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return true;
     }
 
+    public function verify(Transaction $transaction) : TransactionVerificationResult
+    {
+        return new TransactionVerificationResult(TransactionVerificationResult::RESULT_VERIFICATION_NOT_NEEDED);
+    }
+
+    public function needApproval() : bool
+    {
+        return false;
+    }
+
+    /**
+     * Check invoice for paying.
+     *
+     * @return void
+     */
+    public function autoCharge($invoice)
+    {
+        $gateway = $this;
+
+        $invoice->checkout($this, function($invoice) use ($gateway) {
+            $autoBillingData = $invoice->customer->getAutoBillingData();
+
+            try {
+                // charge invoice
+                $gateway->doCharge([
+                    'customer' => $autoBillingData->getData()['customer'],
+                    'source' => $autoBillingData->getData()['source'],
+                    'amount' => $invoice->total(),
+                    'currency' => $invoice->currency->code,
+                    'description' => trans('messages.pay_invoice', [
+                        'id' => $invoice->uid,
+                    ]),
+                ]);
+
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+            } catch (\Stripe\Exception\CardException $e) {
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getError()->message);
+            } catch (\Exception $e) {
+                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
+            }
+        });
+    }
+
     /**
      * Check if service is valid.
      *
@@ -117,63 +163,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
         } catch (Exception $e) {
             // Something else happened, completely unrelated to Stripe
         }
-    }
-
-    /**
-     * Check invoice for paying.
-     *
-     * @return void
-     */
-    public function autoCharge($invoice)
-    {
-        $invoice->checkout(function($invoice) {
-            $autoBillingData = $invoice->customer->getAutoBillingData();
-
-            try {
-                // charge invoice
-                $this->doCharge([
-                    'customer' => $autoBillingData->getData()['customer'],
-                    'source' => $autoBillingData->getData()['source'],
-                    'amount' => $invoice->total(),
-                    'currency' => $invoice->currency->code,
-                    'description' => trans('messages.pay_invoice', [
-                        'id' => $invoice->uid,
-                    ]),
-                ]);
-            } catch (\Stripe\Exception\CardException $e) {
-                // pay failed
-                throw new \Exception($e->getError()->message);
-            } catch (\Exception $e) {
-                // pay failed
-                throw new \Exception($e->getMessage());
-            }
-        });
-
-        // $autoBillingData = $invoice->customer->getAutoBillingData();
-
-        // try {
-        //     // charge invoice
-        //     $this->doCharge([
-        //         'customer' => $autoBillingData->getData()['customer'],
-        //         'source' => $autoBillingData->getData()['source'],
-        //         'amount' => $invoice->total(),
-        //         'currency' => $invoice->currency->code,
-        //         'description' => trans('messages.pay_invoice', [
-        //             'id' => $invoice->uid,
-        //         ]),
-        //     ]);
-        // } catch (\Stripe\Exception\CardException $e) {
-        //     // pay failed
-        //     $invoice->payFailed($e->getError()->message);
-        //     return;
-        // } catch (\Exception $e) {
-        //     // pay failed
-        //     $invoice->payFailed($e->getMessage());
-        //     return;
-        // }
-
-        // // pay invoice
-        // $invoice->fulfill();
     }
     
     /**
