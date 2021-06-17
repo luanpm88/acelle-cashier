@@ -140,8 +140,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
                         'id' => $invoice->uid,
                     ]),
                 ]);
-
-                return true;
             } catch (\Stripe\Exception\CardException $e) {
                 // pay failed
                 throw new \Exception($e->getError()->message);
@@ -149,8 +147,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
                 // pay failed
                 throw new \Exception($e->getMessage());
             }
-
-            return false;
         });
 
         // $autoBillingData = $invoice->customer->getAutoBillingData();
