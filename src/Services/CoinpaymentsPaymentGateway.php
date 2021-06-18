@@ -94,7 +94,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         }
     }
 
-    public function needApproval() : bool
+    public function allowManualReviewingOfTransaction() : bool
     {
         return false;
     }
