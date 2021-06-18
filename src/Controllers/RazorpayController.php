@@ -12,6 +12,7 @@ use Acelle\Model\Invoice;
 use Acelle\Library\TransactionVerificationResult;
 use Acelle\Model\Transaction;
 use Acelle\Library\AutoBillingData;
+use Acelle\Cashier\Services\RazorpayPaymentGateway;
 
 class RazorpayController extends Controller
 {
@@ -25,21 +26,40 @@ class RazorpayController extends Controller
         $gateway = $this->getPaymentService();
 
         if ($request->isMethod('post')) {
-            // validate
-            $this->validate($request, [
+            // make validator
+            $validator = \Validator::make($request->all(), [
                 'key_id' => 'required',
                 'key_secret' => 'required',
             ]);
+
+            // test service
+            $validator->after(function ($validator) use ($gateway, $request) {
+                try {
+                    $razorpay = new RazorpayPaymentGateway($request->key_id, $request->key_secret);
+                    $razorpay->test();
+                } catch(\Exception $e) {
+                    $validator->errors()->add('field', 'Can not connect to ' . $gateway->getName() . '. Error: ' . $e->getMessage());
+                }
+            });
+
+            // redirect if fails
+            if ($validator->fails()) {
+                return response()->view('cashier::razorpay.settings', [
+                    'gateway' => $gateway,
+                    'errors' => $validator->errors(),
+                ], 400);
+            }
 
             // save settings
             Setting::set('cashier.razorpay.key_id', $request->key_id);
             Setting::set('cashier.razorpay.key_secret', $request->key_secret);
 
             // enable if not validate
-            if ($gateway->validate()) {
+            if ($request->enable_gateway) {
                 \Acelle\Model\Setting::enablePaymentGateway($gateway->getType());
             }
 
+            $request->session()->flash('alert-success', trans('cashier::messages.gateway.updated'));
             return redirect()->action('Admin\PaymentController@index');
         }
 

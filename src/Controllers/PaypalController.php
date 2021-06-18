@@ -26,12 +26,30 @@ class PaypalController extends Controller
         $gateway = $this->getPaymentService();
 
         if ($request->isMethod('post')) {
-            // validate
-            $this->validate($request, [
+            // make validator
+            $validator = \Validator::make($request->all(), [
                 'environment' => 'required',
                 'client_id' => 'required',
                 'secret' => 'required',
             ]);
+
+            // test service
+            $validator->after(function ($validator) use ($gateway, $request) {
+                try {
+                    $paypal = new PaypalPaymentGateway($request->environment, $request->client_id, $request->secret);
+                    $paypal->test();
+                } catch(\Exception $e) {
+                    $validator->errors()->add('field', 'Can not connect to ' . $gateway->getName() . '. Error: ' . $e->getMessage());
+                }
+            });
+
+            // redirect if fails
+            if ($validator->fails()) {
+                return response()->view('cashier::paypal.settings', [
+                    'gateway' => $gateway,
+                    'errors' => $validator->errors(),
+                ], 400);
+            }
 
             // save settings
             Setting::set('cashier.paypal.environment', $request->environment);
@@ -39,10 +57,11 @@ class PaypalController extends Controller
             Setting::set('cashier.paypal.secret', $request->secret);
 
             // enable if not validate
-            if ($gateway->validate()) {
+            if ($request->enable_gateway) {
                 \Acelle\Model\Setting::enablePaymentGateway($gateway->getType());
             }
 
+            $request->session()->flash('alert-success', trans('cashier::messages.gateway.updated'));
             return redirect()->action('Admin\PaymentController@index');
         }
 

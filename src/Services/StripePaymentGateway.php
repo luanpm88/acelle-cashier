@@ -162,6 +162,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
             // yourself an email
         } catch (Exception $e) {
             // Something else happened, completely unrelated to Stripe
+            throw new \Exception($e->getMessage());
         }
     }
     

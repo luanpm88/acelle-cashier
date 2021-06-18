@@ -6,7 +6,7 @@ use Acelle\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log as LaravelLog;
 use Acelle\Cashier\Cashier;
-use Acelle\Cashier\Services\StripePaymentGateway;
+use Acelle\Cashier\Services\PaystackPaymentGateway;
 use Acelle\Library\Facades\Billing;
 use Acelle\Model\Setting;
 use Acelle\Library\AutoBillingData;
@@ -21,22 +21,40 @@ class PaystackController extends Controller
         $gateway = $this->getPaymentService();
 
         if ($request->isMethod('post')) {
-            
-            // validate
-            $this->validate($request, [
+            // make validator
+            $validator = \Validator::make($request->all(), [
                 'public_key' => 'required',
                 'secret_key' => 'required',
             ]);
+
+            // test service
+            $validator->after(function ($validator) use ($gateway, $request) {
+                try {
+                    $paystack = new PaystackPaymentGateway($request->public_key, $request->secret_key);
+                    $paystack->test();
+                } catch(\Exception $e) {
+                    $validator->errors()->add('field', 'Can not connect to ' . $gateway->getName() . '. Error: ' . $e->getMessage());
+                }
+            });
+
+            // redirect if fails
+            if ($validator->fails()) {
+                return response()->view('cashier::paystack.settings', [
+                    'gateway' => $gateway,
+                    'errors' => $validator->errors(),
+                ], 400);
+            }
 
             // save settings
             Setting::set('cashier.paystack.public_key', $request->public_key);
             Setting::set('cashier.paystack.secret_key', $request->secret_key);
 
             // enable if not validate
-            if ($gateway->validate()) {
+            if ($request->enable_gateway) {
                 \Acelle\Model\Setting::enablePaymentGateway($gateway->getType());
             }
 
+            $request->session()->flash('alert-success', trans('cashier::messages.gateway.updated'));
             return redirect()->action('Admin\PaymentController@index');
         }
 

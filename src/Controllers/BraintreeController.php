@@ -21,14 +21,31 @@ class BraintreeController extends Controller
         $gateway = Billing::getGateway('braintree');
 
         if ($request->isMethod('post')) {
-            
-            // validate
-            $this->validate($request, [
+            // make validator
+            $validator = \Validator::make($request->all(), [
                 'environment' => 'required',
                 'merchant_id' => 'required',
                 'public_key' => 'required',
                 'private_key' => 'required',
             ]);
+
+            // test service
+            $validator->after(function ($validator) use ($gateway, $request) {
+                try {
+                    $braintree = new BraintreePaymentGateway($request->environment, $request->merchant_id, $request->public_key, $request->private_key);
+                    $braintree->test();
+                } catch(\Exception $e) {
+                    $validator->errors()->add('field', 'Can not connect to ' . $gateway->getName() . '. Error: ' . $e->getMessage());
+                }
+            });
+
+            // redirect if fails
+            if ($validator->fails()) {
+                return response()->view('cashier::braintree.settings', [
+                    'gateway' => $gateway,
+                    'errors' => $validator->errors(),
+                ], 400);
+            }
 
             // save settings
             Setting::set('cashier.braintree.environment', $request->environment);
@@ -37,10 +54,11 @@ class BraintreeController extends Controller
             Setting::set('cashier.braintree.private_key', $request->private_key);
 
             // enable if not validate
-            if ($gateway->validate()) {
+            if ($request->enable_gateway) {
                 \Acelle\Model\Setting::enablePaymentGateway($gateway->getType());
             }
 
+            $request->session()->flash('alert-success', trans('cashier::messages.gateway.updated'));
             return redirect()->action('Admin\PaymentController@index');
         }
 

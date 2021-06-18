@@ -26,8 +26,8 @@ class CoinpaymentsController extends Controller
         $gateway = $this->getPaymentService();
 
         if ($request->isMethod('post')) {
-            // validate
-            $this->validate($request, [
+            // make validator
+            $validator = \Validator::make($request->all(), [
                 'merchant_id' => 'required',
                 'public_key' => 'required',
                 'private_key' => 'required',
@@ -35,6 +35,25 @@ class CoinpaymentsController extends Controller
                 'ipn_secret' => 'required',
                 'receive_currency' => 'required',
             ]);
+
+            // test service
+            $validator->after(function ($validator) use ($gateway, $request) {
+                try {
+                    $coinpayments = new CoinpaymentsPaymentGateway(
+                        $request->merchant_id, $request->public_key, $request->private_key, $request->ipn_secret, $request->receive_currency);
+                    $coinpayments->test();
+                } catch(\Exception $e) {
+                    $validator->errors()->add('field', 'Can not connect to ' . $gateway->getName() . '. Error: ' . $e->getMessage());
+                }
+            });
+
+            // redirect if fails
+            if ($validator->fails()) {
+                return response()->view('cashier::coinpayments.settings', [
+                    'gateway' => $gateway,
+                    'errors' => $validator->errors(),
+                ], 400);
+            }
 
             // save settings
             Setting::set('cashier.coinpayments.merchant_id', $request->merchant_id);
@@ -44,10 +63,11 @@ class CoinpaymentsController extends Controller
             Setting::set('cashier.coinpayments.ipn_secret', $request->ipn_secret);
 
             // enable if not validate
-            if ($gateway->validate()) {
+            if ($request->enable_gateway) {
                 \Acelle\Model\Setting::enablePaymentGateway($gateway->getType());
             }
 
+            $request->session()->flash('alert-success', trans('cashier::messages.gateway.updated'));
             return redirect()->action('Admin\PaymentController@index');
         }
 
