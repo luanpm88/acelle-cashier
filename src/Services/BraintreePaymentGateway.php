@@ -78,7 +78,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         return new TransactionVerificationResult(TransactionVerificationResult::RESULT_VERIFICATION_NOT_NEEDED);
     }
 
-    public function needApproval() : bool
+    public function allowManualReviewingOfTransaction() : bool
     {
         return false;
     }
