@@ -122,4 +122,6 @@
     'stripe.no_card' => 'You have no card. Click the button below to add one.',
     'gateway.updated' => 'Gateway settings were updated',
     'save_and_enable' => 'Save & Enable',
+    'connect' => 'Connect',
+    'cancel' => 'Cancel',
 );
