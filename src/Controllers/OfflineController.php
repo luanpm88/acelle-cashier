@@ -29,7 +29,7 @@ class OfflineController extends Controller
 
             // enable if not validate
             if ($gateway->validate()) {
-                \Acelle\Model\Setting::enablePaymentGateway($gateway->getType());
+                Billing::enablePaymentGateway($gateway->getType());
             }
 
             return redirect()->action('Admin\PaymentController@index');

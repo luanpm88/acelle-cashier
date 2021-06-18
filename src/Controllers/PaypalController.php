@@ -58,7 +58,7 @@ class PaypalController extends Controller
 
             // enable if not validate
             if ($request->enable_gateway) {
-                \Acelle\Model\Setting::enablePaymentGateway($gateway->getType());
+                Billing::enablePaymentGateway($gateway->getType());
             }
 
             $request->session()->flash('alert-success', trans('cashier::messages.gateway.updated'));
