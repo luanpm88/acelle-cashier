@@ -23,6 +23,11 @@ class CashierServiceProvider extends ServiceProvider
      */
     public function boot()
     {
+        // Only bootstraping the services if the application is already initialized
+        if (!isInitiated()) {
+            return;
+        }
+
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'cashier');
 
         $this->publishes([
