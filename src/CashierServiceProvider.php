@@ -22,6 +22,11 @@ class CashierServiceProvider extends ServiceProvider
      */
     public function boot()
     {
+        // Only bootstraping the services if the application is already initialized
+        if (!isInitiated()) {
+            return;
+        }
+
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'cashier');
 
         $this->publishes([
@@ -41,11 +46,6 @@ class CashierServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/../assets' => public_path('vendor/acelle-cashier'),
         ], 'public');
-
-        // Only bootstraping the services if the application is already initialized
-        if (!isInitiated()) {
-            return;
-        }
 
         // register gateways
         $publishableKey = Setting::get('cashier.stripe.publishable_key');
