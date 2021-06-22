@@ -12,6 +12,7 @@ use Acelle\Cashier\Services\PaystackPaymentGateway;
 use Acelle\Cashier\Services\PaypalPaymentGateway;
 use Acelle\Cashier\Services\RazorpayPaymentGateway;
 use Acelle\Model\Setting;
+use Acelle\Library\Facades\Hook;
 
 class CashierServiceProvider extends ServiceProvider
 {
@@ -27,9 +28,11 @@ class CashierServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/../resources/views' => $this->app->basePath('resources/views/vendor/cashier'),
         ]);
+
+        \Acelle\Library\Tool::xcopy(__DIR__.'/../resources/lang', storage_path('app/cashier/lang')); 
         
         // lang
-        $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'cashier');
+        $this->loadTranslationsFrom(storage_path('app/cashier/lang'), 'cashier');
         
         // routes
         $this->loadRoutesFrom(__DIR__.'/../routes.php');
@@ -83,6 +86,16 @@ class CashierServiceProvider extends ServiceProvider
         $keySecret = Setting::get('cashier.razorpay.key_secret');
         $razorpay = new RazorpayPaymentGateway($keyId, $keySecret);
         Billing::register($razorpay);
+
+        Hook::register('add_translation_file', function() {
+            return [
+                "plugin_name" => "Acelle/Cashier",
+                "file_title" => "Cashier: messages",
+                "translation_folder" => storage_path('app/cashier/lang'),
+                "file_name" => "messages.php",
+                "default" => "en"
+            ];
+        });
     }
 
     /**
