@@ -116,7 +116,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    private function request($type = 'GET', $uri, $headers = [], $body = '')
+    private function request($uri, $type = 'GET', $headers = [], $body = '')
     {
         $client = new \GuzzleHttp\Client();
         $uri = $this->baseUri . $uri;
@@ -135,7 +135,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      */
     public function test()
     {
-        $this->request('GET', 'customers');
+        $this->request('customers', 'GET');
     }
 
     /**
@@ -191,7 +191,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
      */
     public function createRazorpayOrder($invoice, $plan=null)
     {
-        return $this->request('POST', 'orders', [
+        return $this->request('orders', 'POST', [
             "content-type" => "application/json"
         ], [
             "amount" => $this->convertPrice($invoice->total(), $invoice->currency->code),
@@ -214,9 +214,9 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
 
         // get customer
         if (isset($data["customer"])) {
-            $customer = $this->request('GET', 'customers/' . $data["customer"]["id"]);
+            $customer = $this->request('customers/' . $data["customer"]["id"], 'GET');
         } else {
-            $customer = $this->request('POST', 'customers', [
+            $customer = $this->request('customers', 'POST', [
                 "Content-Type" => "application/json"
             ], [
                 "name" => $invoice->customer->displayName(),

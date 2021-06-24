@@ -157,7 +157,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    private function request($type = 'GET', $uri, $headers = [], $body = '')
+    private function request($uri, $type = 'GET', $headers = [], $body = '')
     {
         $client = new \GuzzleHttp\Client();
         $uri = 'https://api.paystack.co/' . $uri;
@@ -180,7 +180,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
     public function test()
     {
         try {
-            $this->request('GET', 'transaction/verify/' . 'ffffff', []);
+            $this->request('transaction/verify/' . 'ffffff', 'GET', []);
         } catch (\Exception $ex) {
             if (strpos($ex->getMessage(), 'Invalid key') !== false) {
                 throw new \Exception('Invalid key');
@@ -195,7 +195,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      */
     public function verifyPayment($invoice, $ref)
     {
-        $result = $this->request('GET', 'transaction/verify/' . $ref, []);
+        $result = $this->request('transaction/verify/' . $ref, 'GET', []);
 
         // transaction failed
         if (!$result['status']) {
@@ -252,7 +252,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      */
     public function doCharge($data)
     {
-        $result = $this->request('POST', 'transaction/charge_authorization', [], [
+        $result = $this->request('transaction/charge_authorization', 'POST', [], [
             'email' => $data['email'],
             'amount' => $data['amount'] * 100,
             'currency' => $data['currency'],
