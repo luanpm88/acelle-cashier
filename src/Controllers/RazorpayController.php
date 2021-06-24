@@ -137,9 +137,6 @@ class RazorpayController extends Controller
             $order = $service->createRazorpayOrder($invoice);
             $customer = $service->getRazorpayCustomer($invoice);
         } catch (\Exception $e) {
-            // pay failed
-            $invoice->payFailed($e->getMessage());
-
             $request->session()->flash('alert-error', $e->getMessage());
             return redirect()->action('AccountSubscriptionController@index');
         }

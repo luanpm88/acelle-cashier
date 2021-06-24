@@ -219,7 +219,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
             $customer = $this->request('customers', 'POST', [
                 "Content-Type" => "application/json"
             ], [
-                "name" => $invoice->customer->displayName(),
+                "name" => $invoice->customer->user->displayName(),
                 "email" => $invoice->customer->user->email,
                 "contact" => "",
                 "fail_existing" => "0",
