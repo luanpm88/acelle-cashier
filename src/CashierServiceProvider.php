@@ -96,6 +96,7 @@ class CashierServiceProvider extends ServiceProvider
 
         Hook::register('add_translation_file', function() {
             return [
+                "id" => 'cashier_message',
                 "plugin_name" => "Acelle/Cashier",
                 "file_title" => "Cashier: messages",
                 "translation_folder" => storage_path('app/cashier/lang'),
