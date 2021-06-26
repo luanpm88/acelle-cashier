@@ -30,10 +30,6 @@ class CashierServiceProvider extends ServiceProvider
 
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'cashier');
 
-        $this->publishes([
-            __DIR__.'/../resources/views' => $this->app->basePath('resources/views/vendor/cashier'),
-        ]);
-
         if (!file_exists(storage_path('app/cashier/lang'))) {
             \Acelle\Library\Tool::xcopy(__DIR__.'/../resources/lang', storage_path('app/cashier/lang')); 
         }
