@@ -148,30 +148,4 @@ class RazorpayController extends Controller
             'customer' => $customer,
         ]);
     }
-
-    /**
-     * Fix transation.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function connect(Request $request)
-    {
-        $service = $this->getPaymentService();
-
-        $request->user()->customer->updatePaymentMethod([
-            'method' => 'razorpay',
-            'user_id' => $request->user()->customer->user->email,
-        ]);
-
-        // Save return url
-        if ($request->return_url) {
-            return redirect()->away($request->return_url);
-        }
-        
-        return view('cashier::razorpay.connect', [
-            'return_url' => $this->getReturnUrl($request),
-        ]);
-    }
 }
