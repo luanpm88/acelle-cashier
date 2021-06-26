@@ -141,28 +141,4 @@ class PaypalController extends Controller
             'service' => $service,
         ]);
     }
-
-    /**
-     * Fix transation.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function connect(Request $request)
-    {
-        $request->user()->customer->updatePaymentMethod([
-            'method' => 'paypal',
-            'user_id' => $request->user()->customer->user->email,
-        ]);
-
-        // Save return url
-        if ($request->return_url) {
-            return redirect()->away($request->return_url);
-        }
-        
-        return view('cashier::paypal.connect', [
-            'return_url' => $this->getReturnUrl($request),
-        ]);
-    }
 }

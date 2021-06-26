@@ -27,7 +27,7 @@ Route::group(['middleware' => ['web'], 'namespace' => 'Acelle\Cashier\Controller
     Route::match(['get', 'post'], '/cashier/braintree/checkout/{invoice_uid}', 'BraintreeController@checkout');
     Route::match(['get', 'post'], '/cashier/braintree/auto-billing-update', 'BraintreeController@autoBillingDataUpdate');
 
-    // direct
+    // coinpayments
     Route::match(['get', 'post'], '/cashier/coinpayments/settings', 'CoinpaymentsController@settings');
     Route::match(['get', 'post'], '/cashier/coinpayments/{invoice_uid}', 'CoinpaymentsController@checkout');
 
