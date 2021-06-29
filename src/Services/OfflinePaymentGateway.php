@@ -42,7 +42,7 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
 
     public function validate()
     {
-        if (!$this->paymentInstruction) {
+        if (!$this->getPaymentInstruction()) {
             $this->active = false;
         } else {
             $this->active = true;

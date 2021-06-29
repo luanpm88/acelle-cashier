@@ -49,15 +49,14 @@ class CashierServiceProvider extends ServiceProvider
         ], 'public');
 
         // register gateways
-        $publishableKey = Setting::get('cashier.stripe.publishable_key');
-        $secretKey = Setting::get('cashier.stripe.secret_key');
-        $stripe = new StripePaymentGateway($publishableKey, $secretKey);
-        Billing::register($stripe);
-
         $paymentInstruction = Setting::get('cashier.offline.payment_instruction');
         $offline = new OfflinePaymentGateway($paymentInstruction);
         Billing::register($offline);
 
+        $publishableKey = Setting::get('cashier.stripe.publishable_key');
+        $secretKey = Setting::get('cashier.stripe.secret_key');
+        $stripe = new StripePaymentGateway($publishableKey, $secretKey);
+        Billing::register($stripe);
 
         $environment = Setting::get('cashier.braintree.environment');
         $merchantId = Setting::get('cashier.braintree.merchant_id');
