@@ -28,7 +28,7 @@ class OfflineController extends Controller
             Setting::set('cashier.offline.payment_instruction', $request->payment_instruction);
 
             // enable if not validate
-            if ($gateway->validate()) {
+            if ($request->enable_gateway) {
                 Billing::enablePaymentGateway($gateway->getType());
             }
 
