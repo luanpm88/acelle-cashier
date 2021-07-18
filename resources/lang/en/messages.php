@@ -1,5 +1,7 @@
 <?php return array(
     'offline' => 'Offline',
+    'offline.user.description' => 'Pay for your subscription & services outside of
+        the application, following the instructions provided during checkout',
     'offline.claim_payment' => 'Claim payment',
     'offline.payment_instruction' => 'Payment Instruction',
     'offline.payment_instruction.default' => '
@@ -22,6 +24,8 @@
         <p class="text-danger" style="color: red">* Above is sample payment information, you can change it in your payment gateway setting page</p>
     ',
     'stripe' => 'Stripe',
+    'stripe.user.description' => 'Pay for your subscription & services using your debit
+        or credit cards. Auto billing is supported',
     'stripe.secret_key' => 'Secret key',
     'stripe.publishable_key' => 'Publishable key',
     'stripe.intro' => 'Stripe is a technology company based in San Francisco, California.
@@ -42,6 +46,8 @@
     'stripe.checkout.processing_payment' => 'Processing your payment... please wait!',
     'pay_invoice' => 'Pay invoice',
     'braintree' => 'Braintree',
+    'braintree.user.description' => 'Pay for your subscription & services using your debit
+        or credit cards. Auto billing is supported',
     'braintree.environment' => 'Environment',
     'braintree.merchant_id' => 'Merchant ID',
     'braintree.public_key' => 'Public key',
@@ -65,6 +71,7 @@
     'braintree.use_this_card' => 'Use this card',
     'coinpayments.receive_currency' => 'Receive Currency Code',
     'coinpayments' => 'Coin-Payments',
+    'coinpayments.user.description' => 'Pay for your subscription & services with a cryptocurrency, via coinpayment.com',
     'coinpayments.list_intro' => 'Receive payment from a cryptocurrency like Bitcoin, Monero, ZCash, etc.',
     'coinpayments.wording' => 'You can accept payments from many cryptocurrencies like Bitcoin, Monero, ZCash, etc. You will need to sign up for a Coin-Payments account, obtain your integration ID and keys and set it up below',
     'coinpayments.merchant_id' => 'Merchant ID',
@@ -86,6 +93,8 @@
     'coinpayments.pending.intro' => 'You have unpaid invoice.
         Click on the <strong>checkout url</strong> to pay or <strong>status url</strong> below to pay/check your payment status',
     'paystack' => 'Paystack',
+    'paystack.user.description' => 'Pay for your subscription & services using your debit
+        or credit cards. Auto billing is supported',
     'paystack.secret_key' => 'Secret key',
     'paystack.public_key' => 'Public key',
     'paystack.intro' => 'Start Accepting Payments Instantly with Razorpay\'s Free Payment Gateway.
@@ -98,6 +107,7 @@
         <br> Your browser will redirect to next page shortly.',
     'paystack.checkout.processing_payment' => 'Processing your payment... please wait!',
     'paypal' => 'Paypal',
+    'paypal.user.description' => 'Pay for your subscription & services using your PayPal account.',
     'paypal.environment' => 'Environment',
     'paypal.client_id' => 'Client ID',
     'paypal.secret' => 'Secret',
@@ -108,6 +118,8 @@
     'paypal.checkout.intro' => 'You are paying an invoice with amount <strong>:price</strong>.
         Click on the button below to finish your payment with PayPal before using plan.',
     'razorpay' => 'Razorpay',
+    'razorpay.user.description' => 'Pay for your subscription & services using your debit
+        or credit cards. Auto billing is not supported',
     'razorpay.key_id' => 'Key ID',
     'razorpay.key_secret' => 'Key Secret',
     'razorpay.intro' => 'Start Accepting Payments Instantly with Razorpay\'s Free Payment Gateway. Supports Netbanking, Credit, Debit Cards etc',
