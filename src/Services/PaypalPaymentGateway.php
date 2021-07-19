@@ -49,7 +49,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
 
     public function getDescription() : string
     {
-        return trans('cashier::messages.paypal.user.description');
+        return 'PayPal is the fast/safe way to send money, make an online payment, receive money or set up a merchant account';
     }
 
     public function validate()

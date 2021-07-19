@@ -46,7 +46,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 
     public function getDescription() : string
     {
-        return trans('cashier::messages.coinpayments.user.description');
+        return 'Receive payment from a cryptocurrency like Bitcoin, Monero, ZCash, etc.';
     }
 
     public function validate()
