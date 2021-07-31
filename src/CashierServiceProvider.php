@@ -29,7 +29,11 @@ class CashierServiceProvider extends ServiceProvider
         }
 
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'cashier');
-        
+
+        if (!file_exists(storage_path('app/cashier/lang/en/messages.php'))) {
+            \Acelle\Helpers\pcopy(__DIR__.'/../resources/lang/en/messages.php', storage_path('app/cashier/lang/en/messages.php'));
+        }
+
         // lang
         $this->loadTranslationsFrom(storage_path('app/cashier/lang'), 'cashier');
         
