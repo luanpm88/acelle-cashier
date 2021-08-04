@@ -48,6 +48,7 @@
                         <form
                             action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@autoBillingDataUpdate') }}" method="POST">
                             {{ csrf_field() }}
+                            <input type="hidden" name="return_url" value="{{ request()->return_url }}" />
                             <input type="submit" name="use_current_card" style="width: 100%;" href="{{ '' }}" class="btn btn-primary mr-2"
                                 value="{{ trans('cashier::messages.braintree.use_this_card') }}" />
                         </form>
@@ -66,6 +67,7 @@
                 <form id="updateCard" style="display: none"
                     action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@autoBillingDataUpdate') }}" method="POST">
                         {{ csrf_field() }}
+                        <input type="hidden" name="return_url" value="{{ request()->return_url }}" />
                         <input type="hidden" name="nonce" value="" />
                 </form>
                 

@@ -44,6 +44,7 @@
                         <form id="stripe_button"
                             action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@autoBillingDataUpdate') }}" method="POST">
                             {{ csrf_field() }}
+                                <input type="hidden" name="return_url" value="{{ request()->return_url }}" />
                                 <input type="submit" name="use_current_card" class="btn btn-primary mr-2"
                                     value="{{ trans('cashier::messages.stripe.use_current_card') }}"
                                 >
@@ -57,6 +58,9 @@
                         <p>{!! trans('cashier::messages.stripe.no_card') !!}</p>
                         <form id="stripe_button" style=""
                             action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@autoBillingDataUpdate') }}" method="POST">
+
+                                <input type="hidden" name="return_url" value="{{ request()->return_url }}" />
+
                                 <a href="javascript:;" class="btn btn-secondary change-card-button">
                                     {{ trans('cashier::messages.stripe.add_card') }}
                                 </a>
@@ -71,6 +75,8 @@
                     '_token' => csrf_token(),
                 ]) }}" method="POST">
 
+                    <input type="hidden" name="return_url" value="{{ request()->return_url }}" /> 
+
                     <script
                     src="https://checkout.stripe.com/checkout.js" class="stripe-button"
                     data-key="{{ $service->getPublishableKey() }}"
@@ -82,7 +88,7 @@
                 </form>
 
                 <a
-                    href="{{ \Acelle\Cashier\Cashier::lr_action('AccountSubscriptionController@index') }}"
+                    href="{{ \Acelle\Cashier\Cashier::lr_action('SubscriptionController@index') }}"
                     class="text-muted mt-4" style="text-decoration: underline; display: block"
                 >{{ trans('cashier::messages.stripe.return_back') }}</a>
                 

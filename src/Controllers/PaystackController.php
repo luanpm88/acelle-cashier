@@ -101,7 +101,7 @@ class PaystackController extends Controller
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             });
 
-            return redirect()->action('AccountSubscriptionController@index');
+            return redirect()->action('SubscriptionController@index');
         }
 
         if ($service->getCard($invoice->customer)) {
@@ -120,11 +120,11 @@ class PaystackController extends Controller
                     return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
                 });
 
-                return redirect()->action('AccountSubscriptionController@index');
+                return redirect()->action('SubscriptionController@index');
             } catch (\Exception $e) {
                 // return with error message
                 $request->session()->flash('alert-error', $e->getMessage());
-                return redirect()->action('AccountSubscriptionController@index');
+                return redirect()->action('SubscriptionController@index');
             }
         }
 
@@ -154,7 +154,7 @@ class PaystackController extends Controller
         // autopay
         $service->autoCharge($invoice);
 
-        return redirect()->action('AccountSubscriptionController@index');
+        return redirect()->action('SubscriptionController@index');
     }
 
     /**
@@ -169,6 +169,6 @@ class PaystackController extends Controller
         // Get current customer
         $service = $this->getPaymentService();
         
-        return redirect()->action('AccountSubscriptionController@index');
+        return redirect()->action('SubscriptionController@index');
     }
 }

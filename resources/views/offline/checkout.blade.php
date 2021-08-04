@@ -38,11 +38,11 @@
                     >{{ trans('cashier::messages.offline.claim_payment') }}</button>
                 </form>
 
-                <form id="cancelForm" method="POST" action="{{ action('AccountSubscriptionController@cancelInvoice', [
+                <form id="cancelForm" method="POST" action="{{ action('SubscriptionController@cancelInvoice', [
                             'invoice_uid' => $invoice->uid,
                 ]) }}">
                     {{ csrf_field() }}
-                    <a href="{{ action('AccountSubscriptionController@index') }}">
+                    <a href="{{ action('SubscriptionController@index') }}">
                         {{ trans('cashier::messages.go_back') }}
                     </a>
                 </form>

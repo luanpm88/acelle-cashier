@@ -81,21 +81,6 @@ class PaypalController extends Controller
     }
 
     /**
-     * Get return url.
-     *
-     * @return string
-     **/
-    public function getReturnUrl(Request $request)
-    {
-        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
-        if (!$return_url) {
-            $return_url = Cashier::public_url('/');
-        }
-
-        return $return_url;
-    }
-
-    /**
      * Subscription checkout page.
      *
      * @param \Illuminate\Http\Request $request
@@ -124,7 +109,7 @@ class PaypalController extends Controller
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             });
 
-            return redirect()->action('AccountSubscriptionController@index');
+            return redirect()->action('SubscriptionController@index');
         }
 
         if ($request->isMethod('post')) {
@@ -133,7 +118,7 @@ class PaypalController extends Controller
             ]);
 
             // return back
-            return redirect()->action('AccountSubscriptionController@index');
+            return redirect()->action('SubscriptionController@index');
         }
 
         return view('cashier::paypal.checkout', [

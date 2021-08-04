@@ -106,7 +106,7 @@ class BraintreeController extends Controller
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             });
 
-            return redirect()->action('AccountSubscriptionController@index');
+            return redirect()->action('SubscriptionController@index');
         }
 
         // Customer has no card
@@ -123,7 +123,7 @@ class BraintreeController extends Controller
             $result = $service->autoCharge($invoice);
 
             // return back
-            return redirect()->action('AccountSubscriptionController@index');
+            return redirect()->action('SubscriptionController@index');
         }
 
         return view('cashier::braintree.charging', [
@@ -170,7 +170,11 @@ class BraintreeController extends Controller
             
             // return to billing page
             $request->session()->flash('alert-success', trans('cashier::messages.braintree.connected'));
-            return redirect()->action('AccountSubscriptionController@index');
+            if ($request->return_url) {
+                return redirect()->away($request->return_url);
+            } else {
+                return redirect()->action('SubscriptionController@index');
+            }
         }
         
         return view('cashier::braintree.autoBillingDataUpdate', [

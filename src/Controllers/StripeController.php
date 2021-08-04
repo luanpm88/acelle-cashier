@@ -105,7 +105,7 @@ class StripeController extends Controller
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             });
 
-            return redirect()->action('AccountSubscriptionController@index');
+            return redirect()->action('SubscriptionController@index');
         }
 
         // Customer has no card
@@ -122,7 +122,7 @@ class StripeController extends Controller
             $service->autoCharge($invoice);
 
             // return back
-            return redirect()->action('AccountSubscriptionController@index');
+            return redirect()->action('SubscriptionController@index');
         }
 
         return view('cashier::stripe.charging', [
@@ -167,7 +167,11 @@ class StripeController extends Controller
             
             // return to billing page
             $request->session()->flash('alert-success', trans('cashier::messages.stripe.connected'));
-            return redirect()->action('AccountSubscriptionController@index');
+            if ($request->return_url) {
+                return redirect()->away($request->return_url);
+            } else {
+                return redirect()->action('SubscriptionController@index');
+            }
         }
         
         return view('cashier::stripe.autoBillingDataUpdate', [

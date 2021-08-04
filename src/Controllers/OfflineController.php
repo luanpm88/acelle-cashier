@@ -44,21 +44,6 @@ class OfflineController extends Controller
     {
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
     }
-
-    /**
-     * Get return url.
-     *
-     * @return string
-     **/
-    public function getReturnUrl(Request $request)
-    {
-        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
-        if (!$return_url) {
-            $return_url = Cashier::public_url('/');
-        }
-
-        return $return_url;
-    }
     
     /**
      * Get current payment service.
@@ -93,7 +78,7 @@ class OfflineController extends Controller
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             });
 
-            return redirect()->action('AccountSubscriptionController@index');
+            return redirect()->action('SubscriptionController@index');
         }
         
         return view('cashier::offline.checkout', [
@@ -124,6 +109,6 @@ class OfflineController extends Controller
             return new TransactionVerificationResult(TransactionVerificationResult::RESULT_STILL_PENDING);
         });
         
-        return redirect()->action('AccountSubscriptionController@index');
+        return redirect()->action('SubscriptionController@index');
     }
 }

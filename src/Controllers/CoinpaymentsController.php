@@ -75,21 +75,6 @@ class CoinpaymentsController extends Controller
             'gateway' => $gateway,
         ]);
     }
-
-    /**
-     * Get return url.
-     *
-     * @return string
-     **/
-    public function getReturnUrl(Request $request)
-    {
-        $return_url = $request->session()->get('checkout_return_url', Cashier::public_url('/'));
-        if (!$return_url) {
-            $return_url = Cashier::public_url('/');
-        }
-
-        return $return_url;
-    }
     
     /**
      * Get current payment service.
@@ -120,7 +105,7 @@ class CoinpaymentsController extends Controller
 
         // already paid
         if ($invoice->isPaid()) {
-            return redirect()->action('AccountSubscriptionController@index');
+            return redirect()->action('SubscriptionController@index');
         }
 
         // exceptions
@@ -134,13 +119,13 @@ class CoinpaymentsController extends Controller
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             });
 
-            return redirect()->action('AccountSubscriptionController@index');
+            return redirect()->action('SubscriptionController@index');
         }
 
         if ($request->isMethod('post')) {
             $service->charge($invoice);
 
-            return redirect()->action('AccountSubscriptionController@index');
+            return redirect()->action('SubscriptionController@index');
         }
 
         if ($service->getData($invoice) !== null && isset($service->getData($invoice)['txn_id'])) {
