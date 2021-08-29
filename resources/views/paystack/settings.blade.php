@@ -57,13 +57,13 @@
             <div class="text-left">
                 @if ($gateway->isActive())
                     @if (!\Acelle\Library\Facades\Billing::isGatewayEnabled($gateway))
-                        <input type="submit" name="enable_gateway" class="btn btn-primary mr-5" value="{{ trans('cashier::messages.save_and_enable') }}" />
-                        <button class="btn btn-default mr-5">{{ trans('messages.save') }}</button>
+                        <input type="submit" name="enable_gateway" class="btn btn-primary me-1" value="{{ trans('cashier::messages.save_and_enable') }}" />
+                        <button class="btn btn-default me-1">{{ trans('messages.save') }}</button>
                     @else
-                        <button class="btn btn-primary mr-5">{{ trans('messages.save') }}</button>
+                        <button class="btn btn-primary me-1">{{ trans('messages.save') }}</button>
                     @endif
                 @else
-                    <input type="submit" name="enable_gateway" class="btn btn-primary mr-5" value="{{ trans('cashier::messages.connect') }}" />
+                    <input type="submit" name="enable_gateway" class="btn btn-primary me-1" value="{{ trans('cashier::messages.connect') }}" />
                 @endif
                 <a class="btn btn-default" href="{{ action('Admin\PaymentController@index') }}">{{ trans('messages.cancel') }}</a>
             </div>
