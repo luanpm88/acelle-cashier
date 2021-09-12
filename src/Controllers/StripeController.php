@@ -111,7 +111,15 @@ class StripeController extends Controller
         if ($request->isMethod('post')) {
             // Use current card
             if ($request->current_card) {
-                $service->updatePaymentMethod($customer, $invoice);
+                try {
+                    $service->updatePaymentMethod($customer, $invoice);
+                } catch (\Exception $e) {
+                    // invoice checkout
+                    $invoice->checkout($service, function($invoice) {
+                        return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
+                    });
+                    return redirect()->action('SubscriptionController@index');
+                }
 
                 try {
                     // charge invoice
