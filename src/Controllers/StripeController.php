@@ -109,6 +109,7 @@ class StripeController extends Controller
         }
 
         if ($request->isMethod('post')) {
+            // Use current card
             if ($request->current_card) {
                 $service->updatePaymentMethod($customer, $invoice);
 
@@ -136,6 +137,8 @@ class StripeController extends Controller
                     });
                     return redirect()->action('SubscriptionController@index');
                 }
+
+            // Use new card
             } else {
                 $stripeCustomer = $service->getStripeCustomer($customer);
 
