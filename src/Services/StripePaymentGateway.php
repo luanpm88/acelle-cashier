@@ -103,33 +103,46 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return false;
     }
 
-    /**
-     * Check invoice for paying.
-     *
-     * @return void
-     */
+    public function pay($invoice)
+    {
+        $autoBillingData = $invoice->customer->getAutoBillingData();
+
+        // charge invoice
+        $this->doCharge([
+            'customer_id' => $autoBillingData->getData()['customer_id'],
+            'payment_method_id' => $autoBillingData->getData()['payment_method_id'],
+            'amount' => $invoice->total(),
+            'currency' => $invoice->currency->code,
+            'description' => trans('messages.pay_invoice', [
+                'id' => $invoice->uid,
+            ]),
+        ]);
+    }
+
     public function autoCharge($invoice)
     {
         $gateway = $this;
 
         $invoice->checkout($this, function($invoice) use ($gateway) {
-            $autoBillingData = $invoice->customer->getAutoBillingData();
-
             try {
                 // charge invoice
-                $gateway->doCharge([
-                    'customer' => $autoBillingData->getData()['customer'],
-                    'source' => $autoBillingData->getData()['source'],
-                    'amount' => $invoice->total(),
-                    'currency' => $invoice->currency->code,
-                    'description' => trans('messages.pay_invoice', [
-                        'id' => $invoice->uid,
-                    ]),
-                ]);
+                $gateway->pay($invoice);
 
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             } catch (\Stripe\Exception\CardException $e) {
-                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getError()->message);
+                // Error code will be authentication_required if authentication is needed
+                $payment_intent_id = $e->getError()->payment_intent->id;
+                // $payment_intent = \Stripe\PaymentIntent::retrieve($payment_intent_id);
+
+                $authPaymentLink = action("\Acelle\Cashier\Controllers\StripeController@paymentAuth", [
+                    'invoice_uid' => $invoice->uid,
+                    'payment_intent_id' => $payment_intent_id,
+                ]);
+
+                return new TransactionVerificationResult(
+                    TransactionVerificationResult::RESULT_FAILED,
+                    $e->getError()->message . '. Click <a href="' . $authPaymentLink . '">here</a> to authenticate the payment.'
+                );
             } catch (\Exception $e) {
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
             }
@@ -174,14 +187,22 @@ class StripePaymentGateway implements PaymentGatewayInterface
      */
     public function doCharge($data)
     {
-        // Charge customter with current card
-        \Stripe\Charge::create([
-            'amount' => $this->convertPrice($data['amount'], $data['currency']),
-            'currency' => $data['currency'],
-            'customer' => $data['customer'],
-            'source' => $data['source'],
-            'description' => $data['description'],
-        ]);
+        // try {
+            \Stripe\PaymentIntent::create([
+              'amount' => $this->convertPrice($data['amount'], $data['currency']),
+              'currency' => $data['currency'],
+              'customer' => $data['customer_id'],
+              'payment_method' => $data['payment_method_id'],
+              'off_session' => true,
+              'confirm' => true,
+              'description' => $data['description'],
+            ]);
+        // } catch (\Stripe\Exception\CardException $e) {
+        //     // Error code will be authentication_required if authentication is needed
+        //     echo 'Error code is:' . $e->getError()->code;
+        //     $payment_intent_id = $e->getError()->payment_intent->id;
+        //     $payment_intent = \Stripe\PaymentIntent::retrieve($payment_intent_id);
+        // }
     }
 
     /**
@@ -206,22 +227,24 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return is_object($this->getCardInformation($customer));
     }
 
+
+
     /**
      * Get card information from Stripe user.
      *
      * @param  User    $user
      * @return Boolean
      */
-    public function getCardInformation($user)
+    public function getCardInformation($customer)
     {
-        // get or create plan
-        $stripeCustomer = $this->getStripeCustomer($user);
+        $stripeCustomer = $this->getStripeCustomer($customer);
 
-        $cards = $stripeCustomer->sources->all(
-            ['object' => 'card']
-        );
+        $cards = \Stripe\PaymentMethod::all([
+            'customer' => $stripeCustomer->id,
+            'type' => 'card',
+        ]);
 
-        return empty($cards->data) ? null : $cards->data["0"];
+        return empty($cards->data) ? null : $cards->data[0];
     }
 
     /**
@@ -327,5 +350,62 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
 
         return $price / $rate;
+    }
+
+    public function getClientSecret($customer, $invoice)
+    {
+        $stripeCustomer = $this->getStripeCustomer($customer);
+
+        $intent = \Stripe\PaymentIntent::create([
+            'amount' => $this->convertPrice($invoice->total(), $invoice->currency->code),
+            'currency' => $invoice->currency->code,
+            'customer' => $stripeCustomer->id,
+            'description' => trans('messages.pay_invoice', [
+                'id' => $invoice->uid,
+            ]),
+        ]);
+
+        return $intent->client_secret;
+    }
+
+    public function getPaymentMethod($customer)
+    {
+        $autoBillingData = $customer->getAutoBillingData();
+        if ($autoBillingData != null) {
+            try {
+                $paymentMethod = \Stripe\PaymentMethod::retrieve($autoBillingData->getData()['payment_method_id']);
+                return $paymentMethod;
+            } catch (\Exception $e) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    public function updatePaymentMethod($customer, $invoice)
+    {
+        $autoBillingData = $customer->getAutoBillingData();
+        if ($autoBillingData != null) {
+            // update payment billing info
+            \Stripe\PaymentMethod::update(
+                $autoBillingData->getData()['payment_method_id'],
+                [
+                    "billing_details" => [
+                        "address" => [
+                            "city" => null,
+                            "country" => $invoice->billingCountry->code,
+                            "line1" => $invoice->billing_address,
+                            "line2" => null,
+                            "postal_code" => null,
+                            "state" => null,
+                        ],
+                        "email" => $invoice->billing_email,
+                        "name" => $invoice->getBillingName(),
+                        "phone" => $invoice->billing_phone,
+                    ],
+                ]
+            );
+        }
     }
 }

@@ -166,9 +166,6 @@ class PaystackController extends Controller
      **/
     public function autoBillingDataUpdate(Request $request)
     {
-        // Get current customer
-        $service = $this->getPaymentService();
-        
         return redirect()->action('SubscriptionController@index');
     }
 }

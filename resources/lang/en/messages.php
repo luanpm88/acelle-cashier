@@ -22,6 +22,14 @@
         <p class="text-danger" style="color: red">* Above is sample payment information, you can change it in your payment gateway setting page</p>
     ',
     'stripe' => 'Stripe',
+    'stripe.current_card' => 'Your current card',
+    'stripe.pay_with_new_card' => 'Pay with new card',
+    'stripe.pay_with_this_card' => 'Pay with this card',
+    'stripe.new_card' => 'New Card',
+    'stripe.new_card.intro' => 'Fill your card information below and click Pay button.',
+    'card.last4' => 'Last 4 number',
+    'card.brand' => 'Brand',
+    'stripe.pay' => 'Pay',
     'stripe.secret_key' => 'Secret key',
     'stripe.publishable_key' => 'Publishable key',
     'stripe.intro' => 'Stripe is a technology company based in San Francisco, California.
@@ -120,7 +128,7 @@
     'razorpay.pay_with_razorpay' => 'Pay with Razorpay',
     'payment.options' => 'Payment Options',
     'go_back' => 'Go back',
-    'stripe.no_card' => 'You have no card. Click the button below to add one.',
+    'stripe.no_card' => 'Fill your card information below and click Pay button.',
     'gateway.updated' => 'Gateway settings were updated',
     'save_and_enable' => 'Save & Enable',
     'connect' => 'Connect',

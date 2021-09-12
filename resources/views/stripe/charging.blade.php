@@ -34,11 +34,13 @@
                                 'invoice_uid' => $invoice->uid,
                             ]) }}">
                                 {{ csrf_field() }}
+
+                                <input type="hidden" name="payment_method_id" value="{{ request()->payment_method_id }}" />
                             </form>
         
                             <script>
                                 setTimeout(function() {
-                                    $('#pay_now').submit();
+                                    // $('#pay_now').submit();
                                 }, 2000);
                             </script>
                         </div>
