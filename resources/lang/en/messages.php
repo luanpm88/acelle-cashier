@@ -29,6 +29,7 @@
     'stripe.new_card.intro' => 'Fill your card information below and click Pay button.',
     'card.last4' => 'Last 4 number',
     'card.brand' => 'Brand',
+    'stripe.click_to_auth' => 'Click <a href=":link">here</a> to authenticate the payment.',
     'stripe.pay' => 'Pay',
     'stripe.secret_key' => 'Secret key',
     'stripe.publishable_key' => 'Publishable key',

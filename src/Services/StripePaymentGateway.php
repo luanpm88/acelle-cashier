@@ -141,7 +141,9 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
                 return new TransactionVerificationResult(
                     TransactionVerificationResult::RESULT_FAILED,
-                    $e->getError()->message . '. Click <a href="' . $authPaymentLink . '">here</a> to authenticate the payment.'
+                    $e->getError()->message . ' ' . trans('cashier::messages.stripe.click_to_auth', [
+                        'link' => $authPaymentLink,
+                    ])
                 );
             } catch (\Exception $e) {
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
