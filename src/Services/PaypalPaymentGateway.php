@@ -191,4 +191,9 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
             throw new \Exception('Something went wrong:' . json_encode($response->result));
         }
     }
+
+    public function getMinimumChargeAmount($currency)
+    {
+        return 0;
+    }
 }

@@ -305,4 +305,9 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
             throw new \Exception('Can not verify remote order: ' . $request->razorpay_order_id);
         }
     }
+
+    public function getMinimumChargeAmount($currency)
+    {
+        return 0;
+    }
 }

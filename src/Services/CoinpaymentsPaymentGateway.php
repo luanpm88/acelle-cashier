@@ -356,4 +356,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     {
         return $this->coinPaymentsAPI->getRates();
     }
+
+    public function getMinimumChargeAmount($currency)
+    {
+        return 0;
+    }
 }

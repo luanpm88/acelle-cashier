@@ -109,4 +109,9 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
             return trans('cashier::messages.offline.payment_instruction.default');
         }
     }
+    
+    public function getMinimumChargeAmount($currency)
+    {
+        return 0;
+    }
 }
