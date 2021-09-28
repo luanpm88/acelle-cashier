@@ -224,6 +224,11 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
     public function getCard($customer)
     {
         $autoBillingData = $customer->getAutoBillingData();
+
+        if ($autoBillingData == null) {
+            return false;
+        }
+
         $metadata = $autoBillingData->getData();
 
         // check last transaction
