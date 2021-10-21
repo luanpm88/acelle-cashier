@@ -78,7 +78,7 @@ class OfflineController extends Controller
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             });
 
-            return redirect()->action('SubscriptionController@index');
+            return redirect()->action('AccountSubscriptionController@index');
         }
         
         return view('cashier::offline.checkout', [
