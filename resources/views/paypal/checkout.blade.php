@@ -54,7 +54,7 @@
                             return actions.order.create({
                                 purchase_units: [{
                                     amount: {
-                                        value: '{{ $invoice->total() }}',
+                                        value: Math.round(parseFloat('{{ $invoice->total() }}') * 100) / 100, // keep 2 number in decimal
                                     }
                                 }]
                             });
@@ -69,6 +69,10 @@
                                 }));
                                 form.submit();
                             });
+                        },
+                        onError: function (err) {
+                            // For example, redirect to a specific error page
+                            alert(err);
                         }
                     }).render('#paypal-button-container');
                 </script>
