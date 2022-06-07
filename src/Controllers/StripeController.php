@@ -140,7 +140,7 @@ class StripeController extends Controller
                     ]);
                 } catch (\Exception $e) {
                     // invoice checkout
-                    $invoice->checkout($service, function($invoice) {
+                    $invoice->checkout($service, function($invoice) use ($e) {
                         return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
                     });
                     return redirect()->action('SubscriptionController@index');
