@@ -37,7 +37,12 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
 
     public function getDescription() : string
     {
-        return 'Receive payments outside of the application';
+        return trans('cashier::messages.offline.description');
+    }
+
+    public function getShortDescription() : string
+    {
+        return trans('cashier::messages.offline.short_description');
     }
 
     public function validate()

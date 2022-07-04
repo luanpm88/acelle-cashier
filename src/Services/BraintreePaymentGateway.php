@@ -51,7 +51,12 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
 
     public function getDescription() : string
     {
-        return 'Receive payments from Credit / Debit card to your Braintree account';
+        return trans('cashier::messages.braintree.description');
+    }
+
+    public function getShortDescription() : string
+    {
+        return trans('cashier::messages.braintree.short_description');
     }
 
     public function getSettingsUrl() : string

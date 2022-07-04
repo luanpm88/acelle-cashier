@@ -49,7 +49,12 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
     public function getDescription() : string
     {
-        return 'Receive payments from Credit / Debit card to your Stripe account';
+        return trans('cashier::messages.stripe.description');
+    }
+
+    public function getShortDescription() : string
+    {
+        return trans('cashier::messages.stripe.short_description');
     }
 
     public function validate()

@@ -134,4 +134,24 @@
     'save_and_enable' => 'Save & Enable',
     'connect' => 'Connect',
     'cancel' => 'Cancel',
+    'braintree.description' => 'Receive payments from Credit / Debit card to your Braintree account',
+    'coinpayments.description' => 'Receive payment from a cryptocurrency like Bitcoin, Monero, ZCash, etc.',
+    'offline.description' => 'Receive payments outside of the application',
+    'paypal.description' => 'PayPal is the fast/safe way to send money, make an online payment, receive money or set up a merchant account',
+    'paystack.description' => 'Receive payments from Credit / Debit card to your Paystack account',
+    'razorpay.description' => 'Start Accepting Payments Instantly with Razorpay\'s
+        Free Payment Gateway. Supports Netbanking, Credit, Debit Cards etc',
+    'stripe.description' => 'Receive payments from Credit / Debit card to your Stripe account',
+    'braintree.short_description' => 'Pay for your subscription & services using your debit
+        or credit cards. Auto billing is supported',
+    'coinpayments.short_description' => 'Pay for your subscription & services with a cryptocurrency, via coinpayment.com',
+    'offline.short_description' => 'Pay for your subscription & services outside of
+        the application, following the instructions provided during checkout',
+    'paypal.short_description' => 'Pay for your subscription & services using your PayPal account.',
+    'paystack.short_description' => 'Pay for your subscription & services using your debit
+        or credit cards. Auto billing is supported',
+    'razorpay.short_description' => 'Pay for your subscription & services using your debit
+        or credit cards. Auto billing is not supported',
+    'stripe.short_description' => 'Pay for your subscription & services using your debit
+        or credit cards. Auto billing is supported',
 );
