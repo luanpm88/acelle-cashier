@@ -33,6 +33,17 @@ class CashierServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/../assets' => public_path('vendor/acelle-cashier'),
         ], 'public');
+
+        Hook::register('add_translation_file', function() {
+            return [
+                "id" => 'cashier_message',
+                "plugin_name" => "Acelle/Cashier",
+                "file_title" => "Cashier: messages",
+                "translation_folder" => storage_path('app/cashier/lang'),
+                "file_name" => "messages.php",
+                "master_translation_file" => realpath(__DIR__.'/../resources/lang/en/messages.php'),
+            ];
+        });
     }
 
     /**
