@@ -3,6 +3,7 @@
 namespace Acelle\Cashier;
 
 use Illuminate\Support\ServiceProvider;
+use Acelle\Library\Facades\Hook;
 
 class CashierServiceProvider extends ServiceProvider
 {
