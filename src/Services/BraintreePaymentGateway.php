@@ -17,7 +17,9 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
     public $privateKey;
     public $serviceGateway;
     public $active=false;
-    
+
+    public const TYPE = 'braintree';
+
     public function __construct($environment, $merchantId, $publicKey, $privateKey)
     {
         $this->environment = $environment;
@@ -46,7 +48,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
 
     public function getType() : string
     {
-        return 'braintree';
+        return self::TYPE;
     }
 
     public function getDescription() : string

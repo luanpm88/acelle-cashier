@@ -21,6 +21,8 @@ class StripePaymentGateway implements PaymentGatewayInterface
     protected $publishableKey;
     protected $active = false;
 
+    public const TYPE = 'stripe';
+
     /**
      * Construction
      */
@@ -44,7 +46,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
     public function getType() : string
     {
-        return 'stripe';
+        return self::TYPE;
     }
 
     public function getDescription() : string

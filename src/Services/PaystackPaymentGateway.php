@@ -17,6 +17,8 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
     public $secretKey;
     public $active=false;
 
+    public const TYPE = 'paystack';
+
     /**
      * Construction
      */
@@ -35,7 +37,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
 
     public function getType() : string
     {
-        return 'paystack';
+        return self::TYPE;
     }
 
     public function getDescription() : string

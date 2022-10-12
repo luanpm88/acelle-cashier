@@ -16,6 +16,8 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
     public $keySecret;
     public $active=false;
 
+    public const TYPE = 'razorpay';
+
     /**
      * Construction
      */
@@ -35,7 +37,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
 
     public function getType() : string
     {
-        return 'razorpay';
+        return self::TYPE;
     }
 
     public function getDescription() : string

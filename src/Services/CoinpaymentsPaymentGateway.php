@@ -18,7 +18,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     public $receiveCurrency;
     public $coinPaymentsAPI;
     public $active=false;
-    
+
+    public const TYPE = 'coinpayments';
+
     // Contruction
     public function __construct($merchantId, $publicKey, $privateKey, $ipnSecret, $receiveCurrency)
     {
@@ -41,7 +43,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 
     public function getType() : string
     {
-        return 'coinpayments';
+        return self::TYPE;
     }
 
     public function getDescription() : string

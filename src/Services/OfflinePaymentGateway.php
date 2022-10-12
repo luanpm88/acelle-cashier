@@ -18,6 +18,8 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
     protected $paymentInstruction;
     protected $active = false;
 
+    public const TYPE = 'offline';
+
     public function __construct($paymentInstruction)
     {
         $this->paymentInstruction = $paymentInstruction;
@@ -32,7 +34,7 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
 
     public function getType() : string
     {
-        return 'offline';
+        return self::TYPE;
     }
 
     public function getDescription() : string

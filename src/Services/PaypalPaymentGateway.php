@@ -21,7 +21,9 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
     public $client;
     public $environment;
     public $active=false;
-    
+
+    public const TYPE = 'paypal';
+
     public function __construct($environment, $clientId, $secret)
     {
         $this->environment = $environment;
@@ -44,7 +46,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
 
     public function getType() : string
     {
-        return 'paypal';
+        return self::TYPE;
     }
 
     public function getDescription() : string
