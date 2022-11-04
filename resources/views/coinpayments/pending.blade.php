@@ -112,9 +112,16 @@ display: block;" href="{{ $service->getData($invoice)['status_url'] }}">
         </div>
         <div class="col-md-2"></div>
         <div class="col-md-4">
-            @include('invoices.bill', [
-                'bill' => $invoice->getBillingInfo(),
-            ])
+            <div class="card shadow-sm rounded-3 px-2 py-2 mb-4">
+                <div class="card-body p-4">
+                    <span class="material-symbols-rounded card-top-left-icon">
+                        receipt_long
+                    </span>
+                    @include('invoices.bill', [
+                        'bill' => $invoice->getBillingInfo(),
+                    ])
+                </div>
+            </div>
         </div>
     </div>
 @endsection
