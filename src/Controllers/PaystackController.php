@@ -113,10 +113,10 @@ class PaystackController extends Controller
 
         if ($request->isMethod('post')) {
             try {
-                // check pay
-                $service->verifyPayment($invoice, $request->reference);
-
-                $invoice->checkout($service, function($invoice) {
+                $invoice->checkout($service, function($invoice, $service, $request) {
+                    // check pay
+                    $service->verifyPayment($invoice, $request->reference);
+                    
                     return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
                 });
 

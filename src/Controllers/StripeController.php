@@ -111,42 +111,18 @@ class StripeController extends Controller
         if ($request->isMethod('post')) {
             // Use current card
             if ($request->current_card) {
-                try {
+                $invoice->checkout($service, function($invoice) use ($service, $customer) {
                     $service->updatePaymentMethod($customer, $invoice);
-                } catch (\Exception $e) {
-                    // invoice checkout
-                    $invoice->checkout($service, function($invoice) {
-                        return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
-                    });
-                    return redirect()->action('SubscriptionController@index');
-                }
 
-                try {
                     // charge invoice
                     $service->pay($invoice);
-    
-                    // invoice checkout
-                    $invoice->checkout($service, function($invoice) {
-                        return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
-                    });
 
-                    return redirect()->action('SubscriptionController@index');
-                } catch (\Stripe\Exception\CardException $e) {
-                    $payment_intent_id = $e->getError()->payment_intent->id;
-                    
-                    return redirect()->action("\Acelle\Cashier\Controllers\StripeController@paymentAuth", [
-                        'invoice_uid' => $invoice->uid,
-                        'payment_intent_id' => $payment_intent_id,
-                    ]);
-                } catch (\Exception $e) {
-                    // invoice checkout
-                    $invoice->checkout($service, function($invoice) use ($e) {
-                        return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
-                    });
-                    return redirect()->action('SubscriptionController@index');
-                }
+                    return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+                });
 
-            // Use new card
+                return redirect()->action('SubscriptionController@index');
+
+            // Use new card. User already paid before, just return done.
             } else {
                 $stripeCustomer = $service->getStripeCustomer($customer);
 
