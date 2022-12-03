@@ -32,7 +32,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
 
     public function getName() : string
     {
-        return 'Paystack';
+        return trans('cashier::messages.paystack');
     }
 
     public function getType() : string

@@ -32,7 +32,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
 
     public function getName() : string
     {
-        return 'Razorpay';
+        return trans('cashier::messages.razorpay');
     }
 
     public function getType() : string

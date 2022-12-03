@@ -38,7 +38,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
 
     public function getName() : string
     {
-        return 'Coinpayments';
+        return trans('cashier::messages.coinpayments');
     }
 
     public function getType() : string

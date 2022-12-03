@@ -29,7 +29,7 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
 
     public function getName() : string
     {
-        return 'Offline';
+        return trans('cashier::messages.offline');
     }
 
     public function getType() : string

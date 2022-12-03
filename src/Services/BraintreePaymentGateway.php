@@ -43,7 +43,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
 
     public function getName() : string
     {
-        return 'Braintree';
+        return trans('cashier::messages.braintree');
     }
 
     public function getType() : string

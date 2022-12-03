@@ -41,7 +41,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
     public function getName() : string
     {
-        return 'Stripe';
+        return trans('cashier::messages.stripe');
     }
 
     public function getType() : string

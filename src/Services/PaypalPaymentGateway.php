@@ -41,7 +41,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
 
     public function getName() : string
     {
-        return 'Paypal';
+        return trans('cashier::messages.paypal');
     }
 
     public function getType() : string
