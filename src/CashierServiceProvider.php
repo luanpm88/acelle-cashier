@@ -43,6 +43,10 @@ class CashierServiceProvider extends ServiceProvider
                 "translation_folder" => storage_path('app/cashier/lang'),
                 "file_name" => "messages.php",
                 "master_translation_file" => realpath(__DIR__.'/../resources/lang/en/messages.php'),
+                "master_translation_file_by_language" => [
+                    'en' => realpath(__DIR__.'/../resources/lang/en/messages.php'), // optional
+                    'ja' => realpath(__DIR__.'/../resources/lang/ja/messages.php')
+                ]
             ];
         });
     }
