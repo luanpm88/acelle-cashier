@@ -113,7 +113,7 @@ class PaystackController extends Controller
 
         if ($request->isMethod('post')) {
             try {
-                $invoice->checkout($service, function($invoice, $service, $request) {
+                $invoice->checkout($service, function($invoice) use ($service, $request) {
                     // check pay
                     $service->verifyPayment($invoice, $request->reference);
                     
