@@ -34,47 +34,59 @@
                 <div id="paypal-button-container"></div>
 
                 <script>
-                    var form = jQuery('<form>', {
-                        'action': '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaypalController@checkout', [
-                            'invoice_uid' => $invoice->uid,
-                        ]) }}',
-                        'target': '_top',
-                        'method': 'POST'
-                    }).append(jQuery('<input>', {
-                        'name': '_token',
-                        'value': '{{ csrf_token() }}',
-                        'type': 'hidden'
-                    }));
+                    $(function() {
+                        jQuery.ajax({
+                            url:      'https://www.paypal.com/sdk/js?client-id={{ $service->clientId }}&currency={{ $invoice->currency->code }}',
+                            dataType: 'text',
+                            type:     'GET',
+                            complete:  function(xhr){
+                                if(typeof cb === 'function')
+                                cb.apply(this, [xhr.status]);
+                            }
+                        }).fail(function(e) {alert(e.responseText)});
+                   
+                        var form = jQuery('<form>', {
+                            'action': '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaypalController@checkout', [
+                                'invoice_uid' => $invoice->uid,
+                            ]) }}',
+                            'target': '_top',
+                            'method': 'POST'
+                        }).append(jQuery('<input>', {
+                            'name': '_token',
+                            'value': '{{ csrf_token() }}',
+                            'type': 'hidden'
+                        }));
 
-                    $('body').append(form);
+                        $('body').append(form);
 
-                    paypal.Buttons({
-                        createOrder: function(data, actions) {
-                            // This function sets up the details of the transaction, including the amount and line item details.
-                            return actions.order.create({
-                                purchase_units: [{
-                                    amount: {
-                                        value: Math.round(parseFloat('{{ $invoice->total() }}') * 100) / 100, // keep 2 number in decimal
-                                    }
-                                }]
-                            });
-                        },
-                        onApprove: function(data, actions) {
-                            // This function captures the funds from the transaction.
-                            return actions.order.capture().then(function(details) {
-                                form.append(jQuery('<input>', {
-                                    'name': 'orderID',
-                                    'value': data.orderID,
-                                    'type': 'hidden'
-                                }));
-                                form.submit();
-                            });
-                        },
-                        onError: function (err) {
-                            // For example, redirect to a specific error page
-                            alert(err);
-                        }
-                    }).render('#paypal-button-container');
+                        paypal.Buttons({
+                            createOrder: function(data, actions) {
+                                // This function sets up the details of the transaction, including the amount and line item details.
+                                return actions.order.create({
+                                    purchase_units: [{
+                                        amount: {
+                                            value: Math.round(parseFloat('{{ $invoice->total() }}') * 100) / 100, // keep 2 number in decimal
+                                        }
+                                    }]
+                                });
+                            },
+                            onApprove: function(data, actions) {
+                                // This function captures the funds from the transaction.
+                                return actions.order.capture().then(function(details) {
+                                    form.append(jQuery('<input>', {
+                                        'name': 'orderID',
+                                        'value': data.orderID,
+                                        'type': 'hidden'
+                                    }));
+                                    form.submit();
+                                });
+                            },
+                            onError: function (err) {
+                                // For example, redirect to a specific error page
+                                alert(err);
+                            }
+                        }).render('#paypal-button-container');
+                    });
                 </script>
 
                 <div class="my-4">

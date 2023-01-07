@@ -104,13 +104,6 @@ class PaystackController extends Controller
             return redirect()->action('SubscriptionController@index');
         }
 
-        if ($service->getCard($invoice->customer)) {
-            return view('cashier::paystack.charging', [
-                'service' => $service,
-                'invoice' => $invoice,
-            ]);
-        }
-
         if ($request->isMethod('post')) {
             try {
                 $invoice->checkout($service, function($invoice) use ($service, $request) {
