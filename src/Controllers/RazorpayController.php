@@ -87,7 +87,6 @@ class RazorpayController extends Controller
     **/
     public function checkout(Request $request, $invoice_uid)
     {
-        $customer = $request->user()->customer;
         $service = $this->getPaymentService();
         $invoice = Invoice::findByUid($invoice_uid);
         

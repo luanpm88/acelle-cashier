@@ -86,9 +86,9 @@ class BraintreeController extends Controller
     **/
     public function checkout(Request $request, $invoice_uid)
     {
-        $customer = $request->user()->customer;
         $service = $this->getPaymentService();
         $invoice = Invoice::findByUid($invoice_uid);
+        $customer = $invoice->customer;
         
         // Save return url
         if ($request->return_url) {
