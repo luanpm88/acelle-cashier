@@ -121,7 +121,7 @@
                             name: '{{ $invoice->getBillingName() }}',
                             "address": {
                             "city": null,
-                                "country": '{{ $invoice->billingCountry ? $invoice->billingCountry->code : '' }}',
+                                "country": '{{ $invoice->getBillingCountryCode() }}',
                                 "line1": '{{ $invoice->billing_address }}',
                                 "line2": null,
                                 "postal_code": null,
