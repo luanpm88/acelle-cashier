@@ -49,7 +49,7 @@
                             key: '{{ $service->publicKey }}', // Replace with your public key
                             email: '{{ $invoice->customer->user->email }}',
                             amount: {{ $invoice->total() }} * 100, // the amount value is multiplied by 100 to convert to the lowest currency unit
-                            currency: '{{ $invoice->currency->code }}', // Use GHS for Ghana Cedis or USD for US Dollars
+                            currency: '{{ $invoice->getCurrencyCode() }}', // Use GHS for Ghana Cedis or USD for US Dollars
                             firstname: '{{ $invoice->billing_first_name }}',
                             lastname: '{{ $invoice->billing_last_name }}',
                             phone: '{{ $invoice->billing_phone }}',

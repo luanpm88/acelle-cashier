@@ -28,7 +28,7 @@
                 ]) !!}</p>
 
                 <script
-                    src="https://www.paypal.com/sdk/js?client-id={{ $service->clientId }}&currency={{ $invoice->currency->code }}"> // Required. Replace SB_clientId with your sandbox client ID.
+                    src="https://www.paypal.com/sdk/js?client-id={{ $service->clientId }}&currency={{ $invoice->getCurrencyCode() }}"> // Required. Replace SB_clientId with your sandbox client ID.
                 </script>
                     
                 <div id="paypal-button-container"></div>
@@ -36,7 +36,7 @@
                 <script>
                     $(function() {
                         jQuery.ajax({
-                            url:      'https://www.paypal.com/sdk/js?client-id={{ $service->clientId }}&currency={{ $invoice->currency->code }}',
+                            url:      'https://www.paypal.com/sdk/js?client-id={{ $service->clientId }}&currency={{ $invoice->getCurrencyCode() }}',
                             dataType: 'text',
                             type:     'GET',
                             complete:  function(xhr){

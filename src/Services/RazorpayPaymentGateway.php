@@ -201,8 +201,8 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         return $this->request('orders', 'POST', [
             "content-type" => "application/json"
         ], [
-            "amount" => $this->convertPrice($invoice->total(), $invoice->currency->code),
-            "currency" => $invoice->currency->code,
+            "amount" => $this->convertPrice($invoice->total(), $invoice->getCurrencyCode()),
+            "currency" => $invoice->getCurrencyCode(),
             "receipt" => "rcptid_" . $invoice->uid,
             "payment_capture" => 1,
         ]);
