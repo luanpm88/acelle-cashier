@@ -78,7 +78,7 @@ class OfflineController extends Controller
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             });
 
-            return redirect()->action('SubscriptionController@index');
+            return redirect()->away(Billing::getReturnUrl());;
         }
         
         return view('cashier::offline.checkout', [
@@ -109,6 +109,6 @@ class OfflineController extends Controller
             return new TransactionVerificationResult(TransactionVerificationResult::RESULT_STILL_PENDING);
         });
         
-        return redirect()->action('SubscriptionController@index');
+        return redirect()->away(Billing::getReturnUrl());;
     }
 }

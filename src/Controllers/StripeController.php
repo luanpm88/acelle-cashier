@@ -105,7 +105,7 @@ class StripeController extends Controller
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             });
 
-            return redirect()->action('SubscriptionController@index');
+            return redirect()->away(Billing::getReturnUrl());;
         }
 
         if ($request->isMethod('post')) {
@@ -120,7 +120,7 @@ class StripeController extends Controller
                     return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
                 });
 
-                return redirect()->action('SubscriptionController@index');
+                return redirect()->away(Billing::getReturnUrl());;
 
             // Use new card. User already paid before, just return done.
             } else {
@@ -163,6 +163,6 @@ class StripeController extends Controller
 
     public function autoBillingDataUpdate(Request $request)
     {
-        return redirect()->action('SubscriptionController@index');
+        return redirect()->away(Billing::getReturnUrl());;
     }
 }

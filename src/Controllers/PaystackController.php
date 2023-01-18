@@ -101,7 +101,7 @@ class PaystackController extends Controller
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             });
 
-            return redirect()->action('SubscriptionController@index');
+            return redirect()->away(Billing::getReturnUrl());;
         }
 
         if ($request->isMethod('post')) {
@@ -113,11 +113,11 @@ class PaystackController extends Controller
                     return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
                 });
 
-                return redirect()->action('SubscriptionController@index');
+                return redirect()->away(Billing::getReturnUrl());;
             } catch (\Exception $e) {
                 // return with error message
                 $request->session()->flash('alert-error', $e->getMessage());
-                return redirect()->action('SubscriptionController@index');
+                return redirect()->away(Billing::getReturnUrl());;
             }
         }
 
@@ -147,7 +147,7 @@ class PaystackController extends Controller
         // autopay
         $service->autoCharge($invoice);
 
-        return redirect()->action('SubscriptionController@index');
+        return redirect()->away(Billing::getReturnUrl());;
     }
 
     /**
@@ -159,6 +159,6 @@ class PaystackController extends Controller
      **/
     public function autoBillingDataUpdate(Request $request)
     {
-        return redirect()->action('SubscriptionController@index');
+        return redirect()->away(Billing::getReturnUrl());;
     }
 }

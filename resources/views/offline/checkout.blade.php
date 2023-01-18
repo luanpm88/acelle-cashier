@@ -42,7 +42,7 @@
                             'invoice_uid' => $invoice->uid,
                 ]) }}">
                     {{ csrf_field() }}
-                    <a href="{{ action('SubscriptionController@index') }}">
+                    <a href="{{ Billing::getReturnUrl() }}">
                         {{ trans('cashier::messages.go_back') }}
                     </a>
                 </form>
