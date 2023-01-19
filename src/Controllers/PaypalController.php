@@ -89,7 +89,6 @@ class PaypalController extends Controller
     **/
     public function checkout(Request $request, $invoice_uid)
     {
-        $customer = $request->user()->customer;
         $service = $this->getPaymentService();
         $invoice = Invoice::findByUid($invoice_uid);
         
@@ -109,7 +108,7 @@ class PaypalController extends Controller
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             });
 
-            return redirect()->action('SubscriptionController@index');
+            return redirect()->away(Billing::getReturnUrl());;
         }
 
         if ($request->isMethod('post')) {
@@ -118,7 +117,7 @@ class PaypalController extends Controller
             ]);
 
             // return back
-            return redirect()->action('SubscriptionController@index');
+            return redirect()->away(Billing::getReturnUrl());;
         }
 
         return view('cashier::paypal.checkout', [

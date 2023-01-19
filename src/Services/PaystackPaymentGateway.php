@@ -144,7 +144,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
                 // charge invoice
                 $gateway->doCharge([
                     'amount' => $invoice->total(),
-                    'currency' => $invoice->currency->code,
+                    'currency' => $invoice->getCurrencyCode(),
                     'description' => trans('messages.pay_invoice', [
                         'id' => $invoice->uid,
                     ]),

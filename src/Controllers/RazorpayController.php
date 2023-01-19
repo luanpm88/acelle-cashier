@@ -87,7 +87,6 @@ class RazorpayController extends Controller
     **/
     public function checkout(Request $request, $invoice_uid)
     {
-        $customer = $request->user()->customer;
         $service = $this->getPaymentService();
         $invoice = Invoice::findByUid($invoice_uid);
         
@@ -107,7 +106,7 @@ class RazorpayController extends Controller
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             });
 
-            return redirect()->action('SubscriptionController@index');
+            return redirect()->away(Billing::getReturnUrl());;
         }
 
         if ($request->isMethod('post')) {
@@ -115,11 +114,11 @@ class RazorpayController extends Controller
                 $service->charge($invoice, $request);
             } catch (\Exception $e) {    
                 $request->session()->flash('alert-error', $e->getMessage());
-                return redirect()->action('SubscriptionController@index');
+                return redirect()->away(Billing::getReturnUrl());;
             }
 
             // Redirect to my subscription page
-            return redirect()->action('SubscriptionController@index');
+            return redirect()->away(Billing::getReturnUrl());;
         }
 
         // create order
@@ -128,7 +127,7 @@ class RazorpayController extends Controller
             $customer = $service->getRazorpayCustomer($invoice);
         } catch (\Exception $e) {
             $request->session()->flash('alert-error', $e->getMessage());
-            return redirect()->action('SubscriptionController@index');
+            return redirect()->away(Billing::getReturnUrl());;
         }
 
         return view('cashier::razorpay.checkout', [

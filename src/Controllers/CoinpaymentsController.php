@@ -105,7 +105,7 @@ class CoinpaymentsController extends Controller
 
         // already paid
         if ($invoice->isPaid()) {
-            return redirect()->action('SubscriptionController@index');
+            return redirect()->away(Billing::getReturnUrl());;
         }
 
         // exceptions
@@ -119,13 +119,13 @@ class CoinpaymentsController extends Controller
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             });
 
-            return redirect()->action('SubscriptionController@index');
+            return redirect()->away(Billing::getReturnUrl());;
         }
 
         if ($request->isMethod('post')) {
             $service->charge($invoice);
 
-            return redirect()->action('SubscriptionController@index');
+            return redirect()->away(Billing::getReturnUrl());;
         }
 
         if ($service->getData($invoice) !== null && isset($service->getData($invoice)['txn_id'])) {

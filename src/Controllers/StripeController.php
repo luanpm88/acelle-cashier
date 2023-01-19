@@ -90,9 +90,9 @@ class StripeController extends Controller
      **/
     public function checkout(Request $request, $invoice_uid)
     {
-        $customer = $request->user()->customer;
         $service = $this->getPaymentService();
         $invoice = Invoice::findByUid($invoice_uid);
+        $customer = $invoice->customer;
 
         // exceptions
         if (!$invoice->isNew()) {
@@ -105,7 +105,7 @@ class StripeController extends Controller
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             });
 
-            return redirect()->action('SubscriptionController@index');
+            return redirect()->away(Billing::getReturnUrl());;
         }
 
         if ($request->isMethod('post')) {
@@ -120,7 +120,7 @@ class StripeController extends Controller
                     return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
                 });
 
-                return redirect()->action('SubscriptionController@index');
+                return redirect()->away(Billing::getReturnUrl());;
 
             // Use new card. User already paid before, just return done.
             } else {
@@ -163,6 +163,6 @@ class StripeController extends Controller
 
     public function autoBillingDataUpdate(Request $request)
     {
-        return redirect()->action('SubscriptionController@index');
+        return redirect()->away(Billing::getReturnUrl());;
     }
 }

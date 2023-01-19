@@ -32,7 +32,7 @@
                     new Dialog('alert', {
                         message: result.error.message,
                         ok: function() {
-                            window.location = '{{ action('SubscriptionController@index') }}';
+                            window.location = '{{ Billing::getReturnUrl() }}';
                         }
                     });
                 } else {
@@ -48,7 +48,7 @@
                                 payment_method_id: result.paymentIntent.payment_method,
                             }
                         }).done(function(response) {
-                            window.location = '{{ action('SubscriptionController@index') }}';
+                            window.location = '{{ Billing::getReturnUrl() }}';
                         });
                     }
                 }

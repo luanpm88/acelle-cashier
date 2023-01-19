@@ -107,7 +107,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
                 $gateway->doCharge([
                     'paymentMethodToken' => $autoBillingData->getData()['paymentMethodToken'],
                     'amount' => $invoice->total(),
-                    'currency' => $invoice->currency->code,
+                    'currency' => $invoice->getCurrencyCode(),
                     'description' => trans('messages.pay_invoice', [
                         'id' => $invoice->uid,
                     ]),

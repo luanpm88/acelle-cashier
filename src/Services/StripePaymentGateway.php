@@ -119,7 +119,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
             'customer_id' => $autoBillingData->getData()['customer_id'],
             'payment_method_id' => $autoBillingData->getData()['payment_method_id'],
             'amount' => $invoice->total(),
-            'currency' => $invoice->currency->code,
+            'currency' => $invoice->getCurrencyCode(),
             'description' => trans('messages.pay_invoice', [
                 'id' => $invoice->uid,
             ]),
@@ -366,8 +366,8 @@ class StripePaymentGateway implements PaymentGatewayInterface
         $stripeCustomer = $this->getStripeCustomer($customer);
 
         $intent = \Stripe\PaymentIntent::create([
-            'amount' => $this->convertPrice($invoice->total(), $invoice->currency->code),
-            'currency' => $invoice->currency->code,
+            'amount' => $this->convertPrice($invoice->total(), $invoice->getCurrencyCode()),
+            'currency' => $invoice->getCurrencyCode(),
             'customer' => $stripeCustomer->id,
             'description' => trans('messages.pay_invoice', [
                 'id' => $invoice->uid,
@@ -403,7 +403,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
                     "billing_details" => [
                         "address" => [
                             "city" => null,
-                            "country" => $invoice->billingCountry ? $invoice->billingCountry->code : '',
+                            "country" => $invoice->getBillingCountryCode(),
                             "line1" => $invoice->billing_address,
                             "line2" => null,
                             "postal_code" => null,

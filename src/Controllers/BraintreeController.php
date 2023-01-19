@@ -86,9 +86,9 @@ class BraintreeController extends Controller
     **/
     public function checkout(Request $request, $invoice_uid)
     {
-        $customer = $request->user()->customer;
         $service = $this->getPaymentService();
         $invoice = Invoice::findByUid($invoice_uid);
+        $customer = $invoice->customer;
         
         // Save return url
         if ($request->return_url) {
@@ -106,7 +106,7 @@ class BraintreeController extends Controller
                 return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
             });
 
-            return redirect()->action('SubscriptionController@index');
+            return redirect()->away(Billing::getReturnUrl());
         }
 
         // Customer has no card
@@ -123,7 +123,7 @@ class BraintreeController extends Controller
             $result = $service->autoCharge($invoice);
 
             // return back
-            return redirect()->action('SubscriptionController@index');
+            return redirect()->away(Billing::getReturnUrl());;
         }
 
         return view('cashier::braintree.charging', [
@@ -173,7 +173,7 @@ class BraintreeController extends Controller
             if ($request->return_url) {
                 return redirect()->away($request->return_url);
             } else {
-                return redirect()->action('SubscriptionController@index');
+                return redirect()->away(Billing::getReturnUrl());;
             }
         }
         

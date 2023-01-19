@@ -88,7 +88,7 @@
                 </form>
 
                 <a
-                    href="{{ \Acelle\Cashier\Cashier::lr_action('SubscriptionController@index') }}"
+                    href="{{ Billing::getReturnUrl() }}"
                     class="text-muted mt-4" style="text-decoration: underline; display: block"
                 >{{ trans('cashier::messages.stripe.return_back') }}</a>
                 
