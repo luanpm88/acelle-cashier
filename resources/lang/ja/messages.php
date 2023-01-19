@@ -52,9 +52,9 @@
   'connect' => 'Connect',
   'gateway.updated' => 'Gateway settings were updated',
   'go_back' => '戻る',
-  'offline' => 'Offline',
+  'offline' => '銀行振込',
   'offline.claim_payment' => '請求の支払い',
-  'offline.description' => 'Receive payments outside of the application',
+  'offline.description' => '銀行振込による支払い',
   'offline.payment_instruction' => 'Payment Instruction',
   'offline.payment_instruction.default' => '
         <p>Please make a deposit to our bank account at:</p>
