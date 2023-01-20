@@ -4,14 +4,10 @@ namespace Acelle\Cashier\Controllers;
 
 use Acelle\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log as LaravelLog;
-use Acelle\Cashier\Cashier;
 use Acelle\Library\Facades\Billing;
 use Acelle\Model\Setting;
 use Acelle\Model\Invoice;
 use Acelle\Library\TransactionVerificationResult;
-use Acelle\Model\Transaction;
-use Acelle\Library\AutoBillingData;
 use Acelle\Cashier\Services\RazorpayPaymentGateway;
 
 class RazorpayController extends Controller

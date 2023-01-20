@@ -10,7 +10,7 @@ use Stripe\Subscription as StripeSubscription;
 use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
-use Acelle\Library\AutoBillingData;
+use Acelle\Cashier\Library\AutoBillingData;
 use Acelle\Model\Invoice;
 use Acelle\Library\TransactionVerificationResult;
 use Acelle\Model\Transaction;

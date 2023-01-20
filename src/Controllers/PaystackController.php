@@ -4,15 +4,11 @@ namespace Acelle\Cashier\Controllers;
 
 use Acelle\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log as LaravelLog;
-use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Services\PaystackPaymentGateway;
 use Acelle\Library\Facades\Billing;
 use Acelle\Model\Setting;
-use Acelle\Library\AutoBillingData;
 use Acelle\Model\Invoice;
 use Acelle\Library\TransactionVerificationResult;
-use Acelle\Model\Transaction;
 
 class PaystackController extends Controller
 {

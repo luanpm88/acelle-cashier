@@ -4,13 +4,10 @@ namespace Acelle\Cashier\Controllers;
 
 use Acelle\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log as LaravelLog;
-use Acelle\Cashier\Cashier;
 use Acelle\Model\Setting;
 use Acelle\Library\Facades\Billing;
 use Acelle\Library\TransactionVerificationResult;
 use Acelle\Model\Invoice;
-use Acelle\Model\Transaction;
 
 class OfflineController extends Controller
 {
