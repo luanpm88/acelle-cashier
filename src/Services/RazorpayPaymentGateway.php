@@ -3,7 +3,7 @@
 namespace Acelle\Cashier\Services;
 
 use Illuminate\Support\Facades\Log;
-use Acelle\Library\Contracts\PaymentGatewayInterface;
+use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
 use Acelle\Model\Invoice;

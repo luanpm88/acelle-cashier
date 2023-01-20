@@ -7,7 +7,7 @@ use Stripe\Card as StripeCard;
 use Stripe\Token as StripeToken;
 use Stripe\Customer as StripeCustomer;
 use Stripe\Subscription as StripeSubscription;
-use Acelle\Library\Contracts\PaymentGatewayInterface;
+use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
 use Acelle\Library\AutoBillingData;

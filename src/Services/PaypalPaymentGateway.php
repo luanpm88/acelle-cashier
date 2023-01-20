@@ -3,7 +3,7 @@
 namespace Acelle\Cashier\Services;
 
 use Acelle\Cashier\Cashier;
-use Acelle\Library\Contracts\PaymentGatewayInterface;
+use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Sample\PayPalClient;
 use PayPalCheckoutSdk\Orders\OrdersGetRequest;

@@ -2,7 +2,7 @@
 
 namespace Acelle\Cashier\Services;
 
-use Acelle\Library\Contracts\PaymentGatewayInterface;
+use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
 use Acelle\Cashier\Cashier;
 use Carbon\Carbon;
 use Acelle\Model\Invoice;
