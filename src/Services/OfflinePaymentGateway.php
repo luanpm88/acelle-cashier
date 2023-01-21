@@ -10,7 +10,7 @@ use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Model\Invoice;
-use Acelle\Library\TransactionVerificationResult;
+use Acelle\Cashier\Library\TransactionVerificationResult;
 use Acelle\Model\Transaction;
 
 class OfflinePaymentGateway implements PaymentGatewayInterface

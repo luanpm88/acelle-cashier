@@ -9,7 +9,7 @@ use Acelle\Library\Facades\Billing;
 use Acelle\Model\Setting;
 use Acelle\Cashier\Library\AutoBillingData;
 use Acelle\Model\Invoice;
-use Acelle\Library\TransactionVerificationResult;
+use Acelle\Cashier\Library\TransactionVerificationResult;
 
 class BraintreeController extends Controller
 {

@@ -6,7 +6,7 @@ use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Library\CoinPayment\CoinpaymentsAPI;
 use Acelle\Model\Invoice;
-use Acelle\Library\TransactionVerificationResult;
+use Acelle\Cashier\Library\TransactionVerificationResult;
 use Acelle\Model\Transaction;
 
 class CoinpaymentsPaymentGateway implements PaymentGatewayInterface

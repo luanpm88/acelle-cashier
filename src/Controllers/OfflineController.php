@@ -6,7 +6,7 @@ use Acelle\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Acelle\Model\Setting;
 use Acelle\Library\Facades\Billing;
-use Acelle\Library\TransactionVerificationResult;
+use Acelle\Cashier\Library\TransactionVerificationResult;
 use Acelle\Model\Invoice;
 
 class OfflineController extends Controller

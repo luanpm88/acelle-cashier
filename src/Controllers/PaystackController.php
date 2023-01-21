@@ -8,7 +8,7 @@ use Acelle\Cashier\Services\PaystackPaymentGateway;
 use Acelle\Library\Facades\Billing;
 use Acelle\Model\Setting;
 use Acelle\Model\Invoice;
-use Acelle\Library\TransactionVerificationResult;
+use Acelle\Cashier\Library\TransactionVerificationResult;
 
 class PaystackController extends Controller
 {

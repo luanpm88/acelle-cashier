@@ -8,7 +8,7 @@ use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Library\AutoBillingData;
 use Acelle\Model\Invoice;
-use Acelle\Library\TransactionVerificationResult;
+use Acelle\Cashier\Library\TransactionVerificationResult;
 use Acelle\Model\Transaction;
 
 class PaystackPaymentGateway implements PaymentGatewayInterface
