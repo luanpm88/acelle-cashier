@@ -14,10 +14,11 @@ class CashierServiceProvider extends ServiceProvider
      */
     public function boot()
     {
+        // @deprecated, it is a dependency
         // Only bootstraping the services if the application is already initialized
-        if (!isInitiated()) {
-            return;
-        }
+        // if (!isInitiated()) {
+        //     return;
+        // }
 
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'cashier');
 
