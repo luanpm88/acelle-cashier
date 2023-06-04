@@ -14,9 +14,6 @@
 @endsection
 
 @section('content')
-
-    @include("account._menu", ['tab' => 'subscription'])
-
     <div class="row">
         <div class="col-md-6">
             <h2>{!! trans('cashier::messages.pay_invoice') !!}</h2>  
