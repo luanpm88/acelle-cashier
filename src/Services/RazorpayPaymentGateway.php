@@ -3,11 +3,11 @@
 namespace Acelle\Cashier\Services;
 
 use Illuminate\Support\Facades\Log;
-use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
+use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
 use Acelle\Model\Invoice;
-use Acelle\Cashier\Library\TransactionVerificationResult;
+use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
 
 class RazorpayPaymentGateway implements PaymentGatewayInterface
@@ -77,9 +77,9 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
-    public function verify(Transaction $transaction) : TransactionVerificationResult
+    public function verify(Transaction $transaction) : TransactionResult
     {
-        return new TransactionVerificationResult(TransactionVerificationResult::RESULT_VERIFICATION_NOT_NEEDED);
+        return new TransactionResult(TransactionResult::RESULT_VERIFICATION_NOT_NEEDED);
     }
 
     public function allowManualReviewingOfTransaction() : bool
@@ -293,16 +293,14 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
     */
     public function charge($invoice, $request)
     {
-        $gateway = $this;
-
-        $invoice->checkout($gateway, function($invoice) use ($gateway, $request) {
+        $invoice->checkout($this, function($invoice) use ($request) {
             try {
                 // charge invoice
-                $gateway->verifyCharge($request);
+                $this->verifyCharge($request);
 
-                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+                return new TransactionResult(TransactionResult::RESULT_DONE);
             } catch (\Exception $e) {
-                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
+                return new TransactionResult(TransactionResult::RESULT_FAILED, $e->getMessage());
             }
         });
     }

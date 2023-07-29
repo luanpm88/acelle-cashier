@@ -1,12 +1,12 @@
 <?php
 namespace Acelle\Cashier\Services;
 
-use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
+use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Library\CoinPayment\CoinpaymentsAPI;
 use Acelle\Model\Invoice;
-use Acelle\Cashier\Library\TransactionVerificationResult;
+use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
 
 class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
@@ -83,21 +83,21 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
-    public function verify(Transaction $transaction) : TransactionVerificationResult
+    public function verify(Transaction $transaction) : TransactionResult
     {
         $invoice = $transaction->invoice;
 
         $this->updateTransactionRemoteInfo($invoice);
 
         if ($this->getData($invoice)['status'] == 100) {
-            return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+            return new TransactionResult(TransactionResult::RESULT_DONE);
         } elseif ($this->getData($invoice)['status'] < 0) {
-            return new TransactionVerificationResult(
-                TransactionVerificationResult::RESULT_FAILED,
+            return new TransactionResult(
+                TransactionResult::RESULT_FAILED,
                 'Coinpayments remote transaction is failed with error code: ' . $this->getData($invoice)['status']
             );
         } else {
-            return new TransactionVerificationResult(TransactionVerificationResult::RESULT_STILL_PENDING);
+            return new TransactionResult(TransactionResult::RESULT_PENDING);
         }
     }
 
@@ -158,14 +158,12 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
     */
     public function charge($invoice)
     {
-        $gateway = $this;
-
-        $invoice->checkout($gateway, function($invoice) use ($gateway) {
+        $invoice->checkout($this, function($invoice) {
             $autoBillingData = $invoice->customer->getAutoBillingData();
 
             try {
                 // charge invoice
-                $result = $gateway->doCharge($invoice->customer, [
+                $result = $this->doCharge($invoice->customer, [
                     'id' => $invoice->uid,
                     'amount' => $invoice->total(),
                     'currency' => $invoice->getCurrencyCode(),
@@ -174,7 +172,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                     ]),
                 ]);
 
-                $gateway->updateData($invoice, [
+                $this->updateData($invoice, [
                     'service' => "coinpayments",
                     'txn_id' => $result["txn_id"],
                     'checkout_url' => $result["checkout_url"],
@@ -182,9 +180,9 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
                     'qrcode_url' => $result["qrcode_url"],
                 ]);
 
-                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_STILL_PENDING);
+                return new TransactionResult(TransactionResult::RESULT_PENDING);
             } catch (\Exception $e) {
-                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
+                return new TransactionResult(TransactionResult::RESULT_FAILED, $e->getMessage());
             }
         });
     }

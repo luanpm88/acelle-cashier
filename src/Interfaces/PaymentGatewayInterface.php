@@ -4,7 +4,7 @@ namespace Acelle\Cashier\Interfaces;
 
 use Acelle\Model\Invoice;
 use Acelle\Model\Transaction;
-use Acelle\Cashier\Library\TransactionVerificationResult;
+use Acelle\Library\TransactionResult;
 
 interface PaymentGatewayInterface
 {
@@ -37,7 +37,7 @@ interface PaymentGatewayInterface
 
     // In certain cases, users will need to update their payment information (credit card numbers, etc.)
     public function getAutoBillingDataUpdateUrl(): string;
-    public function verify(Transaction $transaction): TransactionVerificationResult;
+    public function verify(Transaction $transaction): TransactionResult;
 
     //
     public function allowManualReviewingOfTransaction(): bool;

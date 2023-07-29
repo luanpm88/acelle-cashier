@@ -2,11 +2,11 @@
 
 namespace Acelle\Cashier\Services;
 
-use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
+use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Acelle\Cashier\Cashier;
 use Carbon\Carbon;
 use Acelle\Model\Invoice;
-use Acelle\Cashier\Library\TransactionVerificationResult;
+use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
 
 class BraintreePaymentGateway implements PaymentGatewayInterface
@@ -80,9 +80,9 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         return $this->active;
     }
 
-    public function verify(Transaction $transaction) : TransactionVerificationResult
+    public function verify(Transaction $transaction) : TransactionResult
     {
-        return new TransactionVerificationResult(TransactionVerificationResult::RESULT_VERIFICATION_NOT_NEEDED);
+        return new TransactionResult(TransactionResult::RESULT_VERIFICATION_NOT_NEEDED);
     }
 
     public function allowManualReviewingOfTransaction() : bool
@@ -97,14 +97,12 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      */
     public function autoCharge($invoice)
     {
-        $gateway = $this;
-
-        $invoice->checkout($this, function($invoice) use ($gateway) {
+        $invoice->checkout($this, function($invoice) {
             $autoBillingData = $invoice->customer->getAutoBillingData();
 
             try {
                 // charge invoice
-                $gateway->doCharge([
+                $this->doCharge([
                     'paymentMethodToken' => $autoBillingData->getData()['paymentMethodToken'],
                     'amount' => $invoice->total(),
                     'currency' => $invoice->getCurrencyCode(),
@@ -113,9 +111,9 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
                     ]),
                 ]);
 
-                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+                return new TransactionResult(TransactionResult::RESULT_DONE);
             } catch (\Exception $e) {
-                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
+                return new TransactionResult(TransactionResult::RESULT_FAILED, $e->getMessage());
             }
         });
     }

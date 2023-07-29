@@ -3,7 +3,7 @@
 namespace Acelle\Cashier\Services;
 
 use Acelle\Cashier\Cashier;
-use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
+use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Sample\PayPalClient;
 use PayPalCheckoutSdk\Orders\OrdersGetRequest;
@@ -11,7 +11,7 @@ use PayPalCheckoutSdk\Core\PayPalHttpClient;
 use PayPalCheckoutSdk\Core\SandboxEnvironment;
 use PayPalCheckoutSdk\Core\ProductionEnvironment;
 use Acelle\Model\Invoice;
-use Acelle\Cashier\Library\TransactionVerificationResult;
+use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
 
 class PaypalPaymentGateway implements PaymentGatewayInterface
@@ -111,23 +111,21 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         return false;
     }
 
-    public function verify(Transaction $transaction) : TransactionVerificationResult
+    public function verify(Transaction $transaction) : TransactionResult
     {
-        return new TransactionVerificationResult(TransactionVerificationResult::RESULT_VERIFICATION_NOT_NEEDED);
+        return new TransactionResult(TransactionResult::RESULT_VERIFICATION_NOT_NEEDED);
     }
     
     public function charge($invoice, $options=[])
     {
-        $gateway = $this;
-
-        $invoice->checkout($gateway, function($invoice) use ($gateway,$options) {
+        $invoice->checkout($this, function($invoice) use ($options) {
             try {
                 // charge invoice
-                $gateway->doCharge($invoice, $options);
+                $this->doCharge($invoice, $options);
 
-                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+                return new TransactionResult(TransactionResult::RESULT_DONE);
             } catch (\Exception $e) {
-                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
+                return new TransactionResult(TransactionResult::RESULT_FAILED, $e->getMessage());
             }
         });
     }

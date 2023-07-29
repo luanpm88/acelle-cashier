@@ -2,15 +2,8 @@
 
 namespace Acelle\Cashier\Services;
 
-use Stripe\Card as StripeCard;
-use Stripe\Token as StripeToken;
-use Stripe\Customer as StripeCustomer;
-use Stripe\Subscription as StripeSubscription;
-use Acelle\Cashier\Cashier;
-use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
-use Carbon\Carbon;
-use Acelle\Model\Invoice;
-use Acelle\Cashier\Library\TransactionVerificationResult;
+use Acelle\Library\Contracts\PaymentGatewayInterface;
+use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
 
 class OfflinePaymentGateway implements PaymentGatewayInterface
@@ -78,9 +71,9 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
         return false;
     }
 
-    public function verify(Transaction $transaction) : TransactionVerificationResult
+    public function verify(Transaction $transaction) : TransactionResult
     {
-        return new TransactionVerificationResult(TransactionVerificationResult::RESULT_VERIFICATION_NOT_NEEDED);
+        return new TransactionResult(TransactionResult::RESULT_VERIFICATION_NOT_NEEDED);
     }
 
     public function allowManualReviewingOfTransaction() : bool

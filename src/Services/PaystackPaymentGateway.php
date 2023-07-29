@@ -3,12 +3,12 @@
 namespace Acelle\Cashier\Services;
 
 use Illuminate\Support\Facades\Log;
-use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
+use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
 use Acelle\Cashier\Library\AutoBillingData;
 use Acelle\Model\Invoice;
-use Acelle\Cashier\Library\TransactionVerificationResult;
+use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
 
 class PaystackPaymentGateway implements PaymentGatewayInterface
@@ -118,9 +118,9 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
-    public function verify(Transaction $transaction) : TransactionVerificationResult
+    public function verify(Transaction $transaction) : TransactionResult
     {
-        return new TransactionVerificationResult(TransactionVerificationResult::RESULT_VERIFICATION_NOT_NEEDED);
+        return new TransactionResult(TransactionResult::RESULT_VERIFICATION_NOT_NEEDED);
     }
 
     public function allowManualReviewingOfTransaction() : bool
@@ -135,14 +135,12 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
     */
     public function autoCharge($invoice)
     {
-        $gateway = $this;
-
-        $invoice->checkout($gateway, function($invoice) use ($gateway) {
-            $card = $gateway->getCard($invoice->customer);
+        $invoice->checkout($this, function($invoice) {
+            $card = $this->getCard($invoice->customer);
 
             try {
                 // charge invoice
-                $gateway->doCharge([
+                $this->doCharge([
                     'amount' => $invoice->total(),
                     'currency' => $invoice->getCurrencyCode(),
                     'description' => trans('messages.pay_invoice', [
@@ -152,9 +150,9 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
                     'authorization_code' => $card['authorization_code'],
                 ]);
 
-                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+                return new TransactionResult(TransactionResult::RESULT_DONE);
             } catch (\Exception $e) {
-                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_FAILED, $e->getMessage());
+                return new TransactionResult(TransactionResult::RESULT_FAILED, $e->getMessage());
             }
         });
     }

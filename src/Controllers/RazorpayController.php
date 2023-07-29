@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Acelle\Library\Facades\Billing;
 use Acelle\Model\Setting;
 use Acelle\Model\Invoice;
-use Acelle\Cashier\Library\TransactionVerificationResult;
+use Acelle\Library\TransactionResult;
 use Acelle\Cashier\Services\RazorpayPaymentGateway;
 
 class RazorpayController extends Controller
@@ -99,7 +99,7 @@ class RazorpayController extends Controller
         // free plan. No charge
         if ($invoice->total() == 0) {
             $invoice->checkout($service, function($invoice) {
-                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+                return new TransactionResult(TransactionResult::RESULT_DONE);
             });
 
             return redirect()->away(Billing::getReturnUrl());;

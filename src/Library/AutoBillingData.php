@@ -3,7 +3,7 @@
 namespace Acelle\Cashier\Library;
 
 use Exception;
-use Acelle\Cashier\Interfaces\PaymentGatewayInterface;
+use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Acelle\Library\Facades\Billing;
 
 class AutoBillingData

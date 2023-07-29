@@ -8,7 +8,7 @@ use Acelle\Cashier\Services\StripePaymentGateway;
 use Acelle\Library\Facades\Billing;
 use Acelle\Model\Setting;
 use Acelle\Model\Invoice;
-use Acelle\Cashier\Library\TransactionVerificationResult;
+use Acelle\Library\TransactionResult;
 use Acelle\Cashier\Library\AutoBillingData;
 
 
@@ -99,7 +99,7 @@ class StripeController extends Controller
         // free plan. No charge
         if ($invoice->total() == 0) {
             $invoice->checkout($service, function($invoice) {
-                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+                return new TransactionResult(TransactionResult::RESULT_DONE);
             });
 
             return redirect()->away(Billing::getReturnUrl());;
@@ -108,14 +108,7 @@ class StripeController extends Controller
         if ($request->isMethod('post')) {
             // Use current card
             if ($request->current_card) {
-                $invoice->checkout($service, function($invoice) use ($service, $customer) {
-                    $service->updatePaymentMethod($customer, $invoice);
-
-                    // charge invoice
-                    $service->pay($invoice);
-
-                    return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
-                });
+                $service->autoCharge($invoice);
 
                 return redirect()->away(Billing::getReturnUrl());;
 
@@ -132,7 +125,7 @@ class StripeController extends Controller
 
                 // invoice checkout
                 $invoice->checkout($service, function($invoice) {
-                    return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+                    return new TransactionResult(TransactionResult::RESULT_DONE);
                 });
             }
         }

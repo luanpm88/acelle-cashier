@@ -8,7 +8,7 @@ use Acelle\Cashier\Services\CoinpaymentsPaymentGateway;
 use Acelle\Library\Facades\Billing;
 use Acelle\Model\Setting;
 use Acelle\Model\Invoice;
-use Acelle\Cashier\Library\TransactionVerificationResult;
+use Acelle\Library\TransactionResult;
 
 class CoinpaymentsController extends Controller
 {
@@ -112,7 +112,7 @@ class CoinpaymentsController extends Controller
         // free plan. No charge
         if ($invoice->total() == 0) {
             $invoice->checkout($service, function($invoice) {
-                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+                return new TransactionResult(TransactionResult::RESULT_DONE);
             });
 
             return redirect()->away(Billing::getReturnUrl());;

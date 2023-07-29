@@ -6,7 +6,7 @@ use Acelle\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Acelle\Model\Setting;
 use Acelle\Library\Facades\Billing;
-use Acelle\Cashier\Library\TransactionVerificationResult;
+use Acelle\Library\TransactionResult;
 use Acelle\Model\Invoice;
 
 class OfflineController extends Controller
@@ -72,7 +72,7 @@ class OfflineController extends Controller
         // free plan. No charge
         if ($invoice->total() == 0) {
             $invoice->checkout($service, function($invoice) {
-                return new TransactionVerificationResult(TransactionVerificationResult::RESULT_DONE);
+                return new TransactionResult(TransactionResult::RESULT_DONE);
             });
 
             return redirect()->away(Billing::getReturnUrl());;
@@ -103,7 +103,7 @@ class OfflineController extends Controller
         
         // claim invoice
         $invoice->checkout($service, function($invoice) {
-            return new TransactionVerificationResult(TransactionVerificationResult::RESULT_STILL_PENDING);
+            return new TransactionResult(TransactionResult::RESULT_PENDING);
         });
         
         return redirect()->away(Billing::getReturnUrl());;
