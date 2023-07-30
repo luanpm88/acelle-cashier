@@ -17,6 +17,18 @@ class AutoBillingData
         $this->data = $data;
     }
 
+    /*
+     * Sample JSON structure:
+     *
+     * {
+     *     "type": "stripe",
+     *     "data": {
+     *         "payment_method_id":"pm_1NYn3xEoXx0st37RPKK2Gvuv",
+     *         "customer_id":"cus_OLTx7AJi5nQTQK"
+     *     }
+     * }
+     *
+     */
     public function toJson()
     {
         return json_encode([
