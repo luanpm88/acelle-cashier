@@ -9,7 +9,7 @@ use Acelle\Library\Facades\Billing;
 use Acelle\Model\Setting;
 use Acelle\Model\Invoice;
 use Acelle\Library\TransactionResult;
-use Acelle\Cashier\Library\AutoBillingData;
+use Acelle\Library\AutoBillingData;
 
 
 class StripeController extends Controller

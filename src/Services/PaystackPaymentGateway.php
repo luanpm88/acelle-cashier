@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Log;
 use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Carbon\Carbon;
 use Acelle\Cashier\Cashier;
-use Acelle\Cashier\Library\AutoBillingData;
+use Acelle\Library\AutoBillingData;
 use Acelle\Model\Invoice;
 use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
