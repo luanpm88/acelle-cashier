@@ -82,7 +82,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
 
     public function verify(Transaction $transaction) : TransactionResult
     {
-        return new TransactionResult(TransactionResult::RESULT_VERIFICATION_NOT_NEEDED);
+        throw new \Exception("Payment service {$this->getType()} should not have pending transaction to verify");
     }
 
     public function allowManualReviewingOfTransaction() : bool

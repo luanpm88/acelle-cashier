@@ -73,7 +73,8 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
 
     public function verify(Transaction $transaction) : TransactionResult
     {
-        return new TransactionResult(TransactionResult::RESULT_VERIFICATION_NOT_NEEDED);
+        // do nothing because offline need admin to approve
+        return new TransactionResult(TransactionResult::RESULT_PENDING);
     }
 
     public function allowManualReviewingOfTransaction() : bool
