@@ -9,15 +9,13 @@
 @endsection
 
 @section('menu_right')
-    @if ($invoice->type !== \Acelle\Model\InvoiceNewSubscription::TYPE_NEW_SUBSCRIPTION)
-        <li class="nav-item d-flex align-items-center">
-            <a  href="{{ action('SubscriptionController@index') }}"
-                class="nav-link py-3 lvl-1">
-                <i class="material-symbols-rounded me-2">arrow_back</i>
-                <span>{{ trans('messages.go_back') }}</span>
-            </a>
-        </li>
-    @endif
+    <li class="nav-item d-flex align-items-center">
+        <a href="{{ url("/logout") }}" class="nav-link d-flex align-items-center">
+            <i class="navbar-icon me-1">
+                <span class="material-symbols-rounded">power_settings_new</span>
+            </i>{{ trans('messages.logout') }}
+        </a>
+    </li>
 @endsection
 
 @section('content')
