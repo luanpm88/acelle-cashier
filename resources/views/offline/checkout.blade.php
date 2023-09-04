@@ -9,16 +9,6 @@
 @endsection
 
 @section('menu_right')
-    @if ($invoice->type !== \Acelle\Model\InvoiceNewSubscription::TYPE_NEW_SUBSCRIPTION)
-        <li class="nav-item d-flex align-items-center">
-            <a  href="{{ action('SubscriptionController@index') }}"
-                class="nav-link py-3 lvl-1">
-                <i class="material-symbols-rounded me-2">arrow_back</i>
-                <span>{{ trans('messages.go_back') }}</span>
-            </a>
-        </li>
-    @endif
-
     @include('layouts.core._top_activity_log')
     @include('layouts.core._menu_frontend_user', [
         'menu' => 'subscription',
