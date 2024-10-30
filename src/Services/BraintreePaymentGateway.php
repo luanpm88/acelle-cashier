@@ -112,7 +112,18 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
                 ]);
 
                 return new TransactionResult(TransactionResult::RESULT_DONE);
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
+                $authPaymentLink = action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
+                    'invoice_uid' => $invoice->uid,
+                ]);
+
+                return new TransactionResult(
+                    TransactionResult::RESULT_FAILED,
+                    $e->getMessage() . ' ' . trans('cashier::messages.braintree.click_to_auth', [
+                        'link' => $authPaymentLink,
+                    ])
+                );
+                
                 return new TransactionResult(TransactionResult::RESULT_FAILED, $e->getMessage());
             }
         });
@@ -162,10 +173,10 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      * @param  Subscription    $subscription
      * @return Boolean
      */
-    public function getCardInformation($user)
+    public function getCardInformation($email)
     {
         // get or create plan
-        $braintreeCustomer = $this->getBraintreeCustomer($user);
+        $braintreeCustomer = $this->getBraintreeCustomer($email);
 
         $cards = $braintreeCustomer->paymentMethods;
 
@@ -177,10 +188,9 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function hasCard($customer)
+    public function hasCard($email, $autoBillingData)
     {
-        $autoBillingData = $customer->getAutoBillingData();
-        $card = $this->getCardInformation($customer);
+        $card = $this->getCardInformation($email);
         return $card !== null &&
             $autoBillingData != null &&
             isset($autoBillingData->getData()['paymentMethodToken']) && 
@@ -193,17 +203,17 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      * @param  SubscriptionParam    $subscriptionParam
      * @return \Braintree\Customer
      */
-    protected function getBraintreeCustomer($user)
+    protected function getBraintreeCustomer($email)
     {
         // Find in gateway server
         $braintreeCustomers = $this->serviceGateway->customer()->search([
-            \Braintree_CustomerSearch::email()->is($user->user->email)
+            \Braintree_CustomerSearch::email()->is($email)
         ]);
         
         if ($braintreeCustomers->maximumCount() == 0) {
             // create if not exist
             $result = $this->serviceGateway->customer()->create([
-                'email' => $user->user->email,
+                'email' => $email,
             ]);
             
             if ($result->success) {
@@ -227,9 +237,9 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      * @param  string    $userId
      * @return Boolean
      */
-    public function updateCard($user, $nonce)
+    public function updateCard($email, $nonce)
     {
-        $braintreeCustomer = $this->getBraintreeCustomer($user);
+        $braintreeCustomer = $this->getBraintreeCustomer($email);
         
         // update card
         $updateResult = $this->serviceGateway->customer()->update(

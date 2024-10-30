@@ -85,7 +85,7 @@ class BraintreeController extends Controller
     {
         $service = $this->getPaymentService();
         $invoice = Invoice::findByUid($invoice_uid);
-        $customer = $invoice->customer;
+        $card = $service->getCardInformation($invoice->billing_email);
         
         // Save return url
         if ($request->return_url) {
@@ -106,56 +106,14 @@ class BraintreeController extends Controller
             return redirect()->away(Billing::getReturnUrl());
         }
 
-        // Customer has no card
-        if (!$service->hasCard($customer)) {
-            // connect again
-            return redirect()->away(
-                $service->getAutoBillingDataUpdateUrl(
-                    $service->getCheckoutUrl($invoice)
-                )
-            );
-        }
-
-        if ($request->isMethod('post')) {
-            $result = $service->autoCharge($invoice);
-
-            // return back
-            return redirect()->away(Billing::getReturnUrl());;
-        }
-
-        return view('cashier::braintree.charging', [
-            'invoice' => $invoice,
-        ]);
-    }
-
-    /**
-     * Fix transation.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function autoBillingDataUpdate(Request $request)
-    {
-        // Get current customer
-        $service = $this->getPaymentService();
-
-        // Save return url
-        if ($request->return_url) {
-            $request->session()->put('checkout_return_url', $request->return_url);
-        }
-
-        // get card
-        $card = $service->getCardInformation($request->user()->customer);
-        
         if ($request->isMethod('post')) {
             if (!$request->use_current_card) {
                 // update card
-                $service->updateCard($request->user()->customer, $request->nonce);
+                $service->updateCard($invoice->billing_email, $request->nonce);
             }
 
             // get card
-            $card = $service->getCardInformation($request->user()->customer);
+            $card = $service->getCardInformation($invoice->billing_email);
 
             // update auto billing data
             $autoBillingData = new AutoBillingData($service, [
@@ -163,21 +121,32 @@ class BraintreeController extends Controller
                 'card_last4' => $card->last4,
                 'card_type' => $card->cardType,
             ]);
-            $request->user()->customer->setAutoBillingData($autoBillingData);
-            
-            // return to billing page
-            $request->session()->flash('alert-success', trans('cashier::messages.braintree.connected'));
-            if ($request->return_url) {
-                return redirect()->away($request->return_url);
-            } else {
-                return redirect()->away(Billing::getReturnUrl());;
+            $invoice->customer->setAutoBillingData($autoBillingData);
+
+            // card not save. Try again until success
+            if (!$service->hasCard($invoice->billing_email, $invoice->customer->getAutoBillingData())) {
+                return redirect()->action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
+                    'invoice_uid' => $invoice->uid,
+                ])->with('alert-warning', 'Something went wrong! Please try again!');
             }
+
+            // auto charge
+            $result = $service->autoCharge($invoice);
+
+            // return back
+            return redirect()->away(Billing::getReturnUrl());
         }
-        
-        return view('cashier::braintree.autoBillingDataUpdate', [
+
+        return view('cashier::braintree.checkout', [
             'service' => $service,
             'clientToken' => $service->serviceGateway->clientToken()->generate(),
             'cardInfo' => $card,
+            'invoice' => $invoice,
         ]);
+    }
+    
+    public function autoBillingDataUpdate(Request $request)
+    {
+        return redirect()->away(Billing::getReturnUrl());;
     }
 }

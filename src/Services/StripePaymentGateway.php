@@ -128,7 +128,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
                 $authPaymentLink = action("\Acelle\Cashier\Controllers\StripeController@paymentAuth", [
                     'invoice_uid' => $invoice->uid,
-                    'payment_intent_id' => $payment_intent_id,
                 ]);
 
                 return new TransactionResult(
@@ -137,8 +136,17 @@ class StripePaymentGateway implements PaymentGatewayInterface
                         'link' => $authPaymentLink,
                     ])
                 );
-            } catch (\Exception $e) {
-                return new TransactionResult(TransactionResult::RESULT_FAILED, $e->getMessage());
+            } catch (\Throwable $e) {
+                $authPaymentLink = action("\Acelle\Cashier\Controllers\StripeController@paymentAuth", [
+                    'invoice_uid' => $invoice->uid,
+                ]);
+
+                return new TransactionResult(
+                    TransactionResult::RESULT_FAILED,
+                    $e->getMessage() . ' ' . trans('cashier::messages.stripe.click_to_auth', [
+                        'link' => $authPaymentLink,
+                    ])
+                );
             }
         });
     }
@@ -190,9 +198,9 @@ class StripePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function hasCard($customer)
+    public function hasCard($customerUid)
     {
-        return is_object($this->getCardInformation($customer));
+        return is_object($this->getCardInformation($customerUid));
     }
 
 
@@ -203,9 +211,9 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  User    $user
      * @return Boolean
      */
-    public function getCardInformation($customer)
+    public function getCardInformation($customerUid)
     {
-        $stripeCustomer = $this->getStripeCustomer($customer);
+        $stripeCustomer = $this->getStripeCustomer($customerUid);
 
         $cards = \Stripe\PaymentMethod::all([
             'customer' => $stripeCustomer->id,
@@ -221,43 +229,24 @@ class StripePaymentGateway implements PaymentGatewayInterface
      * @param  User    $user
      * @return \Stripe\Customer
      */
-    public function getStripeCustomer($user)
+    public function getStripeCustomer($customerUid)
     {
         // Find in gateway server
         $stripeCustomers = \Stripe\Customer::all();
         foreach ($stripeCustomers as $stripeCustomer) {
-            if ($stripeCustomer->metadata->local_user_id == $user->uid) {
+            if ($stripeCustomer->metadata->local_user_id == $customerUid) {
                 return $stripeCustomer;
             }
         }
 
         // create if not exist
         $stripeCustomer = \Stripe\Customer::create([
-            'email' => $user->user->email,
             'metadata' => [
-                'local_user_id' => $user->uid,
+                'local_user_id' => $customerUid,
             ],
         ]);
 
         return $stripeCustomer;
-    }
-
-    /**
-     * Update user card.
-     *
-     * @param  string    $userId
-     * @return Boolean
-     */
-    public function billableUserUpdateCard($user, $params)
-    {
-        $stripeCustomer = $this->getStripeCustomer($user);
-
-        $card = $stripeCustomer->sources->create(['source' => $params['stripeToken']]);
-        
-        $stripeCustomer->default_source = $card->id;
-        $stripeCustomer->save();
-
-        return $card;
     }
 
     /**
@@ -320,9 +309,9 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return $price / $rate;
     }
 
-    public function getClientSecret($customer, $invoice)
+    public function getClientSecret($customerUid, $invoice)
     {
-        $stripeCustomer = $this->getStripeCustomer($customer);
+        $stripeCustomer = $this->getStripeCustomer($customerUid);
 
         $intent = \Stripe\PaymentIntent::create([
             'amount' => $this->convertPrice($invoice->total(), $invoice->getCurrencyCode()),

@@ -200,7 +200,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
             'amount' => $data['amount'],
             'item_name' => $data['description'],
             'item_number' => $data['id'],
-            'buyer_email' => $customer->user->email,
+            // 'buyer_email' => null,
             'custom' => json_encode([
                 'invoice_uid' => $data['id'],
             ]),
