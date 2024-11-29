@@ -37,7 +37,7 @@ Route::group(['middleware' => ['web','not_installed', 'auth', 'frontend'], 'name
     Route::match(['get', 'post'], '/cashier/paypal/checkout/{invoice_uid}', 'PaypalController@checkout');
 
     // Razorpay
-    Route::match(['get', 'post'], '/cashier/razorpay/{invoice_uid}', 'RazorpayController@checkout');
+    Route::match(['get', 'post'], '/cashier/razorpay/checkout/{invoice_uid}', 'RazorpayController@checkout');
 });
 
 Route::group(['middleware' => ['web', 'not_installed', 'auth', 'backend'], 'namespace' => 'Acelle\Cashier\Controllers'], function () {
