@@ -34,7 +34,7 @@ Route::group(['middleware' => ['web','not_installed', 'auth', 'frontend'], 'name
     Route::post('/cashier/paystack/{invoice_uid}/charge', 'PaystackController@charge');
 
     // Paypal
-    Route::match(['get', 'post'], '/cashier/paypal/{invoice_uid}', 'PaypalController@checkout');
+    Route::match(['get', 'post'], '/cashier/paypal/checkout/{invoice_uid}', 'PaypalController@checkout');
 
     // Razorpay
     Route::match(['get', 'post'], '/cashier/razorpay/{invoice_uid}', 'RazorpayController@checkout');
