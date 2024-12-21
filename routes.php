@@ -11,7 +11,7 @@
 |
 */
 
-Route::group(['middleware' => ['web','not_installed', 'auth', 'frontend'], 'namespace' => 'Acelle\Cashier\Controllers'], function () {
+Route::group(['middleware' => ['web','not_installed'], 'namespace' => 'Acelle\Cashier\Controllers'], function () {
     // direct
     Route::get('/cashier/offline/checkout/{invoice_uid}', 'OfflineController@checkout');
     Route::post('/cashier/offline/{invoice_uid}/claim', 'OfflineController@claim');
