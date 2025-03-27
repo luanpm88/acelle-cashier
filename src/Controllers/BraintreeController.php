@@ -115,6 +115,13 @@ class BraintreeController extends Controller
             // get card
             $card = $service->getCardInformation($invoice->billing_email);
 
+            // handle null card
+            if (is_null($card)) {
+                return redirect()->action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
+                    'invoice_uid' => $invoice->uid,
+                ])->with('alert-warning', 'Unable to retrieve card information. Please try again!');
+            }
+
             // update auto billing data
             $autoBillingData = new AutoBillingData($service, [
                 'paymentMethodToken' => $card->token,
