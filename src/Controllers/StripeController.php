@@ -4,78 +4,20 @@ namespace Acelle\Cashier\Controllers;
 
 use Acelle\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Acelle\Cashier\Services\StripePaymentGateway;
 use Acelle\Library\Facades\Billing;
-use Acelle\Model\Setting;
 use Acelle\Model\Invoice;
 use Acelle\Library\TransactionResult;
-use Acelle\Library\AutoBillingData;
+use Acelle\Model\PaymentGateway;
 
 
 class StripeController extends Controller
 {
-    public function settings(Request $request)
-    {
-        $gateway = Billing::getGateway('stripe');
-
-        if ($request->isMethod('post')) {
-            // make validator
-            $validator = \Validator::make($request->all(), [
-                'secret_key' => 'required',
-                'publishable_key' => 'required',
-            ]);
-
-            // test service
-            $validator->after(function ($validator) use ($gateway, $request) {
-                try {
-                    $stripe = new StripePaymentGateway($request->publishable_key, $request->secret_key);
-                    $stripe->test();
-                } catch(\Exception $e) {
-                    $validator->errors()->add('field', 'Can not connect to ' . $gateway->getName() . '. Error: ' . $e->getMessage());
-                }
-            });
-
-            // redirect if fails
-            if ($validator->fails()) {
-                return response()->view('cashier::stripe.settings', [
-                    'gateway' => $gateway,
-                    'errors' => $validator->errors(),
-                ], 400);
-            }
-
-            // save settings
-            Setting::set('cashier.stripe.secret_key', $request->secret_key);
-            Setting::set('cashier.stripe.publishable_key', $request->publishable_key);
-
-            // enable if not validate
-            if ($request->enable_gateway) {
-                Billing::enablePaymentGateway($gateway->getType());
-            }
-
-            $request->session()->flash('alert-success', trans('cashier::messages.gateway.updated'));
-            return redirect()->action('Admin\PaymentController@index');
-        }
-
-        return view('cashier::stripe.settings', [
-            'gateway' => $gateway,
-        ]);
-    }
-
-    public function getCheckoutUrl($invoice)
+    public function getCheckoutUrl($invoice, $payment_gateway_id)
     {
         return action("\Acelle\Cashier\Controllers\StripeController@checkout", [
             'invoice_uid' => $invoice->uid,
+            'payment_gateway_id' => $payment_gateway_id,
         ]);
-    }
-
-    /**
-     * Get current payment service.
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function getPaymentService()
-    {
-        return Billing::getGateway('stripe');
     }
     
     /**
@@ -87,66 +29,55 @@ class StripeController extends Controller
      **/
     public function checkout(Request $request, $invoice_uid)
     {
-        $service = $this->getPaymentService();
         $invoice = Invoice::findByUid($invoice_uid);
-        $customer = $invoice->customer;
+
+        // Service
+        $paymentGateway = PaymentGateway::findByUid($request->payment_gateway_id);
 
         // exceptions
         if (!$invoice->isNew()) {
             throw new \Exception('Invoice is not new');
         }
 
-        // free plan. No charge
-        if ($invoice->total() == 0) {
-            $invoice->checkout($service, function($invoice) {
+        if ($request->isMethod('post')) {
+            $stripeCustomer = $paymentGateway->getService()->getStripeCustomer($invoice->customer->uid);
+            $paymentMethod = $paymentGateway->getService()->getPaymentMethod($request->payment_method_id);
+
+            // Payment method
+            $autobillingData = json_encode([
+                'payment_method_id' => $request->payment_method_id,
+                'customer_id' => $stripeCustomer->id,
+            ]);
+            $paymentMethod = $invoice->customer->paymentMethods()->updateOrCreate(
+                [
+                    'unique_id' => md5($autobillingData),
+                ],
+                [
+                    'autobilling_data' => $autobillingData,
+                    'more_info' => trans('cashier::messages.card.brand') . ": {$paymentMethod->card->brand}. " .trans('cashier::messages.card.last4'). ": {$paymentMethod->card->last4}",
+                    'payment_gateway_id' => $paymentGateway->id,
+                    'can_auto_charge' => true,
+                ]
+            );
+
+            // invoice checkout
+            $invoice->checkout($paymentMethod, function($invoice) {
                 return new TransactionResult(TransactionResult::RESULT_DONE);
             });
-
-            return redirect()->away(Billing::getReturnUrl());;
-        }
-
-        if ($request->isMethod('post')) {
-            // Use current card
-            if ($request->current_card) {
-                $service->autoCharge($invoice);
-
-                return redirect()->away(Billing::getReturnUrl());;
-
-            // Use new card. User already paid before, just return done.
-            } else {
-                $stripeCustomer = $service->getStripeCustomer($customer->uid);
-
-                // update auto billing data
-                $autoBillingData = new AutoBillingData($service, [
-                    'payment_method_id' => $request->payment_method_id,
-                    'customer_id' => $stripeCustomer->id,
-                ]);
-                $customer->setAutoBillingData($autoBillingData);
-
-                // invoice checkout
-                $invoice->checkout($service, function($invoice) {
-                    return new TransactionResult(TransactionResult::RESULT_DONE);
-                });
-            }
         }
 
         return view('cashier::stripe.checkout', [
-            'service' => $service,
+            'paymentGateway' => $paymentGateway,
             'invoice' => $invoice,
-            'paymentMethod' => $service->getPaymentMethod($customer),
-            'clientSecret' => $service->getClientSecret($customer->uid, $invoice),
+            'clientSecret' => $paymentGateway->getService()->getClientSecret($invoice->customer->uid, $invoice),
+            'publishableKey' => $paymentGateway->getService()->getPublishableKey(),
         ]);
     }
 
-    public function paymentAuth(Request $request, $invoice_uid)
+    public function paymentAuth(Request $request, $invoice_uid, $payment_gateway_id)
     {
         $invoice = Invoice::findByUid($invoice_uid);
 
-        return redirect()->away($this->getCheckoutUrl($invoice));
-    }
-
-    public function autoBillingDataUpdate(Request $request)
-    {
-        return redirect()->away(Billing::getReturnUrl());;
+        return redirect()->away($this->getCheckoutUrl($invoice, $payment_gateway_id));
     }
 }

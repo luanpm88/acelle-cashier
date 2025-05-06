@@ -22,38 +22,6 @@
                 <img class="rounded" width="100%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/braintree.png') }}" />
             </div>
             <div class="col-md-4 mt-40 pd-60">
-                
-                @if ($cardInfo !== NULL)
-                    <div class="sub-section mb-5">
-                        <h4 class="text-semibold mb-3 mt-4">{!! trans('cashier::messages.braintree.current_card') !!}</h4>
-                        <ul class="dotted-list topborder section mb-4">
-                            <li>
-                                <div class="unit size1of2">
-                                    {{ trans('messages.card.holder') }}
-                                </div>
-                                <div class="lastUnit size1of2">
-                                    <mc:flag>{{ $cardInfo->cardType }}</mc:flag>
-                                </div>
-                            </li>
-                            <li>
-                                <div class="unit size1of2">
-                                    {{ trans('messages.card.last4') }}
-                                </div>
-                                <div class="lastUnit size1of2">
-                                    <mc:flag>{{ $cardInfo->last4 }}</mc:flag>
-                                </div>
-                            </li>
-                        </ul>
-                        
-                        <form
-                            action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@checkout', $invoice->uid) }}" method="POST">
-                            {{ csrf_field() }}
-                            <input type="hidden" name="return_url" value="{{ request()->return_url }}" />
-                            <input type="submit" name="use_current_card" style="width: 100%;" href="{{ '' }}" class="btn btn-primary mr-2"
-                                value="{{ trans('cashier::messages.braintree.use_this_card') }}" />
-                        </form>
-                    </div>
-                @endif
 
                 <h4 class="text-semibold mt-4 mb-3">{!! trans('cashier::messages.braintree.new_card') !!}</h4>
                     
@@ -65,7 +33,10 @@
                 </a>
                     
                 <form id="updateCard" style="display: none"
-                    action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@checkout', $invoice->uid) }}" method="POST">
+                    action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@checkout', [
+                        'invoice_uid' => $invoice->uid,
+                        'payment_gateway_id' => $paymentGateway->uid,
+                    ]) }}" method="POST">
                         {{ csrf_field() }}
                         <input type="hidden" name="return_url" value="{{ request()->return_url }}" />
                         <input type="hidden" name="nonce" value="" />

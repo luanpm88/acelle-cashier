@@ -31,6 +31,7 @@
                     <form action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\RazorpayController@checkout', [
                     '_token' => csrf_token(),
                     'invoice_uid' => $invoice->uid,
+                    'payment_gateway_id' => $paymentGateway->uid,
                 ]) }}" method="POST">
 
                         <script

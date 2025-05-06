@@ -2,10 +2,7 @@
 
 namespace Acelle\Cashier\Services;
 
-use Acelle\Cashier\Cashier;
 use Acelle\Library\Contracts\PaymentGatewayInterface;
-use Carbon\Carbon;
-use Sample\PayPalClient;
 use PayPalCheckoutSdk\Orders\OrdersGetRequest;
 use PayPalCheckoutSdk\Core\PayPalHttpClient;
 use PayPalCheckoutSdk\Core\SandboxEnvironment;
@@ -13,6 +10,7 @@ use PayPalCheckoutSdk\Core\ProductionEnvironment;
 use Acelle\Model\Invoice;
 use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
+use Acelle\Model\PaymentMethod;
 
 class PaypalPaymentGateway implements PaymentGatewayInterface
 {
@@ -39,26 +37,6 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         $this->validate();
     }
 
-    public function getName() : string
-    {
-        return trans('cashier::messages.paypal');
-    }
-
-    public function getType() : string
-    {
-        return self::TYPE;
-    }
-
-    public function getDescription() : string
-    {
-        return trans('cashier::messages.paypal.description');
-    }
-
-    public function getShortDescription() : string
-    {
-        return trans('cashier::messages.paypal.short_description');
-    }
-
     public function validate()
     {
         if (!$this->environment || !$this->clientId || !$this->secret) {
@@ -74,31 +52,17 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         return $this->active;
     }
 
-    public function getSettingsUrl() : string
-    {
-        return action("\Acelle\Cashier\Controllers\PaypalController@settings");
-    }
-
-    public function getCheckoutUrl($invoice) : string
+    public function getCheckoutUrl($invoice, $paymentGatewayId) : string
     {
         return action("\Acelle\Cashier\Controllers\PaypalController@checkout", [
             'invoice_uid' => $invoice->uid,
+            'payment_gateway_id' => $paymentGatewayId,
         ]);
     }
 
-    public function autoCharge($invoice)
+    public function autoCharge($invoice, PaymentMethod $paymentMethod)
     {
         throw new \Exception('Paypal payment gateway does not support auto charge!');
-    }
-
-    public function getAutoBillingDataUpdateUrl($returnUrl='/') : string
-    {
-        throw new \Exception('
-            Paypal gateway does not support auto charge.
-            Therefor method getAutoBillingDataUpdateUrl is not supported.
-            Something wrong in your design flow!
-            Check if a gateway supports auto billing by calling $gateway->supportsAutoBilling().
-        ');
     }
 
     public function allowManualReviewingOfTransaction() : bool
@@ -116,9 +80,22 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         throw new \Exception("Payment service {$this->getType()} should not have pending transaction to verify");
     }
     
-    public function charge($invoice, $options=[])
+    public function charge($invoice, $paymentGateway, $options=[])
     {
-        $invoice->checkout($this, function($invoice) use ($options) {
+        // Payment method
+        $paymentMethod = $invoice->customer->paymentMethods()->updateOrCreate(
+            [
+                'unique_id' => 'Paypal',
+                'payment_gateway_id' => $paymentGateway->id,
+            ],
+            [
+                'autobilling_data' => null,
+                'more_info' => "Paid by Paypal",
+                'can_auto_charge' => false,
+            ]
+        );
+
+        $invoice->checkout($paymentMethod, function($invoice) use ($options) {
             try {
                 // charge invoice
                 $this->doCharge($invoice, $options);

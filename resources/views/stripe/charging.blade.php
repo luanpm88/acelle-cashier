@@ -32,6 +32,7 @@
                             
                             <form id="pay_now" method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@checkout', [
                                 'invoice_uid' => $invoice->uid,
+                                'payment_gateway_id' => $paymentGateway->uid,
                             ]) }}">
                                 {{ csrf_field() }}
 

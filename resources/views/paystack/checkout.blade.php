@@ -35,7 +35,8 @@
                 <script src="https://js.paystack.co/v1/inline.js"></script> 
 
                 <form id="checkoutForm" method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaystackController@checkout', [
-                    'invoice_uid' => $invoice->uid
+                    'invoice_uid' => $invoice->uid,
+                    'payment_gateway_id' => $paymentGateway->uid,
                 ]) }}">
                     {{ csrf_field() }}
                     <input type="hidden" name="reference" value="" />

@@ -5,6 +5,7 @@ namespace Acelle\Cashier\Services;
 use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
+use Acelle\Model\PaymentMethod;
 
 class StripePaymentGateway implements PaymentGatewayInterface
 {
@@ -28,26 +29,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
         \Stripe\Stripe::setApiVersion("2019-12-03");
 
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
-    }
-
-    public function getName() : string
-    {
-        return trans('cashier::messages.stripe');
-    }
-
-    public function getType() : string
-    {
-        return self::TYPE;
-    }
-
-    public function getDescription() : string
-    {
-        return trans('cashier::messages.stripe.description');
-    }
-
-    public function getShortDescription() : string
-    {
-        return trans('cashier::messages.stripe.short_description');
     }
 
     public function validate()
@@ -74,18 +55,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return $this->publishableKey;
     }
 
-    public function getSettingsUrl() : string
-    {
-        return action("\Acelle\Cashier\Controllers\StripeController@settings");
-    }
-
-    public function getAutoBillingDataUpdateUrl($returnUrl='/') : string
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\StripeController@autoBillingDataUpdate", [
-            'return_url' => $returnUrl,
-        ]);
-    }
-
     public function supportsAutoBilling() : bool
     {
         return true;
@@ -101,18 +70,18 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return false;
     }
 
-    public function autoCharge($invoice)
+    public function autoCharge($invoice, PaymentMethod $paymentMethod)
     {
-        $invoice->checkout($this, function($invoice) {
+        $invoice->checkout($paymentMethod, function($invoice) use ($paymentMethod) {
             try {
                 // charge invoice
-                $autoBillingData = $invoice->customer->getAutoBillingData();
+                $autobillingData = json_decode($paymentMethod->autobilling_data, true);
 
                 \Stripe\PaymentIntent::create([
                     'amount' => $this->convertPrice($invoice->total(), $invoice->getCurrencyCode()),
                     'currency' => $invoice->getCurrencyCode(),
-                    'customer' => $autoBillingData->getData()['customer_id'],
-                    'payment_method' => $autoBillingData->getData()['payment_method_id'],
+                    'customer' => $autobillingData['customer_id'],
+                    'payment_method' => $autobillingData['payment_method_id'],
                     'off_session' => true,
                     'confirm' => true,
                     'description' => trans('messages.pay_invoice', [
@@ -128,6 +97,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
                 $authPaymentLink = action("\Acelle\Cashier\Controllers\StripeController@paymentAuth", [
                     'invoice_uid' => $invoice->uid,
+                    'payment_gateway_id' => $paymentMethod->paymentGateway->uid,
                 ]);
 
                 return new TransactionResult(
@@ -139,6 +109,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
             } catch (\Throwable $e) {
                 $authPaymentLink = action("\Acelle\Cashier\Controllers\StripeController@paymentAuth", [
                     'invoice_uid' => $invoice->uid,
+                    'payment_gateway_id' => $paymentMethod->paymentGateway->uid,
                 ]);
 
                 return new TransactionResult(
@@ -186,10 +157,11 @@ class StripePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice) : string
+    public function getCheckoutUrl($invoice, $paymentGatewayId) : string
     {
         return action("\Acelle\Cashier\Controllers\StripeController@checkout", [
             'invoice_uid' => $invoice->uid,
+            'payment_gateway_id' => $paymentGatewayId,
         ]);
     }
 
@@ -202,8 +174,6 @@ class StripePaymentGateway implements PaymentGatewayInterface
     {
         return is_object($this->getCardInformation($customerUid));
     }
-
-
 
     /**
      * Get card information from Stripe user.
@@ -325,45 +295,9 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return $intent->client_secret;
     }
 
-    public function getPaymentMethod($customer)
+    public function getPaymentMethod($paymentMethodId)
     {
-        $autoBillingData = $customer->getAutoBillingData();
-        if ($autoBillingData != null) {
-            try {
-                $paymentMethod = \Stripe\PaymentMethod::retrieve($autoBillingData->getData()['payment_method_id']);
-                return $paymentMethod;
-            } catch (\Exception $e) {
-                return null;
-            }
-        }
-
-        return null;
-    }
-
-    public function updatePaymentMethod($customer, $invoice)
-    {
-        $autoBillingData = $customer->getAutoBillingData();
-        if ($autoBillingData != null) {
-            // update payment billing info
-            \Stripe\PaymentMethod::update(
-                $autoBillingData->getData()['payment_method_id'],
-                [
-                    "billing_details" => [
-                        "address" => [
-                            "city" => null,
-                            "country" => $invoice->getBillingCountryCode(),
-                            "line1" => $invoice->billing_address,
-                            "line2" => null,
-                            "postal_code" => null,
-                            "state" => null,
-                        ],
-                        "email" => $invoice->billing_email,
-                        "name" => $invoice->getBillingName(),
-                        "phone" => $invoice->billing_phone,
-                    ],
-                ]
-            );
-        }
+        return \Stripe\PaymentMethod::retrieve($paymentMethodId);
     }
 
     public function getMinimumChargeAmount($currency)

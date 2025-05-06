@@ -4,9 +4,7 @@ namespace Acelle\Cashier\Services;
 
 use Illuminate\Support\Facades\Log;
 use Acelle\Library\Contracts\PaymentGatewayInterface;
-use Carbon\Carbon;
-use Acelle\Cashier\Cashier;
-use Acelle\Model\Invoice;
+use Acelle\Model\PaymentMethod;
 use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
 
@@ -30,26 +28,6 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         $this->validate();
     }
 
-    public function getName() : string
-    {
-        return trans('cashier::messages.razorpay');
-    }
-
-    public function getType() : string
-    {
-        return self::TYPE;
-    }
-
-    public function getDescription() : string
-    {
-        return trans('cashier::messages.razorpay.description');
-    }
-
-    public function getShortDescription() : string
-    {
-        return trans('cashier::messages.razorpay.short_description');
-    }
-
     public function validate()
     {
         if (!$this->keyId || !$this->keySecret) {
@@ -65,15 +43,11 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         return $this->active;
     }
 
-    public function getSettingsUrl() : string
-    {
-        return action("\Acelle\Cashier\Controllers\RazorpayController@settings");
-    }
-
-    public function getCheckoutUrl($invoice) : string
+    public function getCheckoutUrl($invoice, $paymentGatewayId) : string
     {
         return action("\Acelle\Cashier\Controllers\RazorpayController@checkout", [
             'invoice_uid' => $invoice->uid,
+            'payment_gateway_id' => $paymentGatewayId,
         ]);
     }
 
@@ -87,19 +61,9 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         return false;
     }
 
-    public function autoCharge($invoice)
+    public function autoCharge($invoice, PaymentMethod $paymentMethod)
     {
         throw new \Exception('Razorpay payment gateway does not support auto charge!');
-    }
-
-    public function getAutoBillingDataUpdateUrl($returnUrl='/') : string
-    {
-        throw new \Exception('
-            Razorpay gateway does not support auto charge.
-            Therefor method getAutoBillingDataUpdateUrl is not supported.
-            Something wrong in your design flow!
-            Check if a gateway supports auto billing by calling $gateway->supportsAutoBilling().
-        ');
     }
 
     public function supportsAutoBilling() : bool

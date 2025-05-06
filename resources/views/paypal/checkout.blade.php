@@ -48,6 +48,7 @@
                         var form = jQuery('<form>', {
                             'action': '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaypalController@checkout', [
                                 'invoice_uid' => $invoice->uid,
+                                'payment_gateway_id' => $paymentGateway->uid,
                             ]) }}',
                             'target': '_top',
                             'method': 'POST'

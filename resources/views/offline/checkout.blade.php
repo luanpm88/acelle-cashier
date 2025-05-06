@@ -11,14 +11,15 @@
                 <h2>{!! trans('cashier::messages.pay_invoice') !!}</h2>  
 
                 <div class="alert alert-info bg-grey-light">
-                    {!! $service->getPaymentInstruction() !!}
+                    {!! $paymentGateway->getGatewayData('payment_instruction') !!}
                 </div>
                 <hr>
                     
                 <div class="d-flex align-items-center">
                     <form method="POST"
                         action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\OfflineController@claim', [
-                            'invoice_uid' => $invoice->uid
+                            'invoice_uid' => $invoice->uid,
+                            'payment_gateway_id' => $paymentGateway->uid,
                         ]) }}"
                     >
                         {{ csrf_field() }}

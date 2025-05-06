@@ -4,71 +4,13 @@ namespace Acelle\Cashier\Controllers;
 
 use Acelle\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Acelle\Cashier\Services\PaystackPaymentGateway;
 use Acelle\Library\Facades\Billing;
-use Acelle\Model\Setting;
 use Acelle\Model\Invoice;
 use Acelle\Library\TransactionResult;
+use Acelle\Model\PaymentGateway;
 
 class PaystackController extends Controller
 {
-    public function settings(Request $request)
-    {
-        $gateway = $this->getPaymentService();
-
-        if ($request->isMethod('post')) {
-            // make validator
-            $validator = \Validator::make($request->all(), [
-                'public_key' => 'required',
-                'secret_key' => 'required',
-            ]);
-
-            // test service
-            $validator->after(function ($validator) use ($gateway, $request) {
-                try {
-                    $paystack = new PaystackPaymentGateway($request->public_key, $request->secret_key);
-                    $paystack->test();
-                } catch(\Exception $e) {
-                    $validator->errors()->add('field', 'Can not connect to ' . $gateway->getName() . '. Error: ' . $e->getMessage());
-                }
-            });
-
-            // redirect if fails
-            if ($validator->fails()) {
-                return response()->view('cashier::paystack.settings', [
-                    'gateway' => $gateway,
-                    'errors' => $validator->errors(),
-                ], 400);
-            }
-
-            // save settings
-            Setting::set('cashier.paystack.public_key', $request->public_key);
-            Setting::set('cashier.paystack.secret_key', $request->secret_key);
-
-            // enable if not validate
-            if ($request->enable_gateway) {
-                Billing::enablePaymentGateway($gateway->getType());
-            }
-
-            $request->session()->flash('alert-success', trans('cashier::messages.gateway.updated'));
-            return redirect()->action('Admin\PaymentController@index');
-        }
-
-        return view('cashier::paystack.settings', [
-            'gateway' => $gateway,
-        ]);
-    }
-
-    /**
-     * Get current payment service.
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function getPaymentService()
-    {
-        return Billing::getGateway('paystack');
-    }
-
     /**
      * Subscription checkout page.
      *
@@ -78,8 +20,11 @@ class PaystackController extends Controller
     **/
     public function checkout(Request $request, $invoice_uid)
     {
-        $service = $this->getPaymentService();
         $invoice = Invoice::findByUid($invoice_uid);
+
+        // Service
+        $paymentGateway = PaymentGateway::findByUid($request->payment_gateway_id);
+        $service = $paymentGateway->getService();
         
         // Save return url
         if ($request->return_url) {
@@ -91,35 +36,47 @@ class PaystackController extends Controller
             throw new \Exception('Invoice is not new');
         }
 
-        // free plan. No charge
-        if ($invoice->total() == 0) {
-            $invoice->checkout($service, function($invoice) {
-                return new TransactionResult(TransactionResult::RESULT_DONE);
-            });
-
-            return redirect()->away(Billing::getReturnUrl());;
-        }
-
         if ($request->isMethod('post')) {
             try {
-                $invoice->checkout($service, function($invoice) use ($service, $request) {
-                    // check pay
-                    $service->verifyPayment($invoice, $request->reference);
-                    
+                // check pay
+                $result = $service->verifyPayment($request->reference);
+
+                // Payment method
+                $autobillingData = json_encode([
+                    'last_transaction' => $result,
+                ]);
+                $paymentMethod = $invoice->customer->paymentMethods()->updateOrCreate(
+                    [
+                        'unique_id' => md5( $paymentGateway->id . ":" .$result['data']['authorization']['card_type']. ":" . $result['data']['authorization']['last4']),
+                    ],
+                    [
+                        'autobilling_data' => $autobillingData,
+                        'more_info' => trans('cashier::messages.card.brand') . ": "
+                            . $result['data']['authorization']['card_type'] . ". "
+                            . trans('cashier::messages.card.last4') . ": "
+                            . $result['data']['authorization']['last4'],
+                        'payment_gateway_id' => $paymentGateway->id,
+                        'can_auto_charge' => true,
+                    ]
+                );
+ss;
+                // success
+                $invoice->checkout($paymentMethod, function($invoice) use ($service, $request) {
                     return new TransactionResult(TransactionResult::RESULT_DONE);
                 });
 
-                return redirect()->away(Billing::getReturnUrl());;
-            } catch (\Exception $e) {
+                return redirect()->away(Billing::getReturnUrl());
+            } catch (\Throwable $e) {
                 // return with error message
-                $request->session()->flash('alert-error', $e->getMessage());
-                return redirect()->away(Billing::getReturnUrl());;
+                return redirect()->away(Billing::getReturnUrl())
+                    ->with('alert-error', $e->getMessage());
             }
         }
 
         return view('cashier::paystack.checkout', [
             'service' => $service,
             'invoice' => $invoice,
+            'paymentGateway' => $paymentGateway,
         ]);
     }
 
@@ -143,18 +100,6 @@ class PaystackController extends Controller
         // autopay
         $service->autoCharge($invoice);
 
-        return redirect()->away(Billing::getReturnUrl());;
-    }
-
-    /**
-     * Fix transation.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function autoBillingDataUpdate(Request $request)
-    {
         return redirect()->away(Billing::getReturnUrl());;
     }
 }

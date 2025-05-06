@@ -2,14 +2,11 @@
 
 namespace Acelle\Cashier\Services;
 
-use Illuminate\Support\Facades\Log;
 use Acelle\Library\Contracts\PaymentGatewayInterface;
-use Carbon\Carbon;
-use Acelle\Cashier\Cashier;
-use Acelle\Library\AutoBillingData;
-use Acelle\Model\Invoice;
 use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
+use Acelle\Model\PaymentMethod;
+use Acelle\Model\PaymentGateway;
 
 class PaystackPaymentGateway implements PaymentGatewayInterface
 {
@@ -28,31 +25,6 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
         $this->secretKey = $secretKey;
 
         $this->validate();
-    }
-
-    public function getName() : string
-    {
-        return trans('cashier::messages.paystack');
-    }
-
-    public function getType() : string
-    {
-        return self::TYPE;
-    }
-
-    public function getDescription() : string
-    {
-        return trans('cashier::messages.paystack.description');
-    }
-
-    public function getShortDescription() : string
-    {
-        return trans('cashier::messages.paystack.short_description');
-    }
-
-    public function getSettingsUrl() : string
-    {
-        return action("\Acelle\Cashier\Controllers\PaystackController@settings");
     }
 
     public function validate()
@@ -93,28 +65,17 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
     {
         return true;
     }
-
-    /**
-     * Get connect url.
-     *
-     * @return string
-     */
-    public function getAutoBillingDataUpdateUrl($returnUrl='/') : string
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaystackController@autoBillingDataUpdate", [
-            'return_url' => $returnUrl,
-        ]);
-    }
-
+    
     /**
      * Get checkout url.
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice) : string
+    public function getCheckoutUrl($invoice, $paymentGatewayId) : string
     {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaystackController@checkout", [
             'invoice_uid' => $invoice->uid,
+            'payment_gateway_id' => $paymentGatewayId,
         ]);
     }
 
@@ -133,10 +94,16 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      *
      * @return void
     */
-    public function autoCharge($invoice)
+    public function autoCharge($invoice, PaymentMethod $paymentMethod)
     {
-        $invoice->checkout($this, function($invoice) {
-            $card = $this->getCard($invoice->customer);
+        $invoice->checkout($paymentMethod, function($invoice) use ($paymentMethod) {
+            // charge invoice
+            $autobillingData = json_decode($paymentMethod->autobilling_data, true);
+            $card = [
+                'authorization_code' => $autobillingData['last_transaction']['data']['authorization']['authorization_code'],
+                'email' => $autobillingData['last_transaction']['data']['customer']['email'],
+                'last4' => $autobillingData['last_transaction']['data']['authorization']['last4'],
+            ];
 
             try {
                 // charge invoice
@@ -198,7 +165,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    public function verifyPayment($invoice, $ref)
+    public function verifyPayment($ref)
     {
         $result = $this->request('transaction/verify/' . $ref, 'GET', []);
 
@@ -217,41 +184,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
             throw new \Exception($result['data']['message']);
         }
 
-        // update auto billing data
-        $autoBillingData = new AutoBillingData($this, [
-            'last_transaction' => $result,
-        ]);
-        $invoice->customer->setAutoBillingData($autoBillingData);
-
         return $result;
-    }
-
-    public function getCard($customer)
-    {
-        $autoBillingData = $customer->getAutoBillingData();
-
-        if ($autoBillingData == null) {
-            return false;
-        }
-
-        $metadata = $autoBillingData->getData();
-
-        // check last transaction
-        if (!isset($metadata['last_transaction']) ||
-            !isset($metadata['last_transaction']['data']) ||
-            !isset($metadata['last_transaction']['data']['authorization']) ||
-            !isset($metadata['last_transaction']['data']['authorization']['authorization_code']) ||
-            !isset($metadata['last_transaction']['data']['customer']) ||
-            !isset($metadata['last_transaction']['data']['customer']['email'])
-        ) {
-            return false;
-        } else {
-            return [
-                'authorization_code' => $metadata['last_transaction']['data']['authorization']['authorization_code'],
-                'email' => $metadata['last_transaction']['data']['customer']['email'],
-                'last4' => $metadata['last_transaction']['data']['authorization']['last4'],
-            ];
-        }
     }
 
     /**

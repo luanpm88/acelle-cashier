@@ -3,7 +3,7 @@
 namespace Acelle\Cashier\Services;
 
 use Acelle\Library\Contracts\PaymentGatewayInterface;
-use Acelle\Cashier\Cashier;
+use Acelle\Model\PaymentMethod;
 use Carbon\Carbon;
 use Acelle\Model\Invoice;
 use Acelle\Library\TransactionResult;
@@ -41,31 +41,6 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
     }
 
-    public function getName() : string
-    {
-        return trans('cashier::messages.braintree');
-    }
-
-    public function getType() : string
-    {
-        return self::TYPE;
-    }
-
-    public function getDescription() : string
-    {
-        return trans('cashier::messages.braintree.description');
-    }
-
-    public function getShortDescription() : string
-    {
-        return trans('cashier::messages.braintree.short_description');
-    }
-
-    public function getSettingsUrl() : string
-    {
-        return action("\Acelle\Cashier\Controllers\BraintreeController@settings");
-    }
-
     public function validate()
     {
         if (!$this->environment || !$this->merchantId || !$this->privateKey || !$this->publicKey) {
@@ -95,15 +70,16 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    public function autoCharge($invoice)
+    public function autoCharge($invoice, PaymentMethod $paymentMethod)
     {
-        $invoice->checkout($this, function($invoice) {
-            $autoBillingData = $invoice->customer->getAutoBillingData();
+        $invoice->checkout($paymentMethod, function($invoice) use ($paymentMethod) {
+            // charge invoice
+            $autobillingData = json_decode($paymentMethod->autobilling_data, true);
 
             try {
                 // charge invoice
                 $this->doCharge([
-                    'paymentMethodToken' => $autoBillingData->getData()['paymentMethodToken'],
+                    'paymentMethodToken' => $autobillingData['payment_method_token'],
                     'amount' => $invoice->total(),
                     'currency' => $invoice->getCurrencyCode(),
                     'description' => trans('messages.pay_invoice', [
@@ -115,6 +91,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
             } catch (\Throwable $e) {
                 $authPaymentLink = action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
                     'invoice_uid' => $invoice->uid,
+                    'payment_gateway_id' => $paymentMethod->paymentGateway->uid,
                 ]);
 
                 return new TransactionResult(
@@ -181,20 +158,6 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         $cards = $braintreeCustomer->paymentMethods;
 
         return empty($cards) ? null : $cards[0];
-    }
-
-    /**
-     * Get user has card.
-     *
-     * @return string
-     */
-    public function hasCard($email, $autoBillingData)
-    {
-        $card = $this->getCardInformation($email);
-        return $card !== null &&
-            $autoBillingData != null &&
-            isset($autoBillingData->getData()['paymentMethodToken']) && 
-            $card->token == $autoBillingData->getData()['paymentMethodToken'];
     }
 
     /**
@@ -277,28 +240,17 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice) : string
+    public function getCheckoutUrl($invoice, $paymentGatewayId) : string
     {
         return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
             'invoice_uid' => $invoice->uid,
+            'payment_gateway_id' => $paymentGatewayId,
         ]);
     }
 
     public function supportsAutoBilling() : bool
     {
         return true;
-    }
-
-    /**
-     * Get connect url.
-     *
-     * @return string
-     */
-    public function getAutoBillingDataUpdateUrl($returnUrl='/') : string
-    {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\BraintreeController@autoBillingDataUpdate", [
-            'return_url' => $returnUrl,
-        ]);
     }
 
     public function getMinimumChargeAmount($currency)

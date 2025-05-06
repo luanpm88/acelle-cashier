@@ -27,41 +27,6 @@
                 </div>
             </div>
             <div class="col-md-4 mt-40 pd-60">
-
-                @if ($paymentMethod != null)
-                    <div class="sub-section">
-
-                        <h4 class="fw-600 mb-3 mt-0">{!! trans('cashier::messages.stripe.current_card') !!}</h4>
-                        
-                        <ul class="dotted-list topborder section">
-                            <li>
-                                <div class="unit size1of2">
-                                    <strong>{{ trans('cashier::messages.card.brand') }}</strong>
-                                </div>
-                                <div class="lastUnit size1of2">
-                                    <mc:flag><strong>{{ $paymentMethod->card->brand }}</strong></mc:flag>
-                                </div>
-                            </li>
-                            <li class="selfclear">
-                                <div class="unit size1of2">
-                                    <strong>{{ trans('cashier::messages.card.last4') }}</strong>
-                                </div>
-                                <div class="lastUnit size1of2">
-                                    <mc:flag><strong>{{ $paymentMethod->card->last4 }}</strong></mc:flag>
-                                </div>
-                            </li>
-                        </ul>
-                        
-                        <form method="POST" action="{{ action("\Acelle\Cashier\Controllers\StripeController@checkout", [
-                            'invoice_uid' => $invoice->uid,
-                        ]) }}">
-                            {{ csrf_field() }}
-                            <input type="hidden" name="current_card" value="yes" />
-                            <button  id="payWithCurrentCard" type="submit" class="mt-2 btn btn-secondary">{{ trans('cashier::messages.stripe.pay_with_this_card') }}</button>
-                        </form>
-                    </div>
-                @endif
-                
                 <div class="sub-section">
 
                     <h4 class="fw-600 mb-3 mt-0">{!! trans('cashier::messages.stripe.new_card') !!}</h4>
@@ -92,7 +57,7 @@
         <script>
             // Set your publishable key: remember to change this to your live publishable key in production
             // See your keys here: https://dashboard.stripe.com/apikeys
-            var stripe = Stripe('{{ $service->getPublishableKey() }}');
+            var stripe = Stripe('{{ $publishableKey }}');
             var elements = stripe.elements();
 
             // Set up Stripe.js and Elements to use in checkout form
@@ -158,6 +123,7 @@
                             $.ajax({
                                 url: '{{ action("\Acelle\Cashier\Controllers\StripeController@checkout", [
                                     'invoice_uid' => $invoice->uid,
+                                    'payment_gateway_id' => $paymentGateway->uid,
                                 ]) }}',
                                 type: 'POST',
                                 data: {
