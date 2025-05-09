@@ -62,7 +62,7 @@ class BraintreeController extends Controller
                 ],
                 [
                     'autobilling_data' => $autobillingData,
-                    'more_info' => $card->cardType . " *** *** " . $card->last4, // trans('cashier::messages.card.brand') . ": {$card->cardType}. " .trans('cashier::messages.card.last4'). ": {$card->last4}",
+                    'more_info' => ucfirst($card->cardType) . " *** *** " . $card->last4, // trans('cashier::messages.card.brand') . ": {$card->cardType}. " .trans('cashier::messages.card.last4'). ": {$card->last4}",
                     'payment_gateway_id' => $paymentGateway->id,
                     'can_auto_charge' => true,
                 ]

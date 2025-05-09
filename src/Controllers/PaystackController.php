@@ -51,7 +51,7 @@ class PaystackController extends Controller
                     ],
                     [
                         'autobilling_data' => $autobillingData,
-                        'more_info' => $result['data']['authorization']['card_type'] . " *** *** " . $result['data']['authorization']['last4'],
+                        'more_info' => ucfirst($result['data']['authorization']['card_type']) . " *** *** " . $result['data']['authorization']['last4'],
                         'payment_gateway_id' => $paymentGateway->id,
                         'can_auto_charge' => true,
                     ]
