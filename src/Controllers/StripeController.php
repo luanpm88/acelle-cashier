@@ -54,7 +54,7 @@ class StripeController extends Controller
                 ],
                 [
                     'autobilling_data' => $autobillingData,
-                    'more_info' => trans('cashier::messages.card.brand') . ": {$paymentMethod->card->brand}. " .trans('cashier::messages.card.last4'). ": {$paymentMethod->card->last4}",
+                    'more_info' => $paymentMethod->card->brand . " *** *** " . $paymentMethod->card->last4,
                     'payment_gateway_id' => $paymentGateway->id,
                     'can_auto_charge' => true,
                 ]
