@@ -47,15 +47,15 @@ class StripeController extends Controller
             $autobillingData = json_encode([
                 'payment_method_id' => $request->payment_method_id,
                 'customer_id' => $stripeCustomer->id,
+                'card_type' => ucfirst($paymentMethod->card->brand),
+                'last_4' => $paymentMethod->card->last4,
             ]);
             $paymentMethod = $invoice->customer->paymentMethods()->updateOrCreate(
                 [
-                    'unique_id' => md5($autobillingData),
+                    'payment_gateway_id' => $paymentGateway->id,
+                    'autobilling_data' => $autobillingData,
                 ],
                 [
-                    'autobilling_data' => $autobillingData,
-                    'more_info' => ucfirst($paymentMethod->card->brand) . " *** *** " . $paymentMethod->card->last4,
-                    'payment_gateway_id' => $paymentGateway->id,
                     'can_auto_charge' => true,
                 ]
             );

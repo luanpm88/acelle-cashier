@@ -100,9 +100,9 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
             // charge invoice
             $autobillingData = json_decode($paymentMethod->autobilling_data, true);
             $card = [
-                'authorization_code' => $autobillingData['last_transaction']['data']['authorization']['authorization_code'],
-                'email' => $autobillingData['last_transaction']['data']['customer']['email'],
-                'last4' => $autobillingData['last_transaction']['data']['authorization']['last4'],
+                'authorization_code' => $autobillingData['authorization_code'],
+                'email' => $autobillingData['email'],
+                'last4' => $autobillingData['last_4'],
             ];
 
             try {
@@ -401,5 +401,17 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
         }
 
         return $minimums[$currency];
+    }
+
+    // get method title
+    public function getMethodTitle($billingData)
+    {
+        return $billingData['card_type'] ?? 'Unknown';
+    }
+
+    // get method info
+    public function getMethodInfo($billingData)
+    {
+        return "*** *** *** " . ($billingData['last_4'] ?? 'Unknown');
     }
 }

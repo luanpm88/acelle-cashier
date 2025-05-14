@@ -43,16 +43,17 @@ class PaystackController extends Controller
 
                 // Payment method
                 $autobillingData = json_encode([
-                    'last_transaction' => $result,
+                    'authorization_code' => $result['data']['authorization']['authorization_code'],
+                    'email' => $result['data']['customer']['email'],
+                    'last_4' => $result['data']['authorization']['last4'],
+                    'card_type' => ucfirst($result['data']['authorization']['card_type']),
                 ]);
                 $paymentMethod = $invoice->customer->paymentMethods()->updateOrCreate(
                     [
-                        'unique_id' => md5( $paymentGateway->id . ":" .$result['data']['authorization']['card_type']. ":" . $result['data']['authorization']['last4']),
+                        'payment_gateway_id' => $paymentGateway->id,
+                        'autobilling_data' => $autobillingData,
                     ],
                     [
-                        'autobilling_data' => $autobillingData,
-                        'more_info' => ucfirst($result['data']['authorization']['card_type']) . " *** *** " . $result['data']['authorization']['last4'],
-                        'payment_gateway_id' => $paymentGateway->id,
                         'can_auto_charge' => true,
                     ]
                 );

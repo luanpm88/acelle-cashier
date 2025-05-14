@@ -281,4 +281,16 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
     {
         return 0;
     }
+
+    // get method title
+    public function getMethodTitle($billingData)
+    {
+        return trans('cashier::messages.offline');
+    }
+
+    // get method info
+    public function getMethodInfo($billingData)
+    {
+        return trans('cashier::messages.offline.description');
+    }
 }

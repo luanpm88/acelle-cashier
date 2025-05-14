@@ -85,12 +85,9 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         // Payment method
         $paymentMethod = $invoice->customer->paymentMethods()->updateOrCreate(
             [
-                'unique_id' => 'Paypal',
                 'payment_gateway_id' => $paymentGateway->id,
             ],
             [
-                'autobilling_data' => null,
-                'more_info' => "Paid by Paypal",
                 'can_auto_charge' => false,
             ]
         );
@@ -177,5 +174,17 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
     public function getMinimumChargeAmount($currency)
     {
         return 0;
+    }
+
+    // get method title
+    public function getMethodTitle($billingData)
+    {
+        return trans('cashier::messages.paypal');
+    }
+
+    // get method info
+    public function getMethodInfo($billingData)
+    {
+        return trans('cashier::messages.paypal.description');
     }
 }

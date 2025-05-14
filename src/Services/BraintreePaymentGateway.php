@@ -425,4 +425,16 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
 
         return $minimums[$currency];
     }
+
+    // get method title
+    public function getMethodTitle($billingData)
+    {
+        return $billingData['card_type'] ?? 'Unknown';
+    }
+
+    // get method info
+    public function getMethodInfo($billingData)
+    {
+        return "*** *** *** " . ($billingData['last_4'] ?? 'Unknown');
+    }
 }

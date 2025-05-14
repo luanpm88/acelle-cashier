@@ -61,17 +61,11 @@ class OfflineController extends Controller
         }
 
         // Payment method
-        $autobillingData = json_encode([
-            'payment_instruction' => $paymentGateway->getGatewayData('payment_instruction'),
-        ]);
         $paymentMethod = $invoice->customer->paymentMethods()->updateOrCreate(
             [
-                'unique_id' => md5($autobillingData),
                 'payment_gateway_id' => $paymentGateway->id,
             ],
             [
-                'autobilling_data' => $autobillingData,
-                'more_info' => $paymentGateway->getGatewayData('payment_instruction'),
                 'can_auto_charge' => false,
             ]
         );
