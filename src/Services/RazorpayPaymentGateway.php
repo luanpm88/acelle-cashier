@@ -5,7 +5,6 @@ namespace Acelle\Cashier\Services;
 use Illuminate\Support\Facades\Log;
 use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Acelle\Model\PaymentMethod;
-use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
 
 class RazorpayPaymentGateway implements PaymentGatewayInterface
@@ -51,7 +50,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
-    public function verify(Transaction $transaction) : TransactionResult
+    public function verify(Transaction $transaction)
     {
         throw new \Exception("Payment service {$this->getType()} should not have pending transaction to verify");
     }
@@ -257,16 +256,16 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
     */
     public function charge($invoice, $request)
     {
-        $invoice->checkout($this, function($invoice) use ($request) {
-            try {
-                // charge invoice
-                $this->verifyCharge($request);
+        try {
+            // charge invoice
+            $this->verifyCharge($request);
 
-                return new TransactionResult(TransactionResult::RESULT_DONE);
-            } catch (\Exception $e) {
-                return new TransactionResult(TransactionResult::RESULT_FAILED, $e->getMessage());
-            }
-        });
+            // success
+            $invoice->paySuccess($paymentMethod);
+        } catch (\Exception $e) {
+            // failed
+            $invoice->payFailed($paymentMethod, $e->getMessage());
+        }
     }
 
     public function verifyCharge($request)

@@ -3,7 +3,6 @@
 namespace Acelle\Cashier\Services;
 
 use Acelle\Library\Contracts\PaymentGatewayInterface;
-use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
 use Acelle\Model\PaymentMethod;
 
@@ -48,10 +47,9 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
         return false;
     }
 
-    public function verify(Transaction $transaction) : TransactionResult
+    public function verify(Transaction $transaction)
     {
         // do nothing because offline need admin to approve
-        return new TransactionResult(TransactionResult::RESULT_PENDING);
     }
 
     public function allowManualReviewingOfTransaction() : bool

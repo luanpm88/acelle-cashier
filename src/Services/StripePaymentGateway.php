@@ -3,7 +3,6 @@
 namespace Acelle\Cashier\Services;
 
 use Acelle\Library\Contracts\PaymentGatewayInterface;
-use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
 use Acelle\Model\PaymentMethod;
 
@@ -60,7 +59,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return true;
     }
 
-    public function verify(Transaction $transaction) : TransactionResult
+    public function verify(Transaction $transaction)
     {
         throw new \Exception("Payment service {$this->getType()} should not have pending transaction to verify");
     }
@@ -72,54 +71,55 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
     public function autoCharge($invoice, PaymentMethod $paymentMethod)
     {
-        $invoice->checkout($paymentMethod, function($invoice) use ($paymentMethod) {
-            try {
-                // charge invoice
-                $autobillingData = json_decode($paymentMethod->autobilling_data, true);
+        try {
+            // charge invoice
+            $autobillingData = json_decode($paymentMethod->autobilling_data, true);
 
-                \Stripe\PaymentIntent::create([
-                    'amount' => $this->convertPrice($invoice->total(), $invoice->getCurrencyCode()),
-                    'currency' => $invoice->getCurrencyCode(),
-                    'customer' => $autobillingData['customer_id'],
-                    'payment_method' => $autobillingData['payment_method_id'],
-                    'off_session' => true,
-                    'confirm' => true,
-                    'description' => trans('messages.pay_invoice', [
-                        'id' => $invoice->uid,
-                    ]),
-                ]);
+            \Stripe\PaymentIntent::create([
+                'amount' => $this->convertPrice($invoice->total(), $invoice->getCurrencyCode()),
+                'currency' => $invoice->getCurrencyCode(),
+                'customer' => $autobillingData['customer_id'],
+                'payment_method' => $autobillingData['payment_method_id'],
+                'off_session' => true,
+                'confirm' => true,
+                'description' => trans('messages.pay_invoice', [
+                    'id' => $invoice->uid,
+                ]),
+            ]);
 
-                return new TransactionResult(TransactionResult::RESULT_DONE);
-            } catch (\Stripe\Exception\CardException $e) {
-                // Error code will be authentication_required if authentication is needed
-                $payment_intent_id = $e->getError()->payment_intent->id;
-                // $payment_intent = \Stripe\PaymentIntent::retrieve($payment_intent_id);
+            // success
+            $invoice->paySuccess($paymentMethod);
+        } catch (\Stripe\Exception\CardException $e) {
+            // Error code will be authentication_required if authentication is needed
+            $payment_intent_id = $e->getError()->payment_intent->id;
+            // $payment_intent = \Stripe\PaymentIntent::retrieve($payment_intent_id);
 
-                $authPaymentLink = action("\Acelle\Cashier\Controllers\StripeController@paymentAuth", [
-                    'invoice_uid' => $invoice->uid,
-                    'payment_gateway_id' => $paymentMethod->paymentGateway->uid,
-                ]);
+            $authPaymentLink = action("\Acelle\Cashier\Controllers\StripeController@paymentAuth", [
+                'invoice_uid' => $invoice->uid,
+                'payment_gateway_id' => $paymentMethod->paymentGateway->uid,
+            ]);
 
-                return new TransactionResult(
-                    TransactionResult::RESULT_FAILED,
-                    $e->getError()->message . ' ' . trans('cashier::messages.stripe.click_to_auth', [
-                        'link' => $authPaymentLink,
-                    ])
-                );
-            } catch (\Throwable $e) {
-                $authPaymentLink = action("\Acelle\Cashier\Controllers\StripeController@paymentAuth", [
-                    'invoice_uid' => $invoice->uid,
-                    'payment_gateway_id' => $paymentMethod->paymentGateway->uid,
-                ]);
+            // failed
+            $invoice->payFailed(
+                $paymentMethod, 
+                $e->getError()->message . ' ' . trans('cashier::messages.stripe.click_to_auth', [
+                    'link' => $authPaymentLink,
+                ])    
+            );
+        } catch (\Throwable $e) {
+            $authPaymentLink = action("\Acelle\Cashier\Controllers\StripeController@paymentAuth", [
+                'invoice_uid' => $invoice->uid,
+                'payment_gateway_id' => $paymentMethod->paymentGateway->uid,
+            ]);
 
-                return new TransactionResult(
-                    TransactionResult::RESULT_FAILED,
-                    $e->getMessage() . ' ' . trans('cashier::messages.stripe.click_to_auth', [
-                        'link' => $authPaymentLink,
-                    ])
-                );
-            }
-        });
+            // failed
+            $invoice->payFailed(
+                $paymentMethod, 
+                $e->getMessage() . ' ' . trans('cashier::messages.stripe.click_to_auth', [
+                    'link' => $authPaymentLink,
+                ]) 
+            );
+        }
     }
 
     /**

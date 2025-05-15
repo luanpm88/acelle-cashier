@@ -6,7 +6,6 @@ use Acelle\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Acelle\Library\Facades\Billing;
 use Acelle\Model\Invoice;
-use Acelle\Library\TransactionResult;
 use Acelle\Model\PaymentGateway;
 
 class PaypalController extends Controller
@@ -42,9 +41,19 @@ class PaypalController extends Controller
         }
 
         if ($request->isMethod('post')) {
-            $result = $service->charge($invoice, $paymentGateway, [
-                'orderID' => $request->orderID,
-            ]);
+            // Payment method
+            $paymentMethod = $invoice->customer->paymentMethods()->create(
+                [
+                    'payment_gateway_id' => $paymentGateway->id,
+                    'can_auto_charge' => false,
+                ]
+            );
+
+            // charge invoice
+            $service->checkOrderID($request->orderID);
+
+            // success
+            $invoice->paySuccess($paymentMethod);
 
             // return back
             return redirect()->away(Billing::getReturnUrl());;

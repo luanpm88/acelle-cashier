@@ -5,7 +5,6 @@ namespace Acelle\Cashier\Controllers;
 use Acelle\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Acelle\Library\Facades\Billing;
-use Acelle\Library\TransactionResult;
 use Acelle\Model\Invoice;
 use Acelle\Model\PaymentGateway;
 
@@ -61,19 +60,15 @@ class OfflineController extends Controller
         }
 
         // Payment method
-        $paymentMethod = $invoice->customer->paymentMethods()->updateOrCreate(
+        $paymentMethod = $invoice->customer->paymentMethods()->create(
             [
                 'payment_gateway_id' => $paymentGateway->id,
-            ],
-            [
                 'can_auto_charge' => false,
             ]
         );
         
         // claim invoice
-        $invoice->checkout($paymentMethod, function($invoice) {
-            return new TransactionResult(TransactionResult::RESULT_PENDING);
-        });
+        $invoice->payPending($paymentMethod);
         
         return redirect()->away(Billing::getReturnUrl());
     }

@@ -3,7 +3,6 @@
 namespace Acelle\Cashier\Services;
 
 use Acelle\Library\Contracts\PaymentGatewayInterface;
-use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
 use Acelle\Model\PaymentMethod;
 use Acelle\Model\PaymentGateway;
@@ -79,7 +78,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
         ]);
     }
 
-    public function verify(Transaction $transaction) : TransactionResult
+    public function verify(Transaction $transaction)
     {
         throw new \Exception("Payment service {$this->getType()} should not have pending transaction to verify");
     }
@@ -96,32 +95,32 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
     */
     public function autoCharge($invoice, PaymentMethod $paymentMethod)
     {
-        $invoice->checkout($paymentMethod, function($invoice) use ($paymentMethod) {
+        // charge invoice
+        $autobillingData = json_decode($paymentMethod->autobilling_data, true);
+        $card = [
+            'authorization_code' => $autobillingData['authorization_code'],
+            'email' => $autobillingData['email'],
+            'last4' => $autobillingData['last_4'],
+        ];
+
+        try {
             // charge invoice
-            $autobillingData = json_decode($paymentMethod->autobilling_data, true);
-            $card = [
-                'authorization_code' => $autobillingData['authorization_code'],
-                'email' => $autobillingData['email'],
-                'last4' => $autobillingData['last_4'],
-            ];
+            $this->doCharge([
+                'amount' => $invoice->total(),
+                'currency' => $invoice->getCurrencyCode(),
+                'description' => trans('messages.pay_invoice', [
+                    'id' => $invoice->uid,
+                ]),
+                'email' => $card['email'],
+                'authorization_code' => $card['authorization_code'],
+            ]);
 
-            try {
-                // charge invoice
-                $this->doCharge([
-                    'amount' => $invoice->total(),
-                    'currency' => $invoice->getCurrencyCode(),
-                    'description' => trans('messages.pay_invoice', [
-                        'id' => $invoice->uid,
-                    ]),
-                    'email' => $card['email'],
-                    'authorization_code' => $card['authorization_code'],
-                ]);
-
-                return new TransactionResult(TransactionResult::RESULT_DONE);
-            } catch (\Exception $e) {
-                return new TransactionResult(TransactionResult::RESULT_FAILED, $e->getMessage());
-            }
-        });
+            // success
+            $invoice->paySuccess($paymentMethod);
+        } catch (\Exception $e) {
+            // failed
+            $invoice->payFailed($paymentMethod, $e->getMessage());
+        }
     }
 
     /**

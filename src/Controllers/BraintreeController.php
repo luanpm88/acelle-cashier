@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use Acelle\Library\Facades\Billing;
 use Acelle\Model\PaymentGateway;
 use Acelle\Model\Invoice;
-use Acelle\Library\TransactionResult;
 
 class BraintreeController extends Controller
 {
@@ -58,12 +57,10 @@ class BraintreeController extends Controller
                 'last_4' => $card->last4,
                 'card_type' => ucfirst($card->cardType),
             ]);
-            $paymentMethod = $invoice->customer->paymentMethods()->updateOrCreate(
+            $paymentMethod = $invoice->customer->paymentMethods()->create(
                 [
                     'payment_gateway_id' => $paymentGateway->id,
                     'autobilling_data' => $autobillingData,
-                ],
-                [
                     'can_auto_charge' => true,
                 ]
             );

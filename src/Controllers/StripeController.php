@@ -4,9 +4,7 @@ namespace Acelle\Cashier\Controllers;
 
 use Acelle\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Acelle\Library\Facades\Billing;
 use Acelle\Model\Invoice;
-use Acelle\Library\TransactionResult;
 use Acelle\Model\PaymentGateway;
 
 
@@ -50,20 +48,16 @@ class StripeController extends Controller
                 'card_type' => ucfirst($paymentMethod->card->brand),
                 'last_4' => $paymentMethod->card->last4,
             ]);
-            $paymentMethod = $invoice->customer->paymentMethods()->updateOrCreate(
+            $paymentMethod = $invoice->customer->paymentMethods()->create(
                 [
                     'payment_gateway_id' => $paymentGateway->id,
                     'autobilling_data' => $autobillingData,
-                ],
-                [
                     'can_auto_charge' => true,
                 ]
             );
 
             // invoice checkout
-            $invoice->checkout($paymentMethod, function($invoice) {
-                return new TransactionResult(TransactionResult::RESULT_DONE);
-            });
+            $invoice->paySuccess($paymentMethod);
         }
 
         return view('cashier::stripe.checkout', [

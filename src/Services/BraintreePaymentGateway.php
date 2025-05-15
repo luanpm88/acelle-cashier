@@ -5,8 +5,6 @@ namespace Acelle\Cashier\Services;
 use Acelle\Library\Contracts\PaymentGatewayInterface;
 use Acelle\Model\PaymentMethod;
 use Carbon\Carbon;
-use Acelle\Model\Invoice;
-use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
 
 class BraintreePaymentGateway implements PaymentGatewayInterface
@@ -55,7 +53,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
         return $this->active;
     }
 
-    public function verify(Transaction $transaction) : TransactionResult
+    public function verify(Transaction $transaction)
     {
         throw new \Exception("Payment service {$this->getType()} should not have pending transaction to verify");
     }
@@ -72,38 +70,36 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      */
     public function autoCharge($invoice, PaymentMethod $paymentMethod)
     {
-        $invoice->checkout($paymentMethod, function($invoice) use ($paymentMethod) {
+        // charge invoice
+        $autobillingData = json_decode($paymentMethod->autobilling_data, true);
+
+        try {
             // charge invoice
-            $autobillingData = json_decode($paymentMethod->autobilling_data, true);
+            $this->doCharge([
+                'paymentMethodToken' => $autobillingData['payment_method_token'],
+                'amount' => $invoice->total(),
+                'currency' => $invoice->getCurrencyCode(),
+                'description' => trans('messages.pay_invoice', [
+                    'id' => $invoice->uid,
+                ]),
+            ]);
 
-            try {
-                // charge invoice
-                $this->doCharge([
-                    'paymentMethodToken' => $autobillingData['payment_method_token'],
-                    'amount' => $invoice->total(),
-                    'currency' => $invoice->getCurrencyCode(),
-                    'description' => trans('messages.pay_invoice', [
-                        'id' => $invoice->uid,
-                    ]),
-                ]);
+            // success
+            $invoice->paySuccess($paymentMethod);
+        } catch (\Throwable $e) {
+            $authPaymentLink = action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
+                'invoice_uid' => $invoice->uid,
+                'payment_gateway_id' => $paymentMethod->paymentGateway->uid,
+            ]);
 
-                return new TransactionResult(TransactionResult::RESULT_DONE);
-            } catch (\Throwable $e) {
-                $authPaymentLink = action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
-                    'invoice_uid' => $invoice->uid,
-                    'payment_gateway_id' => $paymentMethod->paymentGateway->uid,
-                ]);
-
-                return new TransactionResult(
-                    TransactionResult::RESULT_FAILED,
-                    $e->getMessage() . ' ' . trans('cashier::messages.braintree.click_to_auth', [
-                        'link' => $authPaymentLink,
-                    ])
-                );
-                
-                return new TransactionResult(TransactionResult::RESULT_FAILED, $e->getMessage());
-            }
-        });
+            // failed
+            $invoice->payFailed(
+                $paymentMethod,
+                $e->getMessage() . ' ' . trans('cashier::messages.braintree.click_to_auth', [
+                    'link' => $authPaymentLink,
+                ])
+            );
+        }
     }
 
     public function getEnvironment()

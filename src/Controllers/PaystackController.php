@@ -6,7 +6,6 @@ use Acelle\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Acelle\Library\Facades\Billing;
 use Acelle\Model\Invoice;
-use Acelle\Library\TransactionResult;
 use Acelle\Model\PaymentGateway;
 
 class PaystackController extends Controller
@@ -48,20 +47,16 @@ class PaystackController extends Controller
                     'last_4' => $result['data']['authorization']['last4'],
                     'card_type' => ucfirst($result['data']['authorization']['card_type']),
                 ]);
-                $paymentMethod = $invoice->customer->paymentMethods()->updateOrCreate(
+                $paymentMethod = $invoice->customer->paymentMethods()->create(
                     [
                         'payment_gateway_id' => $paymentGateway->id,
                         'autobilling_data' => $autobillingData,
-                    ],
-                    [
                         'can_auto_charge' => true,
                     ]
                 );
 
                 // success
-                $invoice->checkout($paymentMethod, function($invoice) use ($service, $request) {
-                    return new TransactionResult(TransactionResult::RESULT_DONE);
-                });
+                $invoice->paySuccess($paymentMethod);
 
                 return redirect()->away(Billing::getReturnUrl());
             } catch (\Throwable $e) {

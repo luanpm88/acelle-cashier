@@ -7,8 +7,6 @@ use PayPalCheckoutSdk\Orders\OrdersGetRequest;
 use PayPalCheckoutSdk\Core\PayPalHttpClient;
 use PayPalCheckoutSdk\Core\SandboxEnvironment;
 use PayPalCheckoutSdk\Core\ProductionEnvironment;
-use Acelle\Model\Invoice;
-use Acelle\Library\TransactionResult;
 use Acelle\Model\Transaction;
 use Acelle\Model\PaymentMethod;
 
@@ -75,33 +73,9 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         return false;
     }
 
-    public function verify(Transaction $transaction) : TransactionResult
+    public function verify(Transaction $transaction)
     {
         throw new \Exception("Payment service {$this->getType()} should not have pending transaction to verify");
-    }
-    
-    public function charge($invoice, $paymentGateway, $options=[])
-    {
-        // Payment method
-        $paymentMethod = $invoice->customer->paymentMethods()->updateOrCreate(
-            [
-                'payment_gateway_id' => $paymentGateway->id,
-            ],
-            [
-                'can_auto_charge' => false,
-            ]
-        );
-
-        $invoice->checkout($paymentMethod, function($invoice) use ($options) {
-            try {
-                // charge invoice
-                $this->doCharge($invoice, $options);
-
-                return new TransactionResult(TransactionResult::RESULT_DONE);
-            } catch (\Exception $e) {
-                return new TransactionResult(TransactionResult::RESULT_FAILED, $e->getMessage());
-            }
-        });
     }
 
     /**
@@ -121,19 +95,6 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         }
         
         return true;
-    }
-    
-    /**
-     * Create a new subscriptionParam.
-     *
-     * @param  mixed              $token
-     * @param  SubscriptionParam  $param
-     * @return void
-     */
-    public function doCharge($invoice, $options=[])
-    {
-        // check order ID
-        $this->checkOrderID($options['orderID']);
     }
 
     /**
