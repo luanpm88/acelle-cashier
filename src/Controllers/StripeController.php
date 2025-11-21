@@ -56,8 +56,12 @@ class StripeController extends Controller
                 ]
             );
 
-            // invoice checkout
-            $invoice->paySuccess($paymentMethod);
+            // auto charge
+            if ($invoice->isFree()) {
+                $invoice->paySuccess($paymentMethod);
+            } else {
+                $paymentGateway->getService()->autoCharge($invoice, $paymentMethod);
+            }
         }
 
         return view('cashier::stripe.checkout', [
