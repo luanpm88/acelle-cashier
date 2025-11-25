@@ -131,4 +131,11 @@
     'stripe.short_description' => 'Pay for your subscription & services using your debit
         or credit cards. Auto billing is supported',
     'braintree.click_to_auth' => 'Click <a href=":link">here</a> to authenticate the payment.',
+    'quantity' => 'Quantity',
+    'total_due' => 'Total due',
+    'pay_invoice' => 'Pay Invoice',
+    'stripe.checkout.page_title' => 'Checkout',
+    'stripe.new_card' => 'New Card',
+    'stripe.new_card.intro2' => 'Please fill in your card information below to complete the payment securely. Ensure all details are accurate to avoid transaction issues.',
+    'stripe.pay' => 'Pay',
 );

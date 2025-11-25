@@ -1,9 +1,10 @@
 <html lang="en">
     <head>
-        <title>{{ trans('cashier::messages.stripe') }}</title>
+        <title>{{ trans('cashier::messages.stripe.checkout.page_title') }}</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>            
         <link rel="stylesheet" href="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
+
         <meta name="viewport" content="width=device-width, initial-scale=1" />
 
         @include('layouts.core._includes')
@@ -14,43 +15,42 @@
     </head>
     
     <body>
-        <div class="container">
+        <div class="px-4">
             <div class="row">
-                <div class="col-md-2"></div>
-                <div class="col-md-4 pb-5">
-                    <label class="text-semibold text-muted">
-                        <strong>
-                            {{ trans('cashier::messages.stripe') }}
-                        </strong>
-                    </label>
-                    <div>
-                        <svg style="width:200px;height:100px;" viewBox="0 0 60 25" xmlns="http://www.w3.org/2000/svg" width="60" height="25" class="UserLogo variant-- "><title>Stripe logo</title><path fill="var(--userLogoColor, #0A2540)" d="M59.64 14.28h-8.06c.19 1.93 1.6 2.55 3.2 2.55 1.64 0 2.96-.37 4.05-.95v3.32a8.33 8.33 0 0 1-4.56 1.1c-4.01 0-6.83-2.5-6.83-7.48 0-4.19 2.39-7.52 6.3-7.52 3.92 0 5.96 3.28 5.96 7.5 0 .4-.04 1.26-.06 1.48zm-5.92-5.62c-1.03 0-2.17.73-2.17 2.58h4.25c0-1.85-1.07-2.58-2.08-2.58zM40.95 20.3c-1.44 0-2.32-.6-2.9-1.04l-.02 4.63-4.12.87V5.57h3.76l.08 1.02a4.7 4.7 0 0 1 3.23-1.29c2.9 0 5.62 2.6 5.62 7.4 0 5.23-2.7 7.6-5.65 7.6zM40 8.95c-.95 0-1.54.34-1.97.81l.02 6.12c.4.44.98.78 1.95.78 1.52 0 2.54-1.65 2.54-3.87 0-2.15-1.04-3.84-2.54-3.84zM28.24 5.57h4.13v14.44h-4.13V5.57zm0-4.7L32.37 0v3.36l-4.13.88V.88zm-4.32 9.35v9.79H19.8V5.57h3.7l.12 1.22c1-1.77 3.07-1.41 3.62-1.22v3.79c-.52-.17-2.29-.43-3.32.86zm-8.55 4.72c0 2.43 2.6 1.68 3.12 1.46v3.36c-.55.3-1.54.54-2.89.54a4.15 4.15 0 0 1-4.27-4.24l.01-13.17 4.02-.86v3.54h3.14V9.1h-3.13v5.85zm-4.91.7c0 2.97-2.31 4.66-5.73 4.66a11.2 11.2 0 0 1-4.46-.93v-3.93c1.38.75 3.1 1.31 4.46 1.31.92 0 1.53-.24 1.53-1C6.26 13.77 0 14.51 0 9.95 0 7.04 2.28 5.3 5.62 5.3c1.36 0 2.72.2 4.09.75v3.88a9.23 9.23 0 0 0-4.1-1.06c-.86 0-1.44.25-1.44.9 0 1.85 6.29.97 6.29 5.88z" fill-rule="evenodd"></path></svg>
-                    </div>
+                <!-- Left side: Invoice details -->
+                <div class="col-md-6">
+                    <h2 class="mb-4">{{ trans('cashier::messages.pay_invoice') }}</h2>
+                    <table class="w-100">
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <div class="p-2 rounded me-2 d-inline-block" style="background-color: #BCA38B">
+                                        <svg style="height:40px;width:40px;" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="http://www.w3.org/2000/svg" width="24px" fill="#FFFFFF"><path d="M160-288.46v76.15q0 4.62 3.85 8.46 3.84 3.85 8.46 3.85h615.38q4.62 0 8.46-3.85 3.85-3.84 3.85-8.46v-76.15H160ZM300-700v-72.31q0-30.3 21-51.3 21-21 51.31-21h215.38q30.31 0 51.31 21 21 21 21 51.3V-700h127.69Q818-700 839-679q21 21 21 51.31v415.38Q860-182 839-161q-21 21-51.31 21H172.31Q142-140 121-161q-21-21-21-51.31v-415.38Q100-658 121-679q21-21 51.31-21H300ZM160-391.54h640v-236.15q0-4.62-3.85-8.46-3.84-3.85-8.46-3.85H660v42.31q0 12.77-8.62 21.38-8.61 8.62-21.38 8.62t-21.38-8.62q-8.62-8.61-8.62-21.38V-640H360v42.31q0 12.77-8.62 21.38-8.61 8.62-21.38 8.62t-21.38-8.62q-8.62-8.61-8.62-21.38V-640H172.31q-4.62 0-8.46 3.85-3.85 3.84-3.85 8.46v236.15ZM360-700h240v-72.31q0-4.61-3.85-8.46-3.84-3.84-8.46-3.84H372.31q-4.62 0-8.46 3.84-3.85 3.85-3.85 8.46V-700ZM160-212.31V-640v72.31V-640v72.31V-640h12.31q-4.62 0-8.46 3.85-3.85 3.84-3.85 8.46v415.38q0 4.62 3.85 8.46 3.84 3.85 8.46 3.85H160v-12.31Z"/></svg>
+                                    </div>
+                                </td>
+                                <td class="py-2 pe-4" style="width: 70%;">
+                                    <p class="fw-bold mb-1">{!! $invoice->description !!}</p>
+                                    <p class="mb-0">{{ trans('cashier::messages.quantity') }}: 1</p>
+                                </td>
+                                <td class="text-end py-2"><span class="text-bold display-4">{{ number_format($invoice->total(), 2) }}</span><br>({{ $invoice->getCurrencyCode() }})</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <hr>
+                    <p class="text-muted text-end">{{ trans('cashier::messages.total_due') }}</p>
+                    <h1 class="fw-bold text-end">{{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})</h1>
                 </div>
-                <div class="col-md-4">
-                    <div class="sub-section">
 
-                        <h4 class="fw-600 mb-3 mt-0">{!! trans('cashier::messages.stripe.new_card') !!}</h4>
-                        <p>{!! trans('cashier::messages.stripe.new_card.intro') !!}</p>
-                        
-                        <div id="card-element" class="border p-3 rounded">
-                            <!-- Elements will create input elements here -->
-                        </div>
-                            
-                        <!-- We'll put the error messages in this element -->
-                        <div id="card-errors" role="alert" class="text-danger small"></div>
-                        
-                        <button id="submit" class="mt-4 btn btn-secondary">{{ trans('cashier::messages.stripe.pay') }}</button>
-
-                    </div>
-
-                    <a
-                        href="{{ Billing::getReturnUrl() }}"
-                        class="text-muted mt-4" style="text-decoration: underline; display: block"
-                    >{{ trans('cashier::messages.stripe.return_back') }}</a>
-                    
+                <!-- Right side: Payment form -->
+                <div class="col-md-6">
+                    <h2 class="mb-4">{{ trans('cashier::messages.stripe.new_card') }}</h2>
+                    <p class="text-muted">{{ trans('cashier::messages.stripe.new_card.intro2') }}</p>
+                    <div id="card-element" class="form-control py-3 shadow-sm" style="height: auto!important;"></div>
+                    <div id="card-errors" class="text-danger mt-2" role="alert"></div>
+                    <button id="submit" class="btn btn-dark w-100 mt-4 py-3 fs-5">
+                        {{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})
+                    </button>
                 </div>
-                <div class="col-md-2"></div>
             </div>
         </div>
         <br />
