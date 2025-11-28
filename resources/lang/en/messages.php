@@ -138,4 +138,13 @@
     'stripe.new_card' => 'New Card',
     'stripe.new_card.intro2' => 'Please fill in your card information below to complete the payment securely. Ensure all details are accurate to avoid transaction issues.',
     'stripe.pay' => 'Pay',
+    'secured_transaction' => 'Secured Transaction',
+    'total_amount' => 'Total amount',
+    'items' => 'Items',
+    'subtotal' => 'Subtotal',
+    'payment_transaction_fee' => 'Payment Transaction Fee',
+    'activate_account_after_subscribing' => 'Activate account after subscribing to the plan',
+    'total_due' => 'Total due',
+    'powered_by' => 'Powered by',
+    'privacy_terms' => 'Privacy & terms',
 );
