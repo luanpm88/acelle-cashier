@@ -44,7 +44,7 @@
                 <div class="card shadow-sm rounded-3 px-2 py-2 mb-4">
                     <div class="card-body p-4">
                         @include('invoices.bill', [
-                            'bill' => $invoice->getBillingInfo(),
+                            'invoice' => $invoice,
                         ])
                     </div>
                 </div>

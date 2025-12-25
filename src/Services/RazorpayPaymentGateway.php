@@ -186,13 +186,11 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         if (isset($data["customer"])) {
             $customer = $this->request('customers/' . $data["customer"]["id"], 'GET');
         } else {
-            $bill = $invoice->getBillingInfo();
-
             $customer = $this->request('customers', 'POST', [
                 "Content-Type" => "application/json"
             ], [
-                "name" => $bill['billing_display_name'],
-                "email" => $bill['billing_email'],
+                "name" => $invoice->billing_first_name . ' ' . $invoice->billing_last_name,
+                "email" => $invoice->billing_email,
                 "contact" => "",
                 "fail_existing" => "0",
                 "notes" => [
