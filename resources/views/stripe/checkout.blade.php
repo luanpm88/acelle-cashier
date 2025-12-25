@@ -35,22 +35,23 @@
                         <label class="">{{ trans('cashier::messages.items') }}</label>
                         <table class="w-100">
                             <tbody>
-                                @foreach ($invoice->invoiceItems as $invoiceItem)
+                                @foreach ($invoice->order->orderItems as $orderItem)
                                     <tr>
                                         <td>
-                                            @if($invoiceItem->image_url)
+                                            @if($orderItem->image_url)
                                                 <div class="me-3 d-inline-block shadow-sm" style="background-color: #F0F0F0;border-radius:3px;overflow:hidden;">
-                                                    <img src="{{ $invoiceItem->image_url }}" alt="" style="height:40px;width:40px;object-fit:contain;">
+                                                    <img src="{{ $orderItem->image_url }}" alt="" style="height:40px;width:40px;object-fit:contain;">
                                                 </div>
                                             @endif
                                         </td>
                                         <td class="py-3 pe-4" style="width: 70%;">
-                                            <p class="fw-semibold mb-1">{!! $invoiceItem->title !!}</p>
+                                            <p class="fw-semibold mb-1">{!! $orderItem->title !!}</p>
+                                            <p class="mb-2 small">{!! $orderItem->description !!}</p>
                                             <p class="mb-0 small">{{ trans('cashier::messages.quantity') }}: <strong>1</strong></p>
                                         </td>
                                         <td class="text-end py-3">
-                                            <span class="text-bold">{{ number_format($invoiceItem->amount, 2) }}</span><br>
-                                            <span class="text-muted small">({{ $invoice->getCurrencyCode() }})</span>
+                                            <span class="text-bold">{{ number_format($orderItem->amount, 2) }}</span><br>
+                                            <span class="text-muted small">({{ $orderItem->order->currency->code }})</span>
                                         </td>
                                     </tr>
                                 @endforeach
