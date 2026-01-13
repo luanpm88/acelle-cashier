@@ -147,4 +147,5 @@
     'total_due' => 'Total due',
     'powered_by' => 'Powered by',
     'privacy_terms' => 'Privacy & terms',
+    'offline.payment_instructions' => 'Please follow the instructions below to complete your payment:',
 );

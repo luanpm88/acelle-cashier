@@ -1,54 +1,34 @@
-@extends('layouts.core.empty', [
-    'subscriptionPage' => true,
-])
-
-@section('title', trans('messages.subscriptions'))
+@extends('cashier::layouts.checkout')
 
 @section('content')
-    <div class="container mt-4 mb-5">
-        <div class="row">
-            <div class="col-md-6">
-                <h2>{!! trans('cashier::messages.pay_invoice') !!}</h2>  
+    <h2>{!! trans('cashier::messages.pay_invoice') !!}</h2>  
 
-                <div class="alert alert-info bg-grey-light">
-                    {!! $paymentGateway->getGatewayData('payment_instruction') !!}
-                </div>
-                <hr>
-                    
-                <div class="d-flex align-items-center">
-                    <form method="POST"
-                        action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\OfflineController@claim', [
-                            'invoice_uid' => $invoice->uid,
-                            'payment_gateway_id' => $paymentGateway->uid,
-                        ]) }}"
-                    >
-                        {{ csrf_field() }}
-                        <button
-                            class="btn btn-primary mr-10 mr-4"
-                        >{{ trans('cashier::messages.offline.claim_payment') }}</button>
-                    </form>
+    <p>{{ trans('cashier::messages.offline.payment_instructions') }}</p>
+    <div class="p-4 bg-grey-light" style="min-height: 150px;">
+        {!! $paymentGateway->getGatewayData('payment_instruction') !!}
+    </div>
+    <hr>
+        
+    <div class="d-flex align-items-center">
+        <form method="POST"
+            action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\OfflineController@claim', [
+                'invoice_uid' => $invoice->uid,
+                'payment_gateway_id' => $paymentGateway->uid,
+            ]) }}"
+        >
+            {{ csrf_field() }}
+            <button
+                class="btn btn-dark mr-10 mr-4"
+            >{{ trans('cashier::messages.offline.claim_payment') }}</button>
+        </form>
 
-                    <form id="cancelForm" method="POST" action="{{ action('SubscriptionController@cancelInvoice', [
-                                'invoice_uid' => $invoice->uid,
-                    ]) }}">
-                        {{ csrf_field() }}
-                        <a href="{{ Billing::getReturnUrl() }}">
-                            {{ trans('cashier::messages.go_back') }}
-                        </a>
-                    </form>
-                </div>
-                
-            </div>
-            <div class="col-md-2"></div>
-            <div class="col-md-4">
-                <div class="card shadow-sm rounded-3 px-2 py-2 mb-4">
-                    <div class="card-body p-4">
-                        @include('invoices.bill', [
-                            'invoice' => $invoice,
-                        ])
-                    </div>
-                </div>
-            </div>
-        </div>
+        <form id="cancelForm" method="POST" action="{{ action('SubscriptionController@cancelInvoice', [
+                    'invoice_uid' => $invoice->uid,
+        ]) }}">
+            {{ csrf_field() }}
+            <a class="btn btn-link" href="{{ Billing::getReturnUrl() }}">
+                {{ trans('cashier::messages.go_back') }}
+            </a>
+        </form>
     </div>
 @endsection
