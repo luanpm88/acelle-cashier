@@ -29,6 +29,11 @@ class PaypalController extends Controller
         // Service
         $paymentGateway = PaymentGateway::findByUid($request->payment_gateway_id);
         $service = $paymentGateway->getService();
+
+        // Set return URL for billing
+        if ($request->return_url) {
+            Billing::setReturnUrl($request->return_url);
+        }
         
         // Save return url
         if ($request->return_url) {

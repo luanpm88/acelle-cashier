@@ -25,6 +25,11 @@ class BraintreeController extends Controller
 
         $invoice = Invoice::findByUid($invoice_uid);
         $card = $service->getCardInformation($invoice->billing_email);
+
+        // Set return URL for billing
+        if ($request->return_url) {
+            Billing::setReturnUrl($request->return_url);
+        }
         
         // Save return url
         if ($request->return_url) {

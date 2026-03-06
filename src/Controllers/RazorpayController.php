@@ -30,9 +30,9 @@ class RazorpayController extends Controller
         $paymentGateway = PaymentGateway::findByUid($request->payment_gateway_id);
         $service = $paymentGateway->getService();
         
-        // Save return url
+        // Set return URL for billing
         if ($request->return_url) {
-            $request->session()->put('checkout_return_url', $request->return_url);
+            Billing::setReturnUrl($request->return_url);
         }
 
         // exceptions

@@ -6,6 +6,7 @@ use Acelle\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Acelle\Model\Invoice;
 use Acelle\Model\PaymentGateway;
+use Acelle\Library\Facades\Billing;
 
 
 class StripeController extends Controller
@@ -31,6 +32,11 @@ class StripeController extends Controller
 
         // Service
         $paymentGateway = PaymentGateway::findByUid($request->payment_gateway_id);
+
+        // Set return URL for billing
+        if ($request->return_url) {
+            Billing::setReturnUrl($request->return_url);
+        }
 
         // exceptions
         if (!$invoice->isNew()) {

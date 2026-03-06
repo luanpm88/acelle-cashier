@@ -54,6 +54,11 @@ class OfflineController extends Controller
         // Service
         $paymentGateway = PaymentGateway::findByUid($request->payment_gateway_id);
 
+        // Set return URL for billing
+        if ($request->return_url) {
+            Billing::setReturnUrl($request->return_url);
+        }
+
         // exceptions
         if (!$invoice->isNew()) {
             throw new \Exception('Invoice is not new');
