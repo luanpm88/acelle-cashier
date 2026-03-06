@@ -38,8 +38,8 @@
             }
         };
 
-        // var card = elements.create("card", { style: style, hidePostalCode: true });
-        var card = elements.create("card", { style: style });
+        var card = elements.create("card", { style: style, hidePostalCode: true });
+        // var card = elements.create("card", { style: style });
         card.mount("#card-element");
 
         card.on('change', function(event) {
