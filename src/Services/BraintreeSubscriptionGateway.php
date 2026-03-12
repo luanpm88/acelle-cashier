@@ -339,23 +339,29 @@ class BraintreeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
 
     protected function getOrCreateBraintreeCustomer(string $localUid, string $email): \Braintree\Customer
     {
+        // First try to find by customer ID (which we set to the local UID on creation)
+        try {
+            return $this->serviceGateway->customer()->find($localUid);
+        } catch (\Braintree\Exception\NotFound $e) {
+            // Not found by ID, try searching by email
+        }
+
         try {
             $customers = $this->serviceGateway->customer()->search([
                 \Braintree\CustomerSearch::email()->is($email),
             ]);
 
             foreach ($customers as $customer) {
-                if (isset($customer->customFields['local_uid']) && $customer->customFields['local_uid'] === $localUid) {
-                    return $customer;
-                }
+                return $customer;
             }
         } catch (\Throwable $e) {
             // search failed, create new
         }
 
+        // Create new customer with local UID as the Braintree customer ID
         $result = $this->serviceGateway->customer()->create([
+            'id' => $localUid,
             'email' => $email,
-            'customFields' => ['local_uid' => $localUid],
         ]);
 
         if (!$result->success) {

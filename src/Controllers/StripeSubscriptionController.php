@@ -61,6 +61,19 @@ class StripeSubscriptionController extends Controller
             ]));
         }
 
+        // Validate price/currency/interval match before allowing checkout
+        $mismatches = $mapping->getMismatches();
+        if (!empty($mismatches)) {
+            $details = array_map(fn($m) => $m['message'], $mismatches);
+            return redirect()->action('SubscriptionController@payment', [
+                'invoice_uid' => $invoice->uid,
+            ])->with('alert-error', trans('messages.subscription.plan_mapping_mismatch', [
+                'plan' => $subscription->plan->name ?? 'Unknown',
+                'gateway' => $paymentGateway->name,
+                'details' => implode('. ', $details),
+            ]));
+        }
+
         if ($request->isMethod('post')) {
             $result = $service->createRemoteSubscription($invoice, $mapping->remote_plan_id, [
                 'payment_method_id' => $request->payment_method_id,
