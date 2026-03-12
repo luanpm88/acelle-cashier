@@ -35,6 +35,7 @@ Route::group(['middleware' => ['web','not_installed'], 'namespace' => 'Acelle\Ca
 
     // Stripe Subscription (Category B)
     Route::match(['get', 'post'], '/cashier/stripe-subscription/checkout/{invoice_uid}/{payment_gateway_id}', 'StripeSubscriptionController@checkout');
+    Route::post('/cashier/stripe-subscription/confirm/{invoice_uid}', 'StripeSubscriptionController@confirm');
 
     // Braintree Subscription (Category B)
     Route::match(['get', 'post'], '/cashier/braintree-subscription/checkout/{invoice_uid}/{payment_gateway_id}', 'BraintreeSubscriptionController@checkout');

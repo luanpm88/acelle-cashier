@@ -188,7 +188,8 @@ class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
     ): CreateRemoteSubscriptionResult {
         try {
             $customer = $invoice->customer;
-            $stripeCustomer = $this->getOrCreateStripeCustomer($customer->uid, $customer->getBillingEmail());
+            $email = $invoice->billing_email ?: $customer->user->email;
+            $stripeCustomer = $this->getOrCreateStripeCustomer($customer->uid, $email);
 
             $paymentMethodId = $checkoutData['payment_method_id'];
             $paymentMethod = \Stripe\PaymentMethod::retrieve($paymentMethodId);
@@ -210,9 +211,20 @@ class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
                 ],
             ]);
 
+            $cardInfo = [];
+            if (isset($paymentMethod->card)) {
+                $cardInfo = [
+                    'card_type' => ucfirst($paymentMethod->card->brand),
+                    'last_4' => $paymentMethod->card->last4,
+                ];
+            }
+
             if ($stripeSubscription->status === 'incomplete') {
-                $paymentIntent = $stripeSubscription->latest_invoice->payment_intent;
-                if ($paymentIntent && $paymentIntent->status === 'requires_action') {
+                $paymentIntent = $stripeSubscription->latest_invoice->payment_intent ?? null;
+                $piStatus = $paymentIntent?->status;
+
+                // 3D Secure or other client-side action needed
+                if ($paymentIntent && in_array($piStatus, ['requires_action', 'requires_confirmation'])) {
                     return new CreateRemoteSubscriptionResult(
                         success: false,
                         remoteSubscriptionId: $stripeSubscription->id,
@@ -221,17 +233,18 @@ class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
                         currentPeriodEnd: Carbon::createFromTimestamp($stripeSubscription->current_period_end),
                         status: 'requires_action',
                         error: null,
-                        metadata: ['client_secret' => $paymentIntent->client_secret],
+                        paymentMethodData: $cardInfo ?? [],
+                        metadata: [
+                            'client_secret' => $paymentIntent->client_secret,
+                            'stripe_subscription_id' => $stripeSubscription->id,
+                        ],
                     );
                 }
-            }
 
-            $cardInfo = [];
-            if (isset($paymentMethod->card)) {
-                $cardInfo = [
-                    'card_type' => ucfirst($paymentMethod->card->brand),
-                    'last_4' => $paymentMethod->card->last4,
-                ];
+                // PaymentIntent succeeded but sub hasn't transitioned yet — re-fetch
+                if ($piStatus === 'succeeded') {
+                    $stripeSubscription = \Stripe\Subscription::retrieve($stripeSubscription->id);
+                }
             }
 
             return new CreateRemoteSubscriptionResult(

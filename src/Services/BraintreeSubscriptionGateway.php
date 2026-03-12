@@ -210,7 +210,8 @@ class BraintreeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
             $customer = $invoice->customer;
             $nonce = $checkoutData['payment_method_nonce'];
 
-            $btCustomer = $this->getOrCreateBraintreeCustomer($customer->uid, $customer->getBillingEmail());
+            $email = $invoice->billing_email ?: $customer->user->email;
+            $btCustomer = $this->getOrCreateBraintreeCustomer($customer->uid, $email);
 
             $paymentMethodResult = $this->serviceGateway->paymentMethod()->create([
                 'customerId' => $btCustomer->id,
