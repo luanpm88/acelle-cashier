@@ -17,14 +17,14 @@ class StripeSubscriptionController extends Controller
 
         if (!$invoice) {
             return redirect()->away(Billing::getReturnUrl() ?: url('/'))
-                ->with('alert-error', 'Invoice not found.');
+                ->with('alert-error', trans('cashier::messages.stripe_subscription.invoice_not_found'));
         }
 
         $paymentGateway = PaymentGateway::findByUid($request->payment_gateway_id);
 
         if (!$paymentGateway) {
             return redirect()->away(Billing::getReturnUrl() ?: url('/'))
-                ->with('alert-error', 'Payment gateway not found.');
+                ->with('alert-error', trans('cashier::messages.stripe_subscription.gateway_not_found'));
         }
 
         $service = $paymentGateway->getService();
@@ -44,7 +44,7 @@ class StripeSubscriptionController extends Controller
 
         if (!$subscription) {
             return redirect()->away(Billing::getReturnUrl() ?: url('/'))
-                ->with('alert-error', 'No subscription found for this invoice.');
+                ->with('alert-error', trans('cashier::messages.stripe_subscription.no_subscription'));
         }
 
         // Find the remote plan mapping for this plan + gateway
@@ -67,22 +67,12 @@ class StripeSubscriptionController extends Controller
             ]);
 
             if ($result->success) {
-                // Enrich metadata with full remote state so admin UI shows correct status immediately
-                $enrichedMetadata = array_merge($result->metadata ?? [], [
-                    'remote_status' => $result->status,
-                    'remote_plan_id' => $result->remotePlanId ?? $mapping->remote_plan_id,
-                    'remote_customer_id' => $result->remoteCustomerId,
-                ]);
-                if ($result->currentPeriodEnd) {
-                    $enrichedMetadata['remote_period_end'] = $result->currentPeriodEnd->toDateTimeString();
-                }
-
                 // Save remote subscription data to local subscription
                 $subscription->setRemoteSubscription(
                     $result->remoteSubscriptionId,
                     $result->remoteCustomerId,
                     $paymentGateway,
-                    $enrichedMetadata
+                    $result->metadata ?? []
                 );
 
                 // Create payment method record
@@ -100,34 +90,14 @@ class StripeSubscriptionController extends Controller
                     'redirect_url' => Billing::getReturnUrl() ?: url('/'),
                 ]);
             } elseif ($result->status === 'requires_action') {
-                // Save remote subscription data NOW — before 3DS.
-                // If the user closes the browser during 3DS, the webhook
-                // can still find the subscription by remote_subscription_id.
-                $enriched3dsMetadata = array_merge($result->metadata ?? [], [
-                    'remote_status' => 'incomplete',
-                    'remote_plan_id' => $result->remotePlanId ?? $mapping->remote_plan_id,
-                    'remote_customer_id' => $result->remoteCustomerId,
-                ]);
-                if ($result->currentPeriodEnd) {
-                    $enriched3dsMetadata['remote_period_end'] = $result->currentPeriodEnd->toDateTimeString();
-                }
-
-                $subscription->setRemoteSubscription(
-                    $result->remoteSubscriptionId,
-                    $result->remoteCustomerId,
-                    $paymentGateway,
-                    $enriched3dsMetadata
-                );
-
                 return response()->json([
                     'requires_action' => true,
                     'client_secret' => $result->metadata['client_secret'] ?? null,
-                    'invoice_uid' => $invoice->uid,
-                    'payment_gateway_id' => $paymentGateway->uid,
+                    'remote_subscription_id' => $result->remoteSubscriptionId,
                 ]);
             } else {
                 return response()->json([
-                    'error' => $result->error ?? 'Payment failed',
+                    'error' => $result->error ?? trans('cashier::messages.stripe_subscription.payment_failed'),
                 ], 422);
             }
         }
@@ -136,82 +106,8 @@ class StripeSubscriptionController extends Controller
             'paymentGateway' => $paymentGateway,
             'invoice' => $invoice,
             'mapping' => $mapping,
+            'clientSecret' => $service->getClientSecret($invoice->customer->uid, $invoice->billing_email ?: $invoice->customer->user->email),
             'publishableKey' => $service->getPublishableKey(),
-        ]);
-    }
-
-    /**
-     * Confirm a subscription after 3D Secure / SCA authentication.
-     * Called by the JS client after stripe.confirmCardPayment() succeeds.
-     */
-    public function confirm(Request $request, $invoice_uid)
-    {
-        $invoice = Invoice::findByUid($invoice_uid);
-
-        if (!$invoice) {
-            return response()->json(['error' => 'Invoice not found.'], 404);
-        }
-
-        $paymentGateway = PaymentGateway::findByUid($request->payment_gateway_id);
-
-        if (!$paymentGateway) {
-            return response()->json(['error' => 'Payment gateway not found.'], 404);
-        }
-
-        $orderItem = $invoice->order->orderItems()->first();
-        $subscription = $orderItem ? $orderItem->mapType()->subscription : null;
-
-        if (!$subscription || !$subscription->remote_subscription_id) {
-            return response()->json(['error' => 'No remote subscription found.'], 422);
-        }
-
-        // If already paid, just redirect
-        if (!$invoice->isNew()) {
-            return response()->json([
-                'success' => true,
-                'redirect_url' => Billing::getReturnUrl() ?: url('/'),
-            ]);
-        }
-
-        // Verify the remote subscription is now active
-        $service = $paymentGateway->getService();
-        try {
-            $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
-        } catch (\Throwable $e) {
-            return response()->json(['error' => 'Could not verify remote subscription: ' . $e->getMessage()], 422);
-        }
-
-        if (!in_array($remoteSub->status, ['active', 'trialing'])) {
-            return response()->json(['error' => 'Subscription is not active yet (status: ' . $remoteSub->status . '). Please try again.'], 422);
-        }
-
-        // Update metadata with full remote state now that subscription is confirmed
-        $meta = $subscription->getRemoteMetadataArray();
-        $meta['remote_status'] = $remoteSub->status;
-        $meta['remote_plan_id'] = $remoteSub->remotePlanId;
-        $meta['remote_customer_id'] = $remoteSub->remoteCustomerId;
-        if ($remoteSub->currentPeriodEnd) {
-            $meta['remote_period_end'] = $remoteSub->currentPeriodEnd->toDateTimeString();
-        }
-        if ($remoteSub->currentPeriodStart) {
-            $meta['remote_period_start'] = $remoteSub->currentPeriodStart->toDateTimeString();
-        }
-        $subscription->remote_metadata = $meta;
-        $subscription->last_synced_at = now();
-        $subscription->save();
-
-        // Payment confirmed — activate locally
-        $paymentMethod = $invoice->customer->paymentMethods()->create([
-            'payment_gateway_id' => $paymentGateway->id,
-            'autobilling_data' => json_encode([]),
-            'can_auto_charge' => false,
-        ]);
-
-        $invoice->paySuccess($paymentMethod);
-
-        return response()->json([
-            'success' => true,
-            'redirect_url' => Billing::getReturnUrl() ?: url('/'),
         ]);
     }
 }

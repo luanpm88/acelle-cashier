@@ -2,7 +2,7 @@
 
 @section('content')
     <label class="d-block text-semibold text-muted mb-20 mt-0">
-        <strong>Checkout with Braintree</strong>
+        <strong>{{ trans('cashier::messages.braintree_subscription.checkout_title') }}</strong>
     </label>
     <img class="rounded" width="250" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/braintree.png') }}" />
 
@@ -12,7 +12,7 @@
         @endif
 
         <p class="text-muted mb-3">
-            Subscribing to <strong>{{ $mapping->remote_plan_name }}</strong>
+            {{ trans('cashier::messages.braintree_subscription.subscribing_to') }} <strong>{{ $mapping->remote_plan_name }}</strong>
             — {{ number_format($mapping->remote_price, 2) }} {{ $mapping->remote_currency }}/{{ $mapping->remote_interval_unit }}
         </p>
 
@@ -46,7 +46,7 @@
                 }
                 button.addEventListener('click', function () {
                     button.disabled = true;
-                    button.textContent = 'Processing...';
+                    button.textContent = '{{ trans('cashier::messages.braintree_subscription.processing') }}';
                     instance.requestPaymentMethod(function (err, payload) {
                         if (err) {
                             button.disabled = false;

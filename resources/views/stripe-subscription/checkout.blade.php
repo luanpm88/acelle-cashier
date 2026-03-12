@@ -21,7 +21,7 @@
         @endif
 
         <p class="text-muted mb-3">
-            Subscribing to <strong>{{ $mapping->remote_plan_name }}</strong>
+            {{ trans('cashier::messages.stripe_subscription.subscribing_to') }} <strong>{{ $mapping->remote_plan_name }}</strong>
             — {{ number_format($mapping->remote_price, 2) }} {{ $mapping->remote_currency }}/{{ $mapping->remote_interval_unit }}
         </p>
 
@@ -48,82 +48,46 @@
             el.textContent = event.error ? event.error.message : '';
         });
 
-        var checkoutUrl = '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeSubscriptionController@checkout', ['invoice_uid' => $invoice->uid, 'payment_gateway_id' => $paymentGateway->uid]) }}';
-        var confirmUrl = '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeSubscriptionController@confirm', ['invoice_uid' => $invoice->uid]) }}';
-        var returnUrl = '{{ Billing::getReturnUrl() }}';
-        var csrfToken = '{{ csrf_token() }}';
-        var gatewayUid = '{{ $paymentGateway->uid }}';
-        var payLabel = '{{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})';
-
-        function showError(msg) {
-            document.getElementById('card-errors').textContent = msg;
-            var btn = document.getElementById('submit');
-            btn.disabled = false;
-            btn.textContent = payLabel;
-        }
-
         document.getElementById('submit').addEventListener('click', function() {
             var btn = this;
             btn.disabled = true;
-            btn.textContent = 'Processing...';
-            document.getElementById('card-errors').textContent = '';
+            btn.textContent = '{{ trans('cashier::messages.stripe_subscription.processing') }}';
 
-            // Step 1: Create PaymentMethod from card (no SetupIntent needed)
-            stripe.createPaymentMethod({
-                type: 'card',
-                card: card,
-                billing_details: {
-                    name: '{{ $invoice->getBillingName() }}',
-                    email: '{{ $invoice->billing_email }}'
+            stripe.confirmCardSetup('{{ $clientSecret }}', {
+                payment_method: {
+                    card: card,
+                    billing_details: {
+                        name: '{{ $invoice->getBillingName() }}',
+                        email: '{{ $invoice->billing_email }}'
+                    }
                 }
             }).then(function(result) {
                 if (result.error) {
-                    showError(result.error.message);
-                    return;
+                    document.getElementById('card-errors').textContent = result.error.message;
+                    btn.disabled = false;
+                    btn.textContent = '{{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})';
+                } else if (result.setupIntent.status === 'succeeded') {
+                    btn.textContent = '{{ trans('cashier::messages.stripe_subscription.completing') }}';
+                    $.ajax({
+                        url: '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeSubscriptionController@checkout', [
+                            'invoice_uid' => $invoice->uid,
+                            'payment_gateway_id' => $paymentGateway->uid,
+                        ]) }}',
+                        type: 'POST',
+                        data: {
+                            _token: '{{ csrf_token() }}',
+                            payment_method_id: result.setupIntent.payment_method,
+                        }
+                    }).done(function() {
+                        // window.location = '{{ Billing::getReturnUrl() }}';
+                    }).fail(function(jqXHR) {
+                        var msg = '{{ trans('cashier::messages.stripe_subscription.payment_failed') }}';
+                        try { msg = JSON.parse(jqXHR.responseText).message || msg; } catch(e) {}
+                        document.getElementById('card-errors').textContent = msg;
+                        btn.disabled = false;
+                        btn.textContent = '{{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})';
+                    });
                 }
-
-                // Step 2: Send PaymentMethod to server to create subscription
-                btn.textContent = 'Creating subscription...';
-                $.ajax({
-                    url: checkoutUrl,
-                    type: 'POST',
-                    data: { _token: csrfToken, payment_method_id: result.paymentMethod.id },
-                    globalError: false
-                }).done(function(response) {
-                    if (response && response.requires_action && response.client_secret) {
-                        // Step 3a: Subscription needs payment confirmation (3DS / SCA)
-                        btn.textContent = 'Confirming payment...';
-                        stripe.confirmCardPayment(response.client_secret).then(function(piResult) {
-                            if (piResult.error) {
-                                showError(piResult.error.message);
-                                return;
-                            }
-                            // Step 4: Payment confirmed — tell server to activate
-                            btn.textContent = 'Activating subscription...';
-                            $.ajax({
-                                url: confirmUrl,
-                                type: 'POST',
-                                data: { _token: csrfToken, payment_gateway_id: gatewayUid },
-                                globalError: false
-                            }).done(function(resp) {
-                                window.location = (resp && resp.redirect_url) || returnUrl || '/';
-                            }).fail(function(jqXHR) {
-                                var msg = 'Activation failed';
-                                try { msg = JSON.parse(jqXHR.responseText).error || msg; } catch(e) {}
-                                showError(msg);
-                            });
-                        });
-                    } else if (response && response.redirect_url) {
-                        // Step 3b: Payment succeeded immediately — redirect
-                        window.location = response.redirect_url;
-                    } else {
-                        window.location = returnUrl || '/';
-                    }
-                }).fail(function(jqXHR) {
-                    var msg = 'Payment failed';
-                    try { msg = JSON.parse(jqXHR.responseText).error || msg; } catch(e) {}
-                    showError(msg);
-                });
             });
         });
     </script>

@@ -17,14 +17,14 @@ class BraintreeSubscriptionController extends Controller
 
         if (!$invoice) {
             return redirect()->away(Billing::getReturnUrl() ?: url('/'))
-                ->with('alert-error', 'Invoice not found.');
+                ->with('alert-error', trans('cashier::messages.braintree_subscription.invoice_not_found'));
         }
 
         $paymentGateway = PaymentGateway::findByUid($request->payment_gateway_id);
 
         if (!$paymentGateway) {
             return redirect()->away(Billing::getReturnUrl() ?: url('/'))
-                ->with('alert-error', 'Payment gateway not found.');
+                ->with('alert-error', trans('cashier::messages.braintree_subscription.gateway_not_found'));
         }
 
         $service = $paymentGateway->getService();
@@ -44,7 +44,7 @@ class BraintreeSubscriptionController extends Controller
 
         if (!$subscription) {
             return redirect()->away(Billing::getReturnUrl() ?: url('/'))
-                ->with('alert-error', 'No subscription found for this invoice.');
+                ->with('alert-error', trans('cashier::messages.braintree_subscription.no_subscription'));
         }
 
         // Find the remote plan mapping for this plan + gateway
@@ -86,7 +86,7 @@ class BraintreeSubscriptionController extends Controller
 
                 return redirect()->away(Billing::getReturnUrl());
             } else {
-                return back()->withErrors(['payment' => $result->error ?? 'Payment failed']);
+                return back()->withErrors(['payment' => $result->error ?? trans('cashier::messages.braintree_subscription.payment_failed')]);
             }
         }
 
