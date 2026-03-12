@@ -34,7 +34,7 @@ class RemoteSubscriptionWebhookController extends Controller
             );
         } catch (\Exception $e) {
             Log::error('Stripe subscription webhook signature verification failed: ' . $e->getMessage());
-            return response()->json(['error' => 'Invalid signature'], 400);
+            return response()->json(['error' => trans('cashier::messages.webhook.invalid_signature')], 400);
         }
 
         return $this->handleWebhookEvent($parsed, $gateway);
@@ -61,7 +61,7 @@ class RemoteSubscriptionWebhookController extends Controller
             );
         } catch (\Exception $e) {
             Log::error('Braintree subscription webhook verification failed: ' . $e->getMessage());
-            return response()->json(['error' => 'Invalid payload'], 400);
+            return response()->json(['error' => trans('cashier::messages.webhook.invalid_payload')], 400);
         }
 
         return $this->handleWebhookEvent($parsed, $gateway);
@@ -117,31 +117,12 @@ class RemoteSubscriptionWebhookController extends Controller
             $service = $gateway->getService();
             $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
 
-            // If remote is now active but local subscription hasn't been activated yet
-            // (e.g., 3DS completed after user closed browser), activate it
-            if ($remoteSub->isActive() && $subscription->isNew()) {
-                $subscription->activateFromRemote($gateway);
-            }
-
-            // Always update metadata with latest remote state
-            $meta = $subscription->getRemoteMetadataArray();
-            $meta['remote_status'] = $remoteSub->status;
-            $meta['remote_plan_id'] = $remoteSub->remotePlanId;
-            if ($remoteSub->currentPeriodEnd) {
-                $meta['remote_period_end'] = $remoteSub->currentPeriodEnd->toDateTimeString();
-            }
-            if ($remoteSub->currentPeriodStart) {
-                $meta['remote_period_start'] = $remoteSub->currentPeriodStart->toDateTimeString();
-            }
-            $subscription->remote_metadata = $meta;
-            $subscription->last_synced_at = now();
-
             // Sync period end date
             if ($remoteSub->currentPeriodEnd && $subscription->isActive()) {
                 $subscription->current_period_ends_at = $remoteSub->currentPeriodEnd;
+                $subscription->last_synced_at = now();
+                $subscription->save();
             }
-
-            $subscription->save();
 
             Log::info("Subscription {$subscription->uid} updated from webhook. Remote status: {$remoteSub->status}");
         } catch (\Exception $e) {
@@ -164,47 +145,16 @@ class RemoteSubscriptionWebhookController extends Controller
     protected function handleInvoicePaid(Subscription $subscription, array $data, PaymentGateway $gateway)
     {
         try {
-            // If invoice.paid arrives for a not-yet-active subscription,
-            // this means the incomplete → active transition happened
-            // (e.g., 3DS completed, or delayed payment succeeded)
-            if ($subscription->isNew()) {
-                $subscription->activateFromRemote($gateway);
-
-                // Update metadata after activation
-                try {
-                    $service = $gateway->getService();
-                    $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
-                    $meta = $subscription->getRemoteMetadataArray();
-                    $meta['remote_status'] = $remoteSub->status;
-                    if ($remoteSub->currentPeriodEnd) {
-                        $meta['remote_period_end'] = $remoteSub->currentPeriodEnd->toDateTimeString();
-                    }
-                    $subscription->remote_metadata = $meta;
-                    $subscription->last_synced_at = now();
-                    $subscription->save();
-                } catch (\Throwable $e) {
-                    // Non-critical — metadata will be populated by next scheduled sync
-                }
-
-                return;
-            }
-
             if ($subscription->isActive()) {
                 // Sync with remote to update period
                 $service = $gateway->getService();
                 $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
 
-                $meta = $subscription->getRemoteMetadataArray();
-                $meta['remote_status'] = $remoteSub->status;
-
                 if ($remoteSub->currentPeriodEnd) {
                     $subscription->current_period_ends_at = $remoteSub->currentPeriodEnd;
-                    $meta['remote_period_end'] = $remoteSub->currentPeriodEnd->toDateTimeString();
+                    $subscription->last_synced_at = now();
+                    $subscription->save();
                 }
-
-                $subscription->remote_metadata = $meta;
-                $subscription->last_synced_at = now();
-                $subscription->save();
 
                 Log::info("Invoice paid webhook processed for subscription {$subscription->uid}");
             }
@@ -217,5 +167,4 @@ class RemoteSubscriptionWebhookController extends Controller
     {
         Log::warning("Payment failed for subscription {$subscription->uid} (remote: {$subscription->remote_subscription_id})");
     }
-
 }

@@ -148,4 +148,33 @@
     'powered_by' => 'Powered by',
     'privacy_terms' => 'Privacy & terms',
     'offline.payment_instructions' => 'Please follow the instructions below to complete your payment:',
+
+    // ─── Stripe Subscription ───
+    'stripe_subscription.subscribing_to' => 'Subscribing to',
+    'stripe_subscription.processing' => 'Processing...',
+    'stripe_subscription.completing' => 'Completing subscription...',
+    'stripe_subscription.payment_failed' => 'Payment failed',
+    'stripe_subscription.invoice_not_found' => 'Invoice not found.',
+    'stripe_subscription.gateway_not_found' => 'Payment gateway not found.',
+    'stripe_subscription.no_subscription' => 'No subscription found for this invoice.',
+
+    // ─── Braintree Subscription ───
+    'braintree_subscription.checkout_title' => 'Checkout with Braintree',
+    'braintree_subscription.subscribing_to' => 'Subscribing to',
+    'braintree_subscription.processing' => 'Processing...',
+    'braintree_subscription.payment_failed' => 'Payment failed',
+    'braintree_subscription.invoice_not_found' => 'Invoice not found.',
+    'braintree_subscription.gateway_not_found' => 'Payment gateway not found.',
+    'braintree_subscription.no_subscription' => 'No subscription found for this invoice.',
+
+    // ─── Webhook ───
+    'webhook.invalid_signature' => 'Invalid signature',
+    'webhook.invalid_payload' => 'Invalid payload',
+
+    // Stripe Subscription
+    'stripe_subscription' => 'Stripe Subscription',
+    'stripe_subscription.publishable_key' => 'Publishable key',
+    'stripe_subscription.secret_key' => 'Secret key',
+    'stripe_subscription.webhook_secret' => 'Webhook secret',
+    'stripe_subscription.description' => 'Recurring billing managed by Stripe Subscriptions',
 );
