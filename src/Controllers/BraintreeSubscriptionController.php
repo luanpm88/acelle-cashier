@@ -81,11 +81,16 @@ class BraintreeSubscriptionController extends Controller
 
             if ($result->success) {
                 // Save remote subscription data to local subscription
+                $metadata = $result->metadata ?? [];
+                $metadata['remote_status'] = $result->status ?? 'active';
+                if ($result->currentPeriodEnd) {
+                    $metadata['remote_period_end'] = $result->currentPeriodEnd->toDateTimeString();
+                }
                 $subscription->setRemoteSubscription(
                     $result->remoteSubscriptionId,
                     $result->remoteCustomerId,
                     $paymentGateway,
-                    $result->metadata ?? []
+                    $metadata
                 );
 
                 // Create payment method record

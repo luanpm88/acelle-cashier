@@ -117,12 +117,28 @@ class RemoteSubscriptionWebhookController extends Controller
             $service = $gateway->getService();
             $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
 
-            // Sync period end date
+            // Activate new subscription if remote is active
+            if ($subscription->isNew() && ($remoteSub->isActive() || $remoteSub->isTrialing())) {
+                $subscription->activateFromRemote($gateway);
+            }
+
+            // Sync period end date for active subscriptions
             if ($remoteSub->currentPeriodEnd && $subscription->isActive()) {
                 $subscription->current_period_ends_at = $remoteSub->currentPeriodEnd;
-                $subscription->last_synced_at = now();
-                $subscription->save();
             }
+
+            // Store remote metadata
+            $meta = $subscription->getRemoteMetadataArray();
+            $meta['remote_status'] = $remoteSub->status;
+            if ($remoteSub->remotePlanId) {
+                $meta['remote_plan_id'] = $remoteSub->remotePlanId;
+            }
+            if ($remoteSub->currentPeriodEnd) {
+                $meta['remote_period_end'] = $remoteSub->currentPeriodEnd->toDateTimeString();
+            }
+            $subscription->remote_metadata = $meta;
+            $subscription->last_synced_at = now();
+            $subscription->save();
 
             Log::info("Subscription {$subscription->uid} updated from webhook. Remote status: {$remoteSub->status}");
         } catch (\Exception $e) {
@@ -145,19 +161,31 @@ class RemoteSubscriptionWebhookController extends Controller
     protected function handleInvoicePaid(Subscription $subscription, array $data, PaymentGateway $gateway)
     {
         try {
-            if ($subscription->isActive()) {
-                // Sync with remote to update period
-                $service = $gateway->getService();
-                $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
+            $service = $gateway->getService();
+            $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
 
-                if ($remoteSub->currentPeriodEnd) {
-                    $subscription->current_period_ends_at = $remoteSub->currentPeriodEnd;
-                    $subscription->last_synced_at = now();
-                    $subscription->save();
-                }
-
-                Log::info("Invoice paid webhook processed for subscription {$subscription->uid}");
+            // Activate new subscription if remote is active (first payment succeeded)
+            if ($subscription->isNew() && ($remoteSub->isActive() || $remoteSub->isTrialing())) {
+                $subscription->activateFromRemote($gateway);
             }
+
+            // Sync period end date for active subscriptions
+            if ($remoteSub->currentPeriodEnd && $subscription->isActive()) {
+                $subscription->current_period_ends_at = $remoteSub->currentPeriodEnd;
+            }
+
+            // Store remote metadata
+            $meta = $subscription->getRemoteMetadataArray();
+            $meta['remote_status'] = $remoteSub->status;
+            if ($remoteSub->latestInvoiceAmount !== null) {
+                $meta['latest_invoice_amount'] = $remoteSub->latestInvoiceAmount;
+                $meta['latest_invoice_status'] = $remoteSub->latestInvoiceStatus;
+            }
+            $subscription->remote_metadata = $meta;
+            $subscription->last_synced_at = now();
+            $subscription->save();
+
+            Log::info("Invoice paid webhook processed for subscription {$subscription->uid}");
         } catch (\Exception $e) {
             Log::error("Error handling invoice paid webhook for {$subscription->uid}: " . $e->getMessage());
         }
