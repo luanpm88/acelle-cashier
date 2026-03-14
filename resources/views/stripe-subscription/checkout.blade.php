@@ -78,11 +78,44 @@
                             _token: '{{ csrf_token() }}',
                             payment_method_id: result.setupIntent.payment_method,
                         }
-                    }).done(function() {
-                        // window.location = '{{ Billing::getReturnUrl() }}';
+                    }).done(function(data) {
+                        if (data.requires_action && data.client_secret) {
+                            // 3D Secure required — confirm card payment client-side
+                            stripe.confirmCardPayment(data.client_secret).then(function(result) {
+                                if (result.error) {
+                                    document.getElementById('card-errors').textContent = result.error.message;
+                                    btn.disabled = false;
+                                    btn.textContent = '{{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})';
+                                } else {
+                                    // 3DS done — notify server to activate subscription locally
+                                    btn.textContent = '{{ trans('cashier::messages.stripe_subscription.completing') }}';
+                                    $.ajax({
+                                        url: '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeSubscriptionController@checkout', [
+                                            'invoice_uid' => $invoice->uid,
+                                            'payment_gateway_id' => $paymentGateway->uid,
+                                        ]) }}',
+                                        type: 'POST',
+                                        data: {
+                                            _token: '{{ csrf_token() }}',
+                                            remote_subscription_id: data.remote_subscription_id,
+                                        }
+                                    }).done(function(confirmData) {
+                                        window.location = confirmData.redirect_url || '{{ Billing::getReturnUrl() ?: url('/') }}';
+                                    }).fail(function(jqXHR) {
+                                        var msg = '{{ trans('cashier::messages.stripe_subscription.payment_failed') }}';
+                                        try { msg = JSON.parse(jqXHR.responseText).error || msg; } catch(e) {}
+                                        document.getElementById('card-errors').textContent = msg;
+                                        btn.disabled = false;
+                                        btn.textContent = '{{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})';
+                                    });
+                                }
+                            });
+                        } else {
+                            window.location = data.redirect_url || '{{ Billing::getReturnUrl() ?: url('/') }}';
+                        }
                     }).fail(function(jqXHR) {
                         var msg = '{{ trans('cashier::messages.stripe_subscription.payment_failed') }}';
-                        try { msg = JSON.parse(jqXHR.responseText).message || msg; } catch(e) {}
+                        try { msg = JSON.parse(jqXHR.responseText).error || msg; } catch(e) {}
                         document.getElementById('card-errors').textContent = msg;
                         btn.disabled = false;
                         btn.textContent = '{{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})';
