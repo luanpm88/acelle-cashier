@@ -75,6 +75,67 @@ class StripeSubscriptionController extends Controller
         }
 
         if ($request->isMethod('post')) {
+            // Handle 3DS re-confirmation: subscription already created, just activate locally
+            if ($request->remote_subscription_id && !$request->payment_method_id) {
+                try {
+                    $remoteSub = $service->getRemoteSubscription($request->remote_subscription_id);
+
+                    if ($remoteSub->isActive()) {
+                        $subscription->setRemoteSubscription(
+                            $remoteSub->id,
+                            $remoteSub->remoteCustomerId,
+                            $paymentGateway,
+                            ['remote_status' => $remoteSub->status, 'remote_period_end' => $remoteSub->currentPeriodEnd?->toDateTimeString()]
+                        );
+
+                        // Use card info passed from JS if available, otherwise try fetching
+                        $pmData = [];
+                        if ($request->card_type && $request->card_last4) {
+                            $pmData = [
+                                'card_type' => $request->card_type,
+                                'last_4' => $request->card_last4,
+                            ];
+                        } else {
+                            try {
+                                $remotePaymentMethod = $service->getRemotePaymentMethod($remoteSub->id);
+                                $pmData = $remotePaymentMethod ? [
+                                    'card_type' => $remotePaymentMethod->cardType,
+                                    'last_4' => $remotePaymentMethod->last4,
+                                ] : [];
+                            } catch (\Throwable $e) {
+                                // Card info fetch failed — not critical, proceed without it
+                            }
+                        }
+
+                        $paymentMethodRecord = $invoice->customer->paymentMethods()->create([
+                            'payment_gateway_id' => $paymentGateway->id,
+                            'autobilling_data' => json_encode($pmData),
+                            'can_auto_charge' => false,
+                        ]);
+
+                        $invoice->paySuccess($paymentMethodRecord);
+
+                        return response()->json([
+                            'success' => true,
+                            'redirect_url' => Billing::getReturnUrl() ?: url('/'),
+                        ]);
+                    } else {
+                        return response()->json([
+                            'error' => trans('cashier::messages.stripe_subscription.payment_failed'),
+                        ], 422);
+                    }
+                } catch (\Throwable $e) {
+                    return response()->json(['error' => $e->getMessage()], 422);
+                }
+            }
+
+            // Validate payment_method_id before proceeding
+            if (empty($request->payment_method_id)) {
+                return response()->json([
+                    'error' => 'Payment method ID is required. Please try again.',
+                ], 422);
+            }
+
             $result = $service->createRemoteSubscription($invoice, $mapping->remote_plan_id, [
                 'payment_method_id' => $request->payment_method_id,
             ]);
@@ -112,6 +173,7 @@ class StripeSubscriptionController extends Controller
                     'requires_action' => true,
                     'client_secret' => $result->metadata['client_secret'] ?? null,
                     'remote_subscription_id' => $result->remoteSubscriptionId,
+                    'payment_method_data' => $result->paymentMethodData,
                 ]);
             } else {
                 return response()->json([

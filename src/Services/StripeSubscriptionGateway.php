@@ -5,6 +5,7 @@ namespace Acelle\Cashier\Services;
 use Acelle\Library\Contracts\RemoteSubscriptionGatewayInterface;
 use Acelle\Library\DTOs\RemotePlanDTO;
 use Acelle\Library\DTOs\RemoteSubscriptionDTO;
+use Acelle\Library\DTOs\RemotePaymentMethodDTO;
 use Acelle\Library\DTOs\CreateRemoteSubscriptionResult;
 use Acelle\Model\Invoice;
 use Acelle\Model\Transaction;
@@ -280,6 +281,49 @@ class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
         }
     }
 
+    public function getRemotePaymentMethod(string $remoteSubscriptionId): ?RemotePaymentMethodDTO
+    {
+        $sub = \Stripe\Subscription::retrieve($remoteSubscriptionId);
+
+        $paymentMethodId = $sub->default_payment_method;
+        // Handle expanded objects — extract the ID string
+        if (is_object($paymentMethodId) && isset($paymentMethodId->id)) {
+            $paymentMethodId = $paymentMethodId->id;
+        }
+        if (!$paymentMethodId || !is_string($paymentMethodId)) {
+            // Fall back to customer's default payment method
+            $customer = \Stripe\Customer::retrieve($sub->customer);
+            $paymentMethodId = $customer->invoice_settings->default_payment_method ?? null;
+            if (is_object($paymentMethodId) && isset($paymentMethodId->id)) {
+                $paymentMethodId = $paymentMethodId->id;
+            }
+        }
+
+        if (!$paymentMethodId || !is_string($paymentMethodId)) {
+            return null;
+        }
+
+        $pm = \Stripe\PaymentMethod::retrieve($paymentMethodId);
+
+        if ($pm->type === 'card' && $pm->card) {
+            return new RemotePaymentMethodDTO(
+                cardType: ucfirst($pm->card->brand),
+                last4: $pm->card->last4,
+                expirationDate: $pm->card->exp_month . '/' . $pm->card->exp_year,
+                email: null,
+                type: 'card',
+            );
+        }
+
+        return new RemotePaymentMethodDTO(
+            cardType: null,
+            last4: null,
+            expirationDate: null,
+            email: null,
+            type: $pm->type,
+        );
+    }
+
     public function cancelRemoteSubscription(string $remoteSubscriptionId): void
     {
         \Stripe\Subscription::update($remoteSubscriptionId, [
@@ -342,6 +386,7 @@ class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
         $intent = \Stripe\SetupIntent::create([
             'customer' => $stripeCustomer->id,
             'usage' => 'off_session',
+            'payment_method_types' => ['card'],
         ]);
 
         return $intent->client_secret;

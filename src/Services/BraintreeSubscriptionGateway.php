@@ -5,6 +5,7 @@ namespace Acelle\Cashier\Services;
 use Acelle\Library\Contracts\RemoteSubscriptionGatewayInterface;
 use Acelle\Library\DTOs\RemotePlanDTO;
 use Acelle\Library\DTOs\RemoteSubscriptionDTO;
+use Acelle\Library\DTOs\RemotePaymentMethodDTO;
 use Acelle\Library\DTOs\CreateRemoteSubscriptionResult;
 use Acelle\Model\Invoice;
 use Acelle\Model\Transaction;
@@ -287,6 +288,41 @@ class BraintreeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
                 error: $e->getMessage(),
             );
         }
+    }
+
+    public function getRemotePaymentMethod(string $remoteSubscriptionId): ?RemotePaymentMethodDTO
+    {
+        $sub = $this->serviceGateway->subscription()->find($remoteSubscriptionId);
+
+        $token = $sub->paymentMethodToken ?? null;
+        if (!$token) {
+            return null;
+        }
+
+        try {
+            $pm = $this->serviceGateway->paymentMethod()->find($token);
+        } catch (\Braintree\Exception\NotFound $e) {
+            return null;
+        }
+
+        if (isset($pm->cardType)) {
+            return new RemotePaymentMethodDTO(
+                cardType: $pm->cardType,
+                last4: $pm->last4 ?? null,
+                expirationDate: $pm->expirationDate ?? null,
+                email: null,
+                type: 'card',
+            );
+        }
+
+        // PayPal or other payment method types
+        return new RemotePaymentMethodDTO(
+            cardType: null,
+            last4: null,
+            expirationDate: null,
+            email: $pm->email ?? null,
+            type: 'paypal',
+        );
     }
 
     public function cancelRemoteSubscription(string $remoteSubscriptionId): void

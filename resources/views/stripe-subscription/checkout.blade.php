@@ -67,6 +67,17 @@
                     btn.disabled = false;
                     btn.textContent = '{{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})';
                 } else if (result.setupIntent.status === 'succeeded') {
+                    // Extract payment method ID (may be string or expanded object)
+                    var pmId = result.setupIntent.payment_method;
+                    if (typeof pmId === 'object' && pmId !== null) {
+                        pmId = pmId.id;
+                    }
+                    if (!pmId) {
+                        document.getElementById('card-errors').textContent = 'Could not retrieve payment method. Please try again.';
+                        btn.disabled = false;
+                        btn.textContent = '{{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})';
+                        return;
+                    }
                     btn.textContent = '{{ trans('cashier::messages.stripe_subscription.completing') }}';
                     $.ajax({
                         url: '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeSubscriptionController@checkout', [
@@ -76,7 +87,7 @@
                         type: 'POST',
                         data: {
                             _token: '{{ csrf_token() }}',
-                            payment_method_id: result.setupIntent.payment_method,
+                            payment_method_id: pmId,
                         }
                     }).done(function(data) {
                         if (data.requires_action && data.client_secret) {
@@ -89,6 +100,7 @@
                                 } else {
                                     // 3DS done — notify server to activate subscription locally
                                     btn.textContent = '{{ trans('cashier::messages.stripe_subscription.completing') }}';
+                                    var pmData = data.payment_method_data || {};
                                     $.ajax({
                                         url: '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeSubscriptionController@checkout', [
                                             'invoice_uid' => $invoice->uid,
@@ -98,6 +110,8 @@
                                         data: {
                                             _token: '{{ csrf_token() }}',
                                             remote_subscription_id: data.remote_subscription_id,
+                                            card_type: pmData.card_type || '',
+                                            card_last4: pmData.last_4 || '',
                                         }
                                     }).done(function(confirmData) {
                                         window.location = confirmData.redirect_url || '{{ Billing::getReturnUrl() ?: url('/') }}';
