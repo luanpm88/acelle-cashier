@@ -80,6 +80,12 @@ class StripeSubscriptionController extends Controller
                 try {
                     $remoteSub = $service->getRemoteSubscription($request->remote_subscription_id);
 
+                    // After 3DS, Stripe may need a moment to transition sub from incomplete → active
+                    if ($remoteSub->isIncomplete()) {
+                        sleep(2);
+                        $remoteSub = $service->getRemoteSubscription($request->remote_subscription_id);
+                    }
+
                     if ($remoteSub->isActive()) {
                         $subscription->setRemoteSubscription(
                             $remoteSub->id,
