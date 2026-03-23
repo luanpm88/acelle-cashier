@@ -32,4 +32,17 @@ Route::group(['middleware' => ['web','not_installed'], 'namespace' => 'App\Cashi
 
     // Razorpay
     Route::match(['get', 'post'], '/cashier/razorpay/checkout/{invoice_uid}/{payment_gateway_id}', 'RazorpayController@checkout');
+
+    // Stripe Subscription (Category B)
+    Route::match(['get', 'post'], '/cashier/stripe-subscription/checkout/{invoice_uid}/{payment_gateway_id}', 'StripeSubscriptionController@checkout');
+    Route::post('/cashier/stripe-subscription/confirm/{invoice_uid}', 'StripeSubscriptionController@confirm');
+
+    // Braintree Subscription (Category B)
+    Route::match(['get', 'post'], '/cashier/braintree-subscription/checkout/{invoice_uid}/{payment_gateway_id}', 'BraintreeSubscriptionController@checkout');
+});
+
+// Webhook routes — outside web middleware group (no CSRF verification needed)
+Route::group(['namespace' => 'Acelle\Cashier\Controllers'], function () {
+    Route::post('/cashier/webhooks/stripe-subscription', 'RemoteSubscriptionWebhookController@stripeSubscription');
+    Route::post('/cashier/webhooks/braintree-subscription', 'RemoteSubscriptionWebhookController@braintreeSubscription');
 });
