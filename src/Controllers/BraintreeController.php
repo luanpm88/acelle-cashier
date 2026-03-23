@@ -1,12 +1,12 @@
 <?php
 
-namespace Acelle\Cashier\Controllers;
+namespace App\Cashier\Controllers;
 
-use Acelle\Http\Controllers\Controller;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Acelle\Library\Facades\Billing;
-use Acelle\Model\PaymentGateway;
-use Acelle\Model\Invoice;
+use App\Library\Facades\Billing;
+use App\Model\PaymentGateway;
+use App\Model\Invoice;
 
 class BraintreeController extends Controller
 {
@@ -50,7 +50,7 @@ class BraintreeController extends Controller
 
             // handle null card
             if (is_null($card)) {
-                return redirect()->action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
+                return redirect()->action("\App\Cashier\Controllers\BraintreeController@checkout", [
                     'invoice_uid' => $invoice->uid,
                     'payment_gateway_id' => $request->payment_gateway_id,
                 ])->with('alert-warning', 'Unable to retrieve card information. Please try again!');

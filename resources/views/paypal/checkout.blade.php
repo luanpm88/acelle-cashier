@@ -6,7 +6,7 @@
             {{ trans('cashier::messages.paypal') }}
         </strong>
     </label>
-    <img class="rounded" width="100" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/paypal-logo.png') }}" />
+    <img class="rounded" width="100" src="{{ \App\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/paypal-logo.png') }}" />
 
     <div class="py-4">
         <h2 class="mb-40">{{ $invoice->title }}</h2>   
@@ -34,7 +34,7 @@
                 }).fail(function(e) {alert(e.responseText)});
             
                 var form = jQuery('<form>', {
-                    'action': '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaypalController@checkout', [
+                    'action': '{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\PaypalController@checkout', [
                         'invoice_uid' => $invoice->uid,
                         'payment_gateway_id' => $paymentGateway->uid,
                     ]) }}',

@@ -85,7 +85,7 @@
                     if (result.setupIntent.status === 'succeeded') {
                         addMaskLoading(`{!! trans('cashier::messages.stripe.checkout.processing_payment.intro') !!}`);
                         $.ajax({
-                            url: '{{ action("\Acelle\Cashier\Controllers\StripeController@checkout", [
+                            url: '{{ action("\App\Cashier\Controllers\StripeController@checkout", [
                                 'invoice_uid' => $invoice->uid,
                                 'payment_gateway_id' => $paymentGateway->uid,
                             ]) }}',

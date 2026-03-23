@@ -1,11 +1,11 @@
 <?php
 
-namespace Acelle\Cashier\Services;
+namespace App\Cashier\Services;
 
-use Acelle\Library\Contracts\PaymentGatewayInterface;
-use Acelle\Model\Transaction;
-use Acelle\Model\PaymentMethod;
-use Acelle\Model\PaymentGateway;
+use App\Library\Contracts\PaymentGatewayInterface;
+use App\Model\Transaction;
+use App\Model\PaymentMethod;
+use App\Model\PaymentGateway;
 
 class PaystackPaymentGateway implements PaymentGatewayInterface
 {
@@ -72,7 +72,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      */
     public function getCheckoutUrl($invoice, $paymentGatewayId) : string
     {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\PaystackController@checkout", [
+        return \App\Cashier\Cashier::lr_action("\App\Cashier\Controllers\PaystackController@checkout", [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGatewayId,
         ]);
