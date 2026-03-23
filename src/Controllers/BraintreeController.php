@@ -117,7 +117,7 @@ class BraintreeController extends Controller
 
             // handle null card
             if (is_null($card)) {
-                return redirect()->action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
+                return redirect()->action("\App\Cashier\Controllers\BraintreeController@checkout", [
                     'invoice_uid' => $invoice->uid,
                 ])->with('alert-warning', 'Unable to retrieve card information. Please try again!');
             }
@@ -132,7 +132,7 @@ class BraintreeController extends Controller
 
             // card not save. Try again until success
             if (!$service->hasCard($invoice->billing_email, $invoice->customer->getAutoBillingData())) {
-                return redirect()->action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
+                return redirect()->action("\App\Cashier\Controllers\BraintreeController@checkout", [
                     'invoice_uid' => $invoice->uid,
                 ])->with('alert-warning', 'Something went wrong! Please try again!');
             }

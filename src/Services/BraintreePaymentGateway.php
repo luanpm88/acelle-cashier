@@ -113,7 +113,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
 
                 return new TransactionResult(TransactionResult::RESULT_DONE);
             } catch (\Throwable $e) {
-                $authPaymentLink = action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
+                $authPaymentLink = action("\App\Cashier\Controllers\BraintreeController@checkout", [
                     'invoice_uid' => $invoice->uid,
                 ]);
 

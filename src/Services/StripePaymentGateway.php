@@ -137,7 +137,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
                     ])
                 );
             } catch (\Throwable $e) {
-                $authPaymentLink = action("\Acelle\Cashier\Controllers\StripeController@paymentAuth", [
+                $authPaymentLink = action("\App\Cashier\Controllers\StripeController@paymentAuth", [
                     'invoice_uid' => $invoice->uid,
                 ]);
 

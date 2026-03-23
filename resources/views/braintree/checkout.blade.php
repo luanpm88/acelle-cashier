@@ -46,7 +46,7 @@
                         </ul>
                         
                         <form
-                            action="{{ \App\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@checkout', $invoice->uid) }}" method="POST">
+                            action="{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\BraintreeController@checkout', $invoice->uid) }}" method="POST">
                             {{ csrf_field() }}
                             <input type="hidden" name="return_url" value="{{ request()->return_url }}" />
                             <input type="submit" name="use_current_card" style="width: 100%;" href="{{ '' }}" class="btn btn-primary mr-2"
@@ -65,7 +65,7 @@
                 </a>
                     
                 <form id="updateCard" style="display: none"
-                    action="{{ \App\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@checkout', $invoice->uid) }}" method="POST">
+                    action="{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\BraintreeController@checkout', $invoice->uid) }}" method="POST">
                         {{ csrf_field() }}
                         <input type="hidden" name="return_url" value="{{ request()->return_url }}" />
                         <input type="hidden" name="nonce" value="" />
