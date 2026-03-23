@@ -6,7 +6,7 @@
             {{ trans('cashier::messages.razorpay') }}
         </strong>
     </label>
-    <img class="rounded" width="150" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/razorpay.png') }}" />
+    <img class="rounded" width="150" src="{{ \App\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/razorpay.png') }}" />
 
     <div class="py-4">
         <h2 class="mb-40">{{ $invoice->title }}</h2>
@@ -19,7 +19,7 @@
         </a>
         
         <div class="hide" style="display:none">
-            <form action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\RazorpayController@checkout', [
+            <form action="{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\RazorpayController@checkout', [
             '_token' => csrf_token(),
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGateway->uid,

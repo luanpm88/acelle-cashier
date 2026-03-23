@@ -6,7 +6,7 @@
             {{ trans('cashier::messages.braintree.checkout_with_braintree') }}
         </strong>
     </label>
-    <img class="rounded" width="250" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/braintree.png') }}" />
+    <img class="rounded" width="250" src="{{ \App\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/braintree.png') }}" />
 
     <div class="py-4">
         <script src="https://js.braintreegateway.com/web/dropin/1.6.1/js/dropin.js"></script>
@@ -17,7 +17,7 @@
         </a>
             
         <form id="updateCard" style="display: none"
-            action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@checkout', [
+            action="{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\BraintreeController@checkout', [
                 'invoice_uid' => $invoice->uid,
                 'payment_gateway_id' => $paymentGateway->uid,
             ]) }}" method="POST">

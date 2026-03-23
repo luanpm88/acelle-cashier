@@ -1,11 +1,11 @@
 <?php
 
-namespace Acelle\Cashier\Services;
+namespace App\Cashier\Services;
 
-use Acelle\Library\Contracts\PaymentGatewayInterface;
-use Acelle\Model\PaymentMethod;
+use App\Library\Contracts\PaymentGatewayInterface;
+use App\Model\PaymentMethod;
 use Carbon\Carbon;
-use Acelle\Model\Transaction;
+use App\Model\Transaction;
 
 class BraintreePaymentGateway implements PaymentGatewayInterface
 {
@@ -87,7 +87,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
             // success
             $invoice->paySuccess($paymentMethod);
         } catch (\Throwable $e) {
-            $authPaymentLink = action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
+            $authPaymentLink = action("\App\Cashier\Controllers\BraintreeController@checkout", [
                 'invoice_uid' => $invoice->uid,
                 'payment_gateway_id' => $paymentMethod->paymentGateway->uid,
             ]);
@@ -238,7 +238,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      */
     public function getCheckoutUrl($invoice, $paymentGatewayId) : string
     {
-        return \Acelle\Cashier\Cashier::lr_action("\Acelle\Cashier\Controllers\BraintreeController@checkout", [
+        return \App\Cashier\Cashier::lr_action("\App\Cashier\Controllers\BraintreeController@checkout", [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGatewayId,
         ]);

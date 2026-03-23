@@ -80,7 +80,7 @@
                     }
                     btn.textContent = '{{ trans('cashier::messages.stripe_subscription.completing') }}';
                     $.ajax({
-                        url: '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeSubscriptionController@checkout', [
+                        url: '{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\StripeSubscriptionController@checkout', [
                             'invoice_uid' => $invoice->uid,
                             'payment_gateway_id' => $paymentGateway->uid,
                         ]) }}',
@@ -102,7 +102,7 @@
                                     btn.textContent = '{{ trans('cashier::messages.stripe_subscription.completing') }}';
                                     var pmData = data.payment_method_data || {};
                                     $.ajax({
-                                        url: '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeSubscriptionController@checkout', [
+                                        url: '{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\StripeSubscriptionController@checkout', [
                                             'invoice_uid' => $invoice->uid,
                                             'payment_gateway_id' => $paymentGateway->uid,
                                         ]) }}',

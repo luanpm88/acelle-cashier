@@ -1,19 +1,19 @@
 <?php
 
-namespace Acelle\Cashier\Controllers;
+namespace App\Cashier\Controllers;
 
-use Acelle\Http\Controllers\Controller;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Acelle\Model\Invoice;
-use Acelle\Model\PaymentGateway;
-use Acelle\Library\Facades\Billing;
+use App\Model\Invoice;
+use App\Model\PaymentGateway;
+use App\Library\Facades\Billing;
 
 
 class StripeController extends Controller
 {
     public function getCheckoutUrl($invoice, $payment_gateway_id)
     {
-        return action("\Acelle\Cashier\Controllers\StripeController@checkout", [
+        return action("\App\Cashier\Controllers\StripeController@checkout", [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $payment_gateway_id,
         ]);

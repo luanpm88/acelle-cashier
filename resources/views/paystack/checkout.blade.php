@@ -6,7 +6,7 @@
             {{ trans('cashier::messages.paystack') }}
         </strong>
     </label>
-    <img class="rounded" width="250" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/paystack.svg') }}" />
+    <img class="rounded" width="250" src="{{ \App\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/paystack.svg') }}" />
 
     <div class="py-4">
         <h2 class="mb-3">{!! $invoice->title !!}</h2>              
@@ -25,7 +25,7 @@
         </form>
         <script src="https://js.paystack.co/v1/inline.js"></script> 
 
-        <form id="checkoutForm" method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaystackController@checkout', [
+        <form id="checkoutForm" method="POST" action="{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\PaystackController@checkout', [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGateway->uid,
         ]) }}">

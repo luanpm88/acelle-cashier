@@ -1,10 +1,10 @@
 <?php
 
-namespace Acelle\Cashier\Services;
+namespace App\Cashier\Services;
 
-use Acelle\Library\Contracts\PaymentGatewayInterface;
-use Acelle\Model\Transaction;
-use Acelle\Model\PaymentMethod;
+use App\Library\Contracts\PaymentGatewayInterface;
+use App\Model\Transaction;
+use App\Model\PaymentMethod;
 
 class OfflinePaymentGateway implements PaymentGatewayInterface
 {
@@ -36,7 +36,7 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
 
     public function getCheckoutUrl($invoice, $paymentGatewayId) : string
     {
-        return action("\Acelle\Cashier\Controllers\OfflineController@checkout", [
+        return action("\App\Cashier\Controllers\OfflineController@checkout", [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGatewayId,
         ]);

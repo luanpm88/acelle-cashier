@@ -1,15 +1,15 @@
 <?php
 
-namespace Acelle\Cashier\Services;
+namespace App\Cashier\Services;
 
-use Acelle\Library\Contracts\RemoteSubscriptionGatewayInterface;
-use Acelle\Library\DTOs\RemotePlanDTO;
-use Acelle\Library\DTOs\RemoteSubscriptionDTO;
-use Acelle\Library\DTOs\RemotePaymentMethodDTO;
-use Acelle\Library\DTOs\CreateRemoteSubscriptionResult;
-use Acelle\Model\Invoice;
-use Acelle\Model\Transaction;
-use Acelle\Model\PaymentMethod;
+use App\Library\Contracts\RemoteSubscriptionGatewayInterface;
+use App\Library\DTOs\RemotePlanDTO;
+use App\Library\DTOs\RemoteSubscriptionDTO;
+use App\Library\DTOs\RemotePaymentMethodDTO;
+use App\Library\DTOs\CreateRemoteSubscriptionResult;
+use App\Model\Invoice;
+use App\Model\Transaction;
+use App\Model\PaymentMethod;
 use Carbon\Carbon;
 
 class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
@@ -38,7 +38,7 @@ class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
 
     public function getCheckoutUrl(Invoice $invoice, string $paymentGatewayId): string
     {
-        return action('\Acelle\Cashier\Controllers\StripeSubscriptionController@checkout', [
+        return action('\App\Cashier\Controllers\StripeSubscriptionController@checkout', [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGatewayId,
         ]);

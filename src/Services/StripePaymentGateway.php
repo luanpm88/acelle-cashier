@@ -1,10 +1,10 @@
 <?php
 
-namespace Acelle\Cashier\Services;
+namespace App\Cashier\Services;
 
-use Acelle\Library\Contracts\PaymentGatewayInterface;
-use Acelle\Model\Transaction;
-use Acelle\Model\PaymentMethod;
+use App\Library\Contracts\PaymentGatewayInterface;
+use App\Model\Transaction;
+use App\Model\PaymentMethod;
 
 class StripePaymentGateway implements PaymentGatewayInterface
 {
@@ -94,7 +94,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
             $payment_intent_id = $e->getError()->payment_intent->id;
             // $payment_intent = \Stripe\PaymentIntent::retrieve($payment_intent_id);
 
-            $authPaymentLink = action("\Acelle\Cashier\Controllers\StripeController@paymentAuth", [
+            $authPaymentLink = action("\App\Cashier\Controllers\StripeController@paymentAuth", [
                 'invoice_uid' => $invoice->uid,
                 'payment_gateway_id' => $paymentMethod->paymentGateway->uid,
             ]);
@@ -107,7 +107,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
                 ])    
             );
         } catch (\Throwable $e) {
-            $authPaymentLink = action("\Acelle\Cashier\Controllers\StripeController@paymentAuth", [
+            $authPaymentLink = action("\App\Cashier\Controllers\StripeController@paymentAuth", [
                 'invoice_uid' => $invoice->uid,
                 'payment_gateway_id' => $paymentMethod->paymentGateway->uid,
             ]);
@@ -159,7 +159,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
      */
     public function getCheckoutUrl($invoice, $paymentGatewayId) : string
     {
-        return action("\Acelle\Cashier\Controllers\StripeController@checkout", [
+        return action("\App\Cashier\Controllers\StripeController@checkout", [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGatewayId,
         ]);

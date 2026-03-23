@@ -1,14 +1,14 @@
 <?php
 
-namespace Acelle\Cashier\Services;
+namespace App\Cashier\Services;
 
-use Acelle\Library\Contracts\PaymentGatewayInterface;
+use App\Library\Contracts\PaymentGatewayInterface;
 use PayPalCheckoutSdk\Orders\OrdersGetRequest;
 use PayPalCheckoutSdk\Core\PayPalHttpClient;
 use PayPalCheckoutSdk\Core\SandboxEnvironment;
 use PayPalCheckoutSdk\Core\ProductionEnvironment;
-use Acelle\Model\Transaction;
-use Acelle\Model\PaymentMethod;
+use App\Model\Transaction;
+use App\Model\PaymentMethod;
 
 class PaypalPaymentGateway implements PaymentGatewayInterface
 {
@@ -52,7 +52,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
 
     public function getCheckoutUrl($invoice, $paymentGatewayId) : string
     {
-        return action("\Acelle\Cashier\Controllers\PaypalController@checkout", [
+        return action("\App\Cashier\Controllers\PaypalController@checkout", [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGatewayId,
         ]);

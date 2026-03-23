@@ -1,12 +1,12 @@
 <?php
 
-namespace Acelle\Cashier\Controllers;
+namespace App\Cashier\Controllers;
 
-use Acelle\Http\Controllers\Controller;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Acelle\Library\Facades\Billing;
-use Acelle\Model\Invoice;
-use Acelle\Model\PaymentGateway;
+use App\Library\Facades\Billing;
+use App\Model\Invoice;
+use App\Model\PaymentGateway;
 
 class RazorpayController extends Controller
 {
