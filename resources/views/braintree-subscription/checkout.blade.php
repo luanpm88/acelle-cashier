@@ -4,7 +4,7 @@
     <label class="d-block text-semibold text-muted mb-20 mt-0">
         <strong>{{ trans('cashier::messages.braintree_subscription.checkout_title') }}</strong>
     </label>
-    <img class="rounded" width="250" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/braintree.png') }}" />
+    <img class="rounded" width="250" src="{{ \App\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/braintree.png') }}" />
 
     <div class="py-4">
         @if ($errors->has('payment'))
@@ -24,7 +24,7 @@
         </button>
 
         <form id="paymentForm" style="display: none"
-            action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeSubscriptionController@checkout', [
+            action="{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\BraintreeSubscriptionController@checkout', [
                 'invoice_uid' => $invoice->uid,
                 'payment_gateway_id' => $paymentGateway->uid,
             ]) }}" method="POST">

@@ -1,14 +1,14 @@
 <?php
 
-namespace Acelle\Cashier\Controllers;
+namespace App\Cashier\Controllers;
 
-use Acelle\Http\Controllers\Controller;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Acelle\Model\Subscription;
-use Acelle\Model\PaymentGateway;
-use Acelle\Cashier\Services\StripeSubscriptionGateway;
-use Acelle\Cashier\Services\BraintreeSubscriptionGateway;
-use Acelle\Library\Contracts\RemoteSubscriptionGatewayInterface;
+use App\Model\Subscription;
+use App\Model\PaymentGateway;
+use App\Cashier\Services\StripeSubscriptionGateway;
+use App\Cashier\Services\BraintreeSubscriptionGateway;
+use App\Library\Contracts\RemoteSubscriptionGatewayInterface;
 use Illuminate\Support\Facades\Log;
 
 class RemoteSubscriptionWebhookController extends Controller
