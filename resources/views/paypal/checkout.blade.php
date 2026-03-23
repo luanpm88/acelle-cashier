@@ -4,7 +4,7 @@
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
         
-        <link rel="stylesheet" href="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
+        <link rel="stylesheet" href="{{ \App\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
     </head>
     
     <body>
@@ -17,7 +17,7 @@
                     </strong>
                 </label>
                 <div class="text-center">
-                    <img width="60%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/paypal-logo.png') }}" />
+                    <img width="60%" src="{{ \App\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/paypal-logo.png') }}" />
                 </div>
             </div>
             <div class="col-md-4 mt-40 pd-60">            
@@ -46,7 +46,7 @@
                         }).fail(function(e) {alert(e.responseText)});
                    
                         var form = jQuery('<form>', {
-                            'action': '{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaypalController@checkout', [
+                            'action': '{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\PaypalController@checkout', [
                                 'invoice_uid' => $invoice->uid,
                             ]) }}',
                             'target': '_top',

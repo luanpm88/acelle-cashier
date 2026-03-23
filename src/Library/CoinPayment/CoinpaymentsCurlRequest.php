@@ -1,8 +1,8 @@
 <?php
 
-namespace Acelle\Cashier\Library\CoinPayment;
+namespace App\Cashier\Library\CoinPayment;
 
-use Acelle\Cashier\Library\CoinPayment\CoinpaymentsValidator;
+use App\Cashier\Library\CoinPayment\CoinpaymentsValidator;
 use Exception;
 
 class CoinpaymentsCurlRequest

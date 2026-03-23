@@ -3,7 +3,7 @@
         <title>{{ trans('cashier::messages.braintree.checkout.page_title') }}</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
-        <link rel="stylesheet" href="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
+        <link rel="stylesheet" href="{{ \App\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
 
         <style>
             .braintree-placeholder {display:none}
@@ -19,7 +19,7 @@
                         {{ trans('cashier::messages.braintree.checkout_with_braintree') }}
                     </strong>
                 </label>
-                <img class="rounded" width="100%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/braintree.png') }}" />
+                <img class="rounded" width="100%" src="{{ \App\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/braintree.png') }}" />
             </div>
             <div class="col-md-4 mt-40 pd-60">
                 
@@ -46,7 +46,7 @@
                         </ul>
                         
                         <form
-                            action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@autoBillingDataUpdate') }}" method="POST">
+                            action="{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\BraintreeController@autoBillingDataUpdate') }}" method="POST">
                             {{ csrf_field() }}
                             <input type="hidden" name="return_url" value="{{ request()->return_url }}" />
                             <input type="submit" name="use_current_card" style="width: 100%;" href="{{ '' }}" class="btn btn-primary mr-2"
@@ -65,7 +65,7 @@
                 </a>
                     
                 <form id="updateCard" style="display: none"
-                    action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@autoBillingDataUpdate') }}" method="POST">
+                    action="{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\BraintreeController@autoBillingDataUpdate') }}" method="POST">
                         {{ csrf_field() }}
                         <input type="hidden" name="return_url" value="{{ request()->return_url }}" />
                         <input type="hidden" name="nonce" value="" />

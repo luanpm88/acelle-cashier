@@ -19,7 +19,7 @@
             <div class="col-md-2"></div>
             <div class="col-md-8 text-center" style="margin-top: 30vh">
                 <div class="mb-40">
-                    <img src="{{ \Acelle\Cashier\Cashier::public_url('images/loading.gif') }}" />
+                    <img src="{{ \App\Cashier\Cashier::public_url('images/loading.gif') }}" />
                 </div>
                 <h1 class="text-semibold mb-10">{!! trans('cashier::messages.braintree.checkout.processing_payment') !!}</h1>
         
@@ -30,7 +30,7 @@
                         
                             <p class="text-muted">{!! trans('cashier::messages.braintree.checkout.processing_payment.intro') !!}</p>
                             
-                            <form id="pay_now" method="POST" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\BraintreeController@checkout', [
+                            <form id="pay_now" method="POST" action="{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\BraintreeController@checkout', [
                                 'invoice_uid' => $invoice->uid,
                             ]) }}">
                                 {{ csrf_field() }}

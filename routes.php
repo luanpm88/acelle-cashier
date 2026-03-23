@@ -11,7 +11,7 @@
 |
 */
 
-Route::group(['middleware' => ['web','not_installed', 'auth', 'frontend'], 'namespace' => 'Acelle\Cashier\Controllers'], function () {
+Route::group(['middleware' => ['web','not_installed', 'auth', 'frontend'], 'namespace' => 'App\Cashier\Controllers'], function () {
     // direct
     Route::get('/cashier/offline/checkout/{invoice_uid}', 'OfflineController@checkout');
     Route::post('/cashier/offline/{invoice_uid}/claim', 'OfflineController@claim');
@@ -40,7 +40,7 @@ Route::group(['middleware' => ['web','not_installed', 'auth', 'frontend'], 'name
     Route::match(['get', 'post'], '/cashier/razorpay/{invoice_uid}', 'RazorpayController@checkout');
 });
 
-Route::group(['middleware' => ['web', 'not_installed', 'auth', 'backend'], 'namespace' => 'Acelle\Cashier\Controllers'], function () {
+Route::group(['middleware' => ['web', 'not_installed', 'auth', 'backend'], 'namespace' => 'App\Cashier\Controllers'], function () {
     // direct
     Route::match(['get', 'post'], '/cashier/offline/settings', 'OfflineController@settings');
 

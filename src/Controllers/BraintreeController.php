@@ -1,15 +1,15 @@
 <?php
 
-namespace Acelle\Cashier\Controllers;
+namespace App\Cashier\Controllers;
 
-use Acelle\Http\Controllers\Controller;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Acelle\Cashier\Services\BraintreePaymentGateway;
-use Acelle\Library\Facades\Billing;
-use Acelle\Model\Setting;
-use Acelle\Library\AutoBillingData;
-use Acelle\Model\Invoice;
-use Acelle\Library\TransactionResult;
+use App\Cashier\Services\BraintreePaymentGateway;
+use App\Library\Facades\Billing;
+use App\Model\Setting;
+use App\Library\AutoBillingData;
+use App\Model\Invoice;
+use App\Library\TransactionResult;
 
 class BraintreeController extends Controller
 {

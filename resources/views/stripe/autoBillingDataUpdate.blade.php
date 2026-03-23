@@ -3,7 +3,7 @@
         <title>{{ trans('cashier::messages.stripe') }}</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>            
-        <link rel="stylesheet" href="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
+        <link rel="stylesheet" href="{{ \App\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
     </head>
     
     <body>
@@ -15,7 +15,7 @@
                         {{ trans('cashier::messages.stripe') }}
                     </strong>
                 </label>
-                <img class="rounded" width="100%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/stripe.png') }}" />
+                <img class="rounded" width="100%" src="{{ \App\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/stripe.png') }}" />
             </div>
             <div class="col-md-4 mt-40 pd-60">
                 
@@ -42,7 +42,7 @@
                         </ul>
 
                         <form id="stripe_button"
-                            action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@autoBillingDataUpdate') }}" method="POST">
+                            action="{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\StripeController@autoBillingDataUpdate') }}" method="POST">
                             {{ csrf_field() }}
                                 <input type="hidden" name="return_url" value="{{ request()->return_url }}" />
                                 <input type="submit" name="use_current_card" class="btn btn-primary mr-2"
@@ -57,7 +57,7 @@
                         <h4 class="text-semibold mb-3 mt-4">{!! trans('cashier::messages.stripe.click_button_to_connect') !!}</h4>
                         <p>{!! trans('cashier::messages.stripe.no_card') !!}</p>
                         <form id="stripe_button" style=""
-                            action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@autoBillingDataUpdate') }}" method="POST">
+                            action="{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\StripeController@autoBillingDataUpdate') }}" method="POST">
 
                                 <input type="hidden" name="return_url" value="{{ request()->return_url }}" />
 
@@ -71,7 +71,7 @@
                 </div>
 
                 <form id="stripe_button" style="display:none"
-                    action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\StripeController@autoBillingDataUpdate', [
+                    action="{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\StripeController@autoBillingDataUpdate', [
                     '_token' => csrf_token(),
                 ]) }}" method="POST">
 

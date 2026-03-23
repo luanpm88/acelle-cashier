@@ -3,7 +3,7 @@
         <title>{{ trans('cashier::messages.paystack.checkout.page_title') }}</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
-        <link rel="stylesheet" href="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
+        <link rel="stylesheet" href="{{ \App\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
     </head>
     
     <body>
@@ -15,7 +15,7 @@
                         {{ trans('cashier::messages.paystack.checkout_with_paystack') }}
                     </strong>
                 </label>
-                <img class="rounded" width="100%" src="{{ \Acelle\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/paystack.svg') }}" />
+                <img class="rounded" width="100%" src="{{ \App\Cashier\Cashier::public_url('/vendor/acelle-cashier/image/paystack.svg') }}" />
             </div>
             <div class="col-md-4 mt-40 pd-60">
                 <form id="paymentForm">
@@ -25,7 +25,7 @@
                 </form>
                 <script src="https://js.paystack.co/v1/inline.js"></script> 
 
-                <form id="checkoutForm" method="GET" action="{{ \Acelle\Cashier\Cashier::lr_action('\Acelle\Cashier\Controllers\PaystackController@paymentRedirect') }}">
+                <form id="checkoutForm" method="GET" action="{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\PaystackController@paymentRedirect') }}">
                     <input type="hidden" name="redirect" value="" />
                 </form>
                 
