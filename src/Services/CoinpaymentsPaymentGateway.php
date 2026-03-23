@@ -76,7 +76,7 @@ class CoinpaymentsPaymentGateway implements PaymentGatewayInterface
         return action("\App\Cashier\Controllers\CoinpaymentsController@settings");
     }
 
-    public function getCheckoutUrl($invoice) : string
+    public function getCheckoutUrl($invoice, string $paymentGatewayId = "") : string
     {
         return action("\App\Cashier\Controllers\CoinpaymentsController@checkout", [
             'invoice_uid' => $invoice->uid,

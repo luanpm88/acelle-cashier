@@ -70,7 +70,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         return action("\App\Cashier\Controllers\RazorpayController@settings");
     }
 
-    public function getCheckoutUrl($invoice) : string
+    public function getCheckoutUrl($invoice, string $paymentGatewayId = "") : string
     {
         return action("\App\Cashier\Controllers\RazorpayController@checkout", [
             'invoice_uid' => $invoice->uid,

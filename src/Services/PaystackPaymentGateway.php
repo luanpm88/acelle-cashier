@@ -111,7 +111,7 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice) : string
+    public function getCheckoutUrl($invoice, string $paymentGatewayId = "") : string
     {
         return \App\Cashier\Cashier::lr_action("\App\Cashier\Controllers\PaystackController@checkout", [
             'invoice_uid' => $invoice->uid,

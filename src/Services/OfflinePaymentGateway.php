@@ -59,7 +59,7 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
         return action("\App\Cashier\Controllers\OfflineController@settings");
     }
 
-    public function getCheckoutUrl($invoice) : string
+    public function getCheckoutUrl($invoice, string $paymentGatewayId = "") : string
     {
         return action("\App\Cashier\Controllers\OfflineController@checkout", [
             'invoice_uid' => $invoice->uid,

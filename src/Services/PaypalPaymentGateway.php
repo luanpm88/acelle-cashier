@@ -79,7 +79,7 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         return action("\App\Cashier\Controllers\PaypalController@settings");
     }
 
-    public function getCheckoutUrl($invoice) : string
+    public function getCheckoutUrl($invoice, string $paymentGatewayId = "") : string
     {
         return action("\App\Cashier\Controllers\PaypalController@checkout", [
             'invoice_uid' => $invoice->uid,

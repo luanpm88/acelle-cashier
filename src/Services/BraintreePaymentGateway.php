@@ -277,7 +277,7 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice) : string
+    public function getCheckoutUrl($invoice, string $paymentGatewayId = "") : string
     {
         return \App\Cashier\Cashier::lr_action("\App\Cashier\Controllers\BraintreeController@checkout", [
             'invoice_uid' => $invoice->uid,

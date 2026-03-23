@@ -186,7 +186,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice) : string
+    public function getCheckoutUrl($invoice, string $paymentGatewayId = "") : string
     {
         return action("\App\Cashier\Controllers\StripeController@checkout", [
             'invoice_uid' => $invoice->uid,
