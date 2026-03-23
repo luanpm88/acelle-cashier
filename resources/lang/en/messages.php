@@ -154,4 +154,5 @@
         or credit cards. Auto billing is not supported',
     'stripe.short_description' => 'Pay for your subscription & services using your debit
         or credit cards. Auto billing is supported',
+    'braintree.click_to_auth' => 'Click <a href=":link">here</a> to authenticate the payment.',
 );

@@ -102,6 +102,7 @@
                 }
             };
 
+            // var card = elements.create("card", { style: style, hidePostalCode: true });
             var card = elements.create("card", { style: style });
             card.mount("#card-element");
 

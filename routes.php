@@ -11,7 +11,7 @@
 |
 */
 
-Route::group(['middleware' => ['web','not_installed', 'auth', 'frontend'], 'namespace' => 'App\Cashier\Controllers'], function () {
+Route::group(['middleware' => ['web','not_installed'], 'namespace' => 'App\Cashier\Controllers'], function () {
     // direct
     Route::get('/cashier/offline/checkout/{invoice_uid}', 'OfflineController@checkout');
     Route::post('/cashier/offline/{invoice_uid}/claim', 'OfflineController@claim');
@@ -34,10 +34,10 @@ Route::group(['middleware' => ['web','not_installed', 'auth', 'frontend'], 'name
     Route::post('/cashier/paystack/{invoice_uid}/charge', 'PaystackController@charge');
 
     // Paypal
-    Route::match(['get', 'post'], '/cashier/paypal/{invoice_uid}', 'PaypalController@checkout');
+    Route::match(['get', 'post'], '/cashier/paypal/checkout/{invoice_uid}', 'PaypalController@checkout');
 
     // Razorpay
-    Route::match(['get', 'post'], '/cashier/razorpay/{invoice_uid}', 'RazorpayController@checkout');
+    Route::match(['get', 'post'], '/cashier/razorpay/checkout/{invoice_uid}', 'RazorpayController@checkout');
 });
 
 Route::group(['middleware' => ['web', 'not_installed', 'auth', 'backend'], 'namespace' => 'App\Cashier\Controllers'], function () {

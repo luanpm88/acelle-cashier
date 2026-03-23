@@ -1,19 +1,8 @@
-@extends('layouts.core.frontend_dark', [
+@extends('layouts.core.empty', [
     'subscriptionPage' => true,
 ])
 
 @section('title', trans('messages.subscriptions'))
-
-@section('menu_title')
-    @include('subscription._title')
-@endsection
-
-@section('menu_right')
-    @include('layouts.core._top_activity_log')
-    @include('layouts.core._menu_frontend_user', [
-        'menu' => 'subscription',
-    ])
-@endsection
 
 @section('content')
     <div class="container mt-4 mb-5">

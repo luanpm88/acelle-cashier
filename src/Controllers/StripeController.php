@@ -114,7 +114,7 @@ class StripeController extends Controller
 
             // Use new card. User already paid before, just return done.
             } else {
-                $stripeCustomer = $service->getStripeCustomer($customer);
+                $stripeCustomer = $service->getStripeCustomer($customer->uid);
 
                 // update auto billing data
                 $autoBillingData = new AutoBillingData($service, [
@@ -134,21 +134,15 @@ class StripeController extends Controller
             'service' => $service,
             'invoice' => $invoice,
             'paymentMethod' => $service->getPaymentMethod($customer),
-            'clientSecret' => $service->getClientSecret($customer, $invoice),
+            'clientSecret' => $service->getClientSecret($customer->uid, $invoice),
         ]);
     }
 
     public function paymentAuth(Request $request, $invoice_uid)
     {
         $invoice = Invoice::findByUid($invoice_uid);
-        $service = $this->getPaymentService();
-        $intent = \Stripe\PaymentIntent::retrieve($request->payment_intent_id);
 
-        return view('cashier::stripe.paymentAuth', [
-            'invoice' => $invoice,
-            'service' => $service,
-            'intent' => $intent,
-        ]);
+        return redirect()->away($this->getCheckoutUrl($invoice));
     }
 
     public function autoBillingDataUpdate(Request $request)
