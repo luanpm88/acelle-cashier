@@ -196,7 +196,11 @@ class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
             $paymentMethod = \Stripe\PaymentMethod::retrieve($paymentMethodId);
 
             // Attach PM to customer — skip if already attached (e.g. from confirmCardSetup)
-            if ($paymentMethod->customer !== $stripeCustomer->id) {
+            if (!$paymentMethod->customer) {
+                $paymentMethod->attach(['customer' => $stripeCustomer->id]);
+            } elseif ($paymentMethod->customer !== $stripeCustomer->id) {
+                // PM attached to different customer — detach first, then re-attach
+                $paymentMethod->detach();
                 $paymentMethod->attach(['customer' => $stripeCustomer->id]);
             }
 
