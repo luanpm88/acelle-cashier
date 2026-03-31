@@ -85,6 +85,7 @@
                             'payment_gateway_id' => $paymentGateway->uid,
                         ]) }}',
                         type: 'POST',
+                        globalError: false,
                         data: {
                             _token: '{{ csrf_token() }}',
                             payment_method_id: pmId,
@@ -107,6 +108,7 @@
                                             'payment_gateway_id' => $paymentGateway->uid,
                                         ]) }}',
                                         type: 'POST',
+                                        globalError: false,
                                         data: {
                                             _token: '{{ csrf_token() }}',
                                             remote_subscription_id: data.remote_subscription_id,
