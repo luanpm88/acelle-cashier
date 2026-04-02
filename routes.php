@@ -17,8 +17,9 @@ Route::group(['middleware' => ['web','not_installed'], 'namespace' => 'App\Cashi
     Route::post('/cashier/offline/{invoice_uid}//{payment_gateway_id}/claim', 'OfflineController@claim');
 
     // Stripe
-    Route::match(['get', 'post'], '/cashier/stripe/{invoice_uid}/{payment_gateway_id}/payment-auth', 'StripeController@paymentAuth');
-    Route::match(['get', 'post'], '/cashier/stripe/checkout/{invoice_uid}/{payment_gateway_id}', 'StripeController@checkout');
+    Route::get('/cashier/stripe/checkout/{invoice_uid}', 'StripeController@checkout');
+    Route::post('/cashier/stripe/pay/{invoice_uid}', 'StripeController@pay');
+    Route::get('/cashier/stripe/{invoice_uid}/payment-auth', 'StripeController@paymentAuth');
 
     // Braintree
     Route::match(['get', 'post'], '/cashier/braintree/checkout/{invoice_uid}/{payment_gateway_id}', 'BraintreeController@checkout');

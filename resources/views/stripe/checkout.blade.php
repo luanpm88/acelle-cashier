@@ -51,8 +51,43 @@
             }
         });
 
+        var confirmedPaymentMethodId = null;
+
+        function submitPayment(paymentMethodId) {
+            addMaskLoading(`{!! trans('cashier::messages.stripe.checkout.processing_payment.intro') !!}`);
+            $.ajax({
+                url: '{{ action("\App\Cashier\Controllers\StripeController@pay", [
+                    'invoice_uid' => $invoice->uid,
+                ]) }}',
+                type: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    payment_method_id: paymentMethodId,
+                    gateway_token: '{{ $gatewayToken }}',
+                    payment_gateway_id: '{{ $paymentGatewayId }}',
+                    return_url: '{{ $returnUrl }}',
+                }
+            }).done(function(response) {
+                window.location = response.return_url;
+            }).fail(function(jqXHR) {
+                var message = jqXHR.responseJSON ? jqXHR.responseJSON.message : jqXHR.statusText;
+                new Dialog('alert', {
+                    message: message
+                });
+                removeMaskLoading();
+                removeButtonMask($('#submit'));
+            });
+        }
+
         $('#submit').on('click', function() {
             addButtonMask($(this));
+
+            // If card was already confirmed, skip confirmCardSetup and retry payment
+            if (confirmedPaymentMethodId) {
+                submitPayment(confirmedPaymentMethodId);
+                return;
+            }
+
             // Build address object and only include country if not empty
             var address = {
                 city: null,
@@ -83,20 +118,8 @@
                     removeButtonMask($('#submit'));
                 } else {
                     if (result.setupIntent.status === 'succeeded') {
-                        addMaskLoading(`{!! trans('cashier::messages.stripe.checkout.processing_payment.intro') !!}`);
-                        $.ajax({
-                            url: '{{ action("\App\Cashier\Controllers\StripeController@checkout", [
-                                'invoice_uid' => $invoice->uid,
-                                'payment_gateway_id' => $paymentGateway->uid,
-                            ]) }}',
-                            type: 'POST',
-                            data: {
-                                _token: '{{ csrf_token() }}',
-                                payment_method_id: result.setupIntent.payment_method,
-                            }
-                        }).done(function(response) {
-                            window.location = '{{ Billing::getReturnUrl() }}';
-                        });
+                        confirmedPaymentMethodId = result.setupIntent.payment_method;
+                        submitPayment(confirmedPaymentMethodId);
                     }
                 }
             });

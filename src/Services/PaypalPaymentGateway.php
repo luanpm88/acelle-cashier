@@ -8,7 +8,7 @@ use PayPalCheckoutSdk\Core\PayPalHttpClient;
 use PayPalCheckoutSdk\Core\SandboxEnvironment;
 use PayPalCheckoutSdk\Core\ProductionEnvironment;
 use App\Model\Transaction;
-use App\Model\PaymentMethod;
+use App\Cashier\Contracts\PaymentMethodInfoInterface;
 
 class PaypalPaymentGateway implements PaymentGatewayInterface
 {
@@ -50,15 +50,16 @@ class PaypalPaymentGateway implements PaymentGatewayInterface
         return $this->active;
     }
 
-    public function getCheckoutUrl($invoice, $paymentGatewayId) : string
+    public function getCheckoutUrl($invoice, $paymentGatewayId, $returnUrl = '/') : string
     {
         return action("\App\Cashier\Controllers\PaypalController@checkout", [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGatewayId,
+            'return_url' => $returnUrl,
         ]);
     }
 
-    public function autoCharge($invoice, PaymentMethod $paymentMethod)
+    public function autoCharge($invoice, PaymentMethodInfoInterface $paymentMethodInfo)
     {
         throw new \Exception('Paypal payment gateway does not support auto charge!');
     }

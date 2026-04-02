@@ -9,7 +9,7 @@ use App\Library\DTOs\RemotePaymentMethodDTO;
 use App\Library\DTOs\CreateRemoteSubscriptionResult;
 use App\Model\Invoice;
 use App\Model\Transaction;
-use App\Model\PaymentMethod;
+use App\Cashier\Contracts\PaymentMethodInfoInterface;
 use Carbon\Carbon;
 
 class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
@@ -36,11 +36,12 @@ class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
 
     // ─── PaymentGatewayInterface (base) ───
 
-    public function getCheckoutUrl(Invoice $invoice, string $paymentGatewayId): string
+    public function getCheckoutUrl(Invoice $invoice, string $paymentGatewayId, string $returnUrl = '/'): string
     {
         return action('\App\Cashier\Controllers\StripeSubscriptionController@checkout', [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGatewayId,
+            'return_url' => $returnUrl,
         ]);
     }
 
@@ -49,7 +50,7 @@ class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
         return false; // Provider manages billing
     }
 
-    public function autoCharge(Invoice $invoice, PaymentMethod $paymentMethod)
+    public function autoCharge($invoice, PaymentMethodInfoInterface $paymentMethodInfo)
     {
         throw new \Exception('StripeSubscription does not support local auto-charge. Billing is managed by Stripe.');
     }

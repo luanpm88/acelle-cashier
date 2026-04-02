@@ -4,7 +4,8 @@ namespace App\Cashier\Services;
 
 use App\Library\Contracts\PaymentGatewayInterface;
 use App\Model\Transaction;
-use App\Model\PaymentMethod;
+use App\Cashier\Contracts\PaymentMethodInfoInterface;
+use App\Cashier\DTO\StripeAutoBillingData;
 
 class StripePaymentGateway implements PaymentGatewayInterface
 {
@@ -54,6 +55,14 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return $this->publishableKey;
     }
 
+    public function makeGatewayToken($extraData = [])
+    {
+        return encrypt(json_encode(array_merge([
+            'pub_key' => $this->publishableKey,
+            'secret_key' => $this->secretKey,
+        ], $extraData)));
+    }
+
     public function supportsAutoBilling() : bool
     {
         return true;
@@ -69,17 +78,23 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return false;
     }
 
-    public function autoCharge($invoice, PaymentMethod $paymentMethod)
+    public function autoCharge($invoice, PaymentMethodInfoInterface $paymentMethodInfo)
     {
-        try {
-            // charge invoice
-            $autobillingData = json_decode($paymentMethod->autobilling_data, true);
+        $handler = app(\App\Cashier\Contracts\CheckoutHandlerInterface::class);
+        $billingData = new StripeAutoBillingData($paymentMethodInfo->getAutoBillingData());
 
+        // Free invoice — no Stripe charge needed
+        if ($invoice->total() <= 0) {
+            $handler->onPaymentSuccess($invoice, $paymentMethodInfo);
+            return;
+        }
+
+        try {
             \Stripe\PaymentIntent::create([
                 'amount' => $this->convertPrice($invoice->total(), $invoice->getCurrencyCode()),
                 'currency' => $invoice->getCurrencyCode(),
-                'customer' => $autobillingData['customer_id'],
-                'payment_method' => $autobillingData['payment_method_id'],
+                'customer' => $billingData->customerId,
+                'payment_method' => $billingData->paymentMethodId,
                 'off_session' => true,
                 'confirm' => true,
                 'description' => trans('messages.pay_invoice', [
@@ -87,37 +102,32 @@ class StripePaymentGateway implements PaymentGatewayInterface
                 ]),
             ]);
 
-            // success
-            $invoice->paySuccess($paymentMethod);
+            $handler->onPaymentSuccess($invoice, $paymentMethodInfo);
         } catch (\Stripe\Exception\CardException $e) {
-            // Error code will be authentication_required if authentication is needed
-            $payment_intent_id = $e->getError()->payment_intent->id;
-            // $payment_intent = \Stripe\PaymentIntent::retrieve($payment_intent_id);
-
             $authPaymentLink = action("\App\Cashier\Controllers\StripeController@paymentAuth", [
                 'invoice_uid' => $invoice->uid,
-                'payment_gateway_id' => $paymentMethod->paymentGateway->uid,
+                'gateway_token' => $this->makeGatewayToken(),
             ]);
 
-            // failed
-            $invoice->payFailed(
-                $paymentMethod, 
+            $handler->onPaymentFailed(
+                $invoice,
+                $paymentMethodInfo,
                 $e->getError()->message . ' ' . trans('cashier::messages.stripe.click_to_auth', [
                     'link' => $authPaymentLink,
-                ])    
+                ])
             );
         } catch (\Throwable $e) {
             $authPaymentLink = action("\App\Cashier\Controllers\StripeController@paymentAuth", [
                 'invoice_uid' => $invoice->uid,
-                'payment_gateway_id' => $paymentMethod->paymentGateway->uid,
+                'gateway_token' => $this->makeGatewayToken(),
             ]);
 
-            // failed
-            $invoice->payFailed(
-                $paymentMethod, 
+            $handler->onPaymentFailed(
+                $invoice,
+                $paymentMethodInfo,
                 $e->getMessage() . ' ' . trans('cashier::messages.stripe.click_to_auth', [
                     'link' => $authPaymentLink,
-                ]) 
+                ])
             );
         }
     }
@@ -157,11 +167,13 @@ class StripePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice, $paymentGatewayId) : string
+    public function getCheckoutUrl($invoice, $paymentGatewayId, $returnUrl = '/') : string
     {
         return action("\App\Cashier\Controllers\StripeController@checkout", [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGatewayId,
+            'gateway_token' => $this->makeGatewayToken(),
+            'return_url' => $returnUrl,
         ]);
     }
 

@@ -3,7 +3,7 @@
 namespace App\Cashier\Services;
 
 use App\Library\Contracts\PaymentGatewayInterface;
-use App\Model\PaymentMethod;
+use App\Cashier\Contracts\PaymentMethodInfoInterface;
 use Carbon\Carbon;
 use App\Model\Transaction;
 
@@ -68,15 +68,14 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      *
      * @return void
      */
-    public function autoCharge($invoice, PaymentMethod $paymentMethod)
+    public function autoCharge($invoice, PaymentMethodInfoInterface $paymentMethodInfo)
     {
-        // charge invoice
-        $autobillingData = json_decode($paymentMethod->autobilling_data, true);
+        $handler = app(\App\Cashier\Contracts\CheckoutHandlerInterface::class);
+        $data = $paymentMethodInfo->getAutoBillingData();
 
         try {
-            // charge invoice
             $this->doCharge([
-                'paymentMethodToken' => $autobillingData['payment_method_token'],
+                'paymentMethodToken' => $data['payment_method_token'],
                 'amount' => $invoice->total(),
                 'currency' => $invoice->getCurrencyCode(),
                 'description' => trans('messages.pay_invoice', [
@@ -84,20 +83,12 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
                 ]),
             ]);
 
-            // success
-            $invoice->paySuccess($paymentMethod);
+            $handler->onPaymentSuccess($invoice, $paymentMethodInfo);
         } catch (\Throwable $e) {
-            $authPaymentLink = action("\App\Cashier\Controllers\BraintreeController@checkout", [
-                'invoice_uid' => $invoice->uid,
-                'payment_gateway_id' => $paymentMethod->paymentGateway->uid,
-            ]);
-
-            // failed
-            $invoice->payFailed(
-                $paymentMethod,
-                $e->getMessage() . ' ' . trans('cashier::messages.braintree.click_to_auth', [
-                    'link' => $authPaymentLink,
-                ])
+            $handler->onPaymentFailed(
+                $invoice,
+                $paymentMethodInfo,
+                $e->getMessage()
             );
         }
     }
@@ -236,11 +227,12 @@ class BraintreePaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice, $paymentGatewayId) : string
+    public function getCheckoutUrl($invoice, $paymentGatewayId, $returnUrl = '/') : string
     {
         return \App\Cashier\Cashier::lr_action("\App\Cashier\Controllers\BraintreeController@checkout", [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGatewayId,
+            'return_url' => $returnUrl,
         ]);
     }
 

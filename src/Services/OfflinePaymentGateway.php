@@ -4,7 +4,7 @@ namespace App\Cashier\Services;
 
 use App\Library\Contracts\PaymentGatewayInterface;
 use App\Model\Transaction;
-use App\Model\PaymentMethod;
+use App\Cashier\Contracts\PaymentMethodInfoInterface;
 
 class OfflinePaymentGateway implements PaymentGatewayInterface
 {
@@ -34,11 +34,12 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
         return $this->active;
     }
 
-    public function getCheckoutUrl($invoice, $paymentGatewayId) : string
+    public function getCheckoutUrl($invoice, $paymentGatewayId, $returnUrl = '/') : string
     {
         return action("\App\Cashier\Controllers\OfflineController@checkout", [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGatewayId,
+            'return_url' => $returnUrl,
         ]);
     }
 
@@ -57,7 +58,7 @@ class OfflinePaymentGateway implements PaymentGatewayInterface
         return true;
     }
 
-    public function autoCharge($invoice, PaymentMethod $paymentMethod)
+    public function autoCharge($invoice, PaymentMethodInfoInterface $paymentMethodInfo)
     {
         throw new \Exception('Offline payment gateway does not support auto charge!');
     }

@@ -4,7 +4,7 @@ namespace App\Cashier\Services;
 
 use Illuminate\Support\Facades\Log;
 use App\Library\Contracts\PaymentGatewayInterface;
-use App\Model\PaymentMethod;
+use App\Cashier\Contracts\PaymentMethodInfoInterface;
 use App\Model\Transaction;
 
 class RazorpayPaymentGateway implements PaymentGatewayInterface
@@ -42,11 +42,12 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         return $this->active;
     }
 
-    public function getCheckoutUrl($invoice, $paymentGatewayId) : string
+    public function getCheckoutUrl($invoice, $paymentGatewayId, $returnUrl = '/') : string
     {
         return action("\App\Cashier\Controllers\RazorpayController@checkout", [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGatewayId,
+            'return_url' => $returnUrl,
         ]);
     }
 
@@ -60,7 +61,7 @@ class RazorpayPaymentGateway implements PaymentGatewayInterface
         return false;
     }
 
-    public function autoCharge($invoice, PaymentMethod $paymentMethod)
+    public function autoCharge($invoice, PaymentMethodInfoInterface $paymentMethodInfo)
     {
         throw new \Exception('Razorpay payment gateway does not support auto charge!');
     }

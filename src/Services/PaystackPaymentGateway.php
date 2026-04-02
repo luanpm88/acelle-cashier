@@ -4,7 +4,7 @@ namespace App\Cashier\Services;
 
 use App\Library\Contracts\PaymentGatewayInterface;
 use App\Model\Transaction;
-use App\Model\PaymentMethod;
+use App\Cashier\Contracts\PaymentMethodInfoInterface;
 use App\Model\PaymentGateway;
 
 class PaystackPaymentGateway implements PaymentGatewayInterface
@@ -70,11 +70,12 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      *
      * @return string
      */
-    public function getCheckoutUrl($invoice, $paymentGatewayId) : string
+    public function getCheckoutUrl($invoice, $paymentGatewayId, $returnUrl = '/') : string
     {
         return \App\Cashier\Cashier::lr_action("\App\Cashier\Controllers\PaystackController@checkout", [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGatewayId,
+            'return_url' => $returnUrl,
         ]);
     }
 
@@ -93,33 +94,25 @@ class PaystackPaymentGateway implements PaymentGatewayInterface
      *
      * @return void
     */
-    public function autoCharge($invoice, PaymentMethod $paymentMethod)
+    public function autoCharge($invoice, PaymentMethodInfoInterface $paymentMethodInfo)
     {
-        // charge invoice
-        $autobillingData = json_decode($paymentMethod->autobilling_data, true);
-        $card = [
-            'authorization_code' => $autobillingData['authorization_code'],
-            'email' => $autobillingData['email'],
-            'last4' => $autobillingData['last_4'],
-        ];
+        $handler = app(\App\Cashier\Contracts\CheckoutHandlerInterface::class);
+        $data = $paymentMethodInfo->getAutoBillingData();
 
         try {
-            // charge invoice
             $this->doCharge([
                 'amount' => $invoice->total(),
                 'currency' => $invoice->getCurrencyCode(),
                 'description' => trans('messages.pay_invoice', [
                     'id' => $invoice->uid,
                 ]),
-                'email' => $card['email'],
-                'authorization_code' => $card['authorization_code'],
+                'email' => $data['email'],
+                'authorization_code' => $data['authorization_code'],
             ]);
 
-            // success
-            $invoice->paySuccess($paymentMethod);
+            $handler->onPaymentSuccess($invoice, $paymentMethodInfo);
         } catch (\Exception $e) {
-            // failed
-            $invoice->payFailed($paymentMethod, $e->getMessage());
+            $handler->onPaymentFailed($invoice, $paymentMethodInfo, $e->getMessage());
         }
     }
 
