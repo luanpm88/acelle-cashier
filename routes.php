@@ -35,8 +35,8 @@ Route::group(['middleware' => ['web','not_installed'], 'namespace' => 'App\Cashi
     Route::match(['get', 'post'], '/cashier/razorpay/checkout/{invoice_uid}/{payment_gateway_id}', 'RazorpayController@checkout');
 
     // Stripe Subscription (Category B)
-    Route::match(['get', 'post'], '/cashier/stripe-subscription/checkout/{invoice_uid}/{payment_gateway_id}', 'StripeSubscriptionController@checkout');
-    Route::post('/cashier/stripe-subscription/confirm/{invoice_uid}', 'StripeSubscriptionController@confirm');
+    Route::get('/cashier/stripe-subscription/checkout/{invoice_uid}', 'StripeSubscriptionController@checkout');
+    Route::post('/cashier/stripe-subscription/pay/{invoice_uid}', 'StripeSubscriptionController@pay');
 
     // Braintree Subscription (Category B)
     Route::match(['get', 'post'], '/cashier/braintree-subscription/checkout/{invoice_uid}/{payment_gateway_id}', 'BraintreeSubscriptionController@checkout');

@@ -30,4 +30,15 @@ interface CheckoutHandlerInterface
      * Called when payment fails (e.g. card declined, 3D Secure required).
      */
     public function onPaymentFailed($invoice, PaymentMethodInfoInterface $paymentMethodInfo, string $reason);
+
+    /**
+     * Called when a remote subscription is successfully created or confirmed (3DS).
+     * Main app should: save remote subscription data, create payment method, mark invoice as paid.
+     *
+     * @param  mixed  $invoice
+     * @param  string $paymentGatewayId  UID of the payment gateway
+     * @param  array  $subscriptionData  Contains: remote_subscription_id, remote_customer_id, status,
+     *                                   current_period_end, payment_method_data (card_type, last_4, etc.)
+     */
+    public function onRemoteSubscriptionCreated($invoice, string $paymentGatewayId, array $subscriptionData);
 }

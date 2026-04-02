@@ -21,8 +21,8 @@
         @endif
 
         <p class="text-muted mb-3">
-            {{ trans('cashier::messages.stripe_subscription.subscribing_to') }} <strong>{{ $mapping->remote_plan_name }}</strong>
-            — {{ number_format($mapping->remote_price, 2) }} {{ $mapping->remote_currency }}/{{ $mapping->remote_interval_unit }}
+            {{ trans('cashier::messages.stripe_subscription.subscribing_to') }} <strong>{{ $remotePlan->name }}</strong>
+            — {{ number_format($remotePlan->price, 2) }} {{ $remotePlan->currency }}/{{ $remotePlan->intervalUnit }}
         </p>
 
         <h2 class="mb-4">{{ trans('cashier::messages.stripe.new_card') }}</h2>
@@ -48,10 +48,79 @@
             el.textContent = event.error ? event.error.message : '';
         });
 
+        var confirmedPaymentMethodId = null;
+        var payUrl = '{{ action("\App\Cashier\Controllers\StripeSubscriptionController@pay", ["invoice_uid" => $invoice->uid]) }}';
+        var btnOriginalText = '{{ trans("cashier::messages.stripe.pay") }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})';
+
+        function resetButton() {
+            var btn = document.getElementById('submit');
+            btn.disabled = false;
+            btn.textContent = btnOriginalText;
+        }
+
+        function submitPayment(paymentMethodId) {
+            var btn = document.getElementById('submit');
+            btn.textContent = '{{ trans("cashier::messages.stripe_subscription.completing") }}';
+            $.ajax({
+                url: payUrl,
+                type: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    payment_method_id: paymentMethodId,
+                    remote_plan_id: '{{ $remotePlanId }}',
+                    gateway_token: '{{ $gatewayToken }}',
+                    payment_gateway_id: '{{ $paymentGatewayId }}',
+                    return_url: '{{ $returnUrl }}',
+                }
+            }).done(function(data) {
+                if (data.requires_action && data.client_secret) {
+                    stripe.confirmCardPayment(data.client_secret).then(function(result) {
+                        if (result.error) {
+                            document.getElementById('card-errors').textContent = result.error.message;
+                            resetButton();
+                        } else {
+                            btn.textContent = '{{ trans("cashier::messages.stripe_subscription.completing") }}';
+                            var pmData = data.payment_method_data || {};
+                            $.ajax({
+                                url: payUrl,
+                                type: 'POST',
+                                data: {
+                                    _token: '{{ csrf_token() }}',
+                                    remote_subscription_id: data.remote_subscription_id,
+                                    card_type: pmData.card_type || '',
+                                    card_last4: pmData.last_4 || '',
+                                    gateway_token: '{{ $gatewayToken }}',
+                                    payment_gateway_id: '{{ $paymentGatewayId }}',
+                                    return_url: '{{ $returnUrl }}',
+                                }
+                            }).done(function(confirmData) {
+                                window.location = confirmData.redirect_url || '{{ $returnUrl }}';
+                            }).fail(function(jqXHR) {
+                                var msg = jqXHR.responseJSON ? (jqXHR.responseJSON.error || jqXHR.responseJSON.message) : jqXHR.statusText;
+                                document.getElementById('card-errors').textContent = msg;
+                                resetButton();
+                            });
+                        }
+                    });
+                } else {
+                    window.location = data.redirect_url || '{{ $returnUrl }}';
+                }
+            }).fail(function(jqXHR) {
+                var msg = jqXHR.responseJSON ? (jqXHR.responseJSON.error || jqXHR.responseJSON.message) : jqXHR.statusText;
+                document.getElementById('card-errors').textContent = msg;
+                resetButton();
+            });
+        }
+
         document.getElementById('submit').addEventListener('click', function() {
             var btn = this;
             btn.disabled = true;
-            btn.textContent = '{{ trans('cashier::messages.stripe_subscription.processing') }}';
+            btn.textContent = '{{ trans("cashier::messages.stripe_subscription.processing") }}';
+
+            if (confirmedPaymentMethodId) {
+                submitPayment(confirmedPaymentMethodId);
+                return;
+            }
 
             stripe.confirmCardSetup('{{ $clientSecret }}', {
                 payment_method: {
@@ -64,76 +133,19 @@
             }).then(function(result) {
                 if (result.error) {
                     document.getElementById('card-errors').textContent = result.error.message;
-                    btn.disabled = false;
-                    btn.textContent = '{{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})';
+                    resetButton();
                 } else if (result.setupIntent.status === 'succeeded') {
-                    // Extract payment method ID (may be string or expanded object)
                     var pmId = result.setupIntent.payment_method;
                     if (typeof pmId === 'object' && pmId !== null) {
                         pmId = pmId.id;
                     }
                     if (!pmId) {
                         document.getElementById('card-errors').textContent = 'Could not retrieve payment method. Please try again.';
-                        btn.disabled = false;
-                        btn.textContent = '{{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})';
+                        resetButton();
                         return;
                     }
-                    btn.textContent = '{{ trans('cashier::messages.stripe_subscription.completing') }}';
-                    $.ajax({
-                        url: '{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\StripeSubscriptionController@checkout', [
-                            'invoice_uid' => $invoice->uid,
-                            'payment_gateway_id' => $paymentGateway->uid,
-                        ]) }}',
-                        type: 'POST',
-                        data: {
-                            _token: '{{ csrf_token() }}',
-                            payment_method_id: pmId,
-                        }
-                    }).done(function(data) {
-                        if (data.requires_action && data.client_secret) {
-                            // 3D Secure required — confirm card payment client-side
-                            stripe.confirmCardPayment(data.client_secret).then(function(result) {
-                                if (result.error) {
-                                    document.getElementById('card-errors').textContent = result.error.message;
-                                    btn.disabled = false;
-                                    btn.textContent = '{{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})';
-                                } else {
-                                    // 3DS done — notify server to activate subscription locally
-                                    btn.textContent = '{{ trans('cashier::messages.stripe_subscription.completing') }}';
-                                    var pmData = data.payment_method_data || {};
-                                    $.ajax({
-                                        url: '{{ \App\Cashier\Cashier::lr_action('\App\Cashier\Controllers\StripeSubscriptionController@checkout', [
-                                            'invoice_uid' => $invoice->uid,
-                                            'payment_gateway_id' => $paymentGateway->uid,
-                                        ]) }}',
-                                        type: 'POST',
-                                        data: {
-                                            _token: '{{ csrf_token() }}',
-                                            remote_subscription_id: data.remote_subscription_id,
-                                            card_type: pmData.card_type || '',
-                                            card_last4: pmData.last_4 || '',
-                                        }
-                                    }).done(function(confirmData) {
-                                        window.location = confirmData.redirect_url || '{{ Billing::getReturnUrl() ?: url('/') }}';
-                                    }).fail(function(jqXHR) {
-                                        var msg = '{{ trans('cashier::messages.stripe_subscription.payment_failed') }}';
-                                        try { msg = JSON.parse(jqXHR.responseText).error || msg; } catch(e) {}
-                                        document.getElementById('card-errors').textContent = msg;
-                                        btn.disabled = false;
-                                        btn.textContent = '{{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})';
-                                    });
-                                }
-                            });
-                        } else {
-                            window.location = data.redirect_url || '{{ Billing::getReturnUrl() ?: url('/') }}';
-                        }
-                    }).fail(function(jqXHR) {
-                        var msg = '{{ trans('cashier::messages.stripe_subscription.payment_failed') }}';
-                        try { msg = JSON.parse(jqXHR.responseText).error || msg; } catch(e) {}
-                        document.getElementById('card-errors').textContent = msg;
-                        btn.disabled = false;
-                        btn.textContent = '{{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})';
-                    });
+                    confirmedPaymentMethodId = pmId;
+                    submitPayment(pmId);
                 }
             });
         });

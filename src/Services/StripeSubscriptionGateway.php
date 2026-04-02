@@ -35,12 +35,21 @@ class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
     }
 
     // ─── PaymentGatewayInterface (base) ───
+    public function makeGatewayToken($extraData = [])
+    {
+        return encrypt(json_encode(array_merge([
+            'pub_key' => $this->publishableKey,
+            'secret_key' => $this->secretKey,
+            'webhook_secret' => $this->webhookSecret,
+        ], $extraData)));
+    }
 
     public function getCheckoutUrl(Invoice $invoice, string $paymentGatewayId, string $returnUrl = '/'): string
     {
         return action('\App\Cashier\Controllers\StripeSubscriptionController@checkout', [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGatewayId,
+            'gateway_token' => $this->makeGatewayToken(),
             'return_url' => $returnUrl,
         ]);
     }
@@ -196,8 +205,8 @@ class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
             $paymentMethodId = $checkoutData['payment_method_id'];
             $paymentMethod = \Stripe\PaymentMethod::retrieve($paymentMethodId);
 
-            // Attach PM to customer — skip if already attached (e.g. from confirmCardSetup)
-            if ($paymentMethod->customer !== $stripeCustomer->id) {
+            // Attach PM to customer — skip if already attached to any customer (e.g. from confirmCardSetup)
+            if (!$paymentMethod->customer) {
                 $paymentMethod->attach(['customer' => $stripeCustomer->id]);
             }
 

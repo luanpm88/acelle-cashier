@@ -14,8 +14,9 @@ use App\Cashier\Contracts\CheckoutHandlerInterface;
  * ====================
  *
  * Overview:
- *   Main app creates StripePaymentGateway($pubKey, $secretKey) then calls getCheckoutUrl($invoice, $returnUrl).
- *   Credentials + returnUrl are encrypted into a gateway_token and embedded in the URL.
+ *   Main app creates StripePaymentGateway($pubKey, $secretKey) then calls getCheckoutUrl($invoice, $paymentGatewayId, $returnUrl).
+ *   Credentials (pub_key, secret_key) are encrypted into a gateway_token and embedded in the URL.
+ *   payment_gateway_id and return_url are passed as separate query/POST parameters.
  *   This library never queries DB or depends on main app models to obtain credentials.
  *
  * Main flow (new card payment):
@@ -37,9 +38,10 @@ use App\Cashier\Contracts\CheckoutHandlerInterface;
  *       │  AJAX POST
  *       ▼
  *   POST /pay ── pay()
- *       │  - Decrypt gateway_token → extract pub_key, secret_key, return_url
+ *       │  - Decrypt gateway_token → extract pub_key, secret_key
+ *       │  - Read payment_gateway_id, return_url from POST body
  *       │  - Call Stripe API: get/create customer, retrieve payment method
- *       │  - Save payment method to DB (card info + customer_id for future auto-billing)
+ *       │  - Delegate to CheckoutHandlerInterface::createPaymentMethod() (main app saves to DB)
  *       │  - Charge invoice via Stripe PaymentIntent (or mark success if free)
  *       │  - Return JSON { return_url: "..." }
  *       ▼
@@ -75,14 +77,16 @@ class StripeController extends Controller
     }
 
     /**
-     * GET /cashier/stripe/checkout/{invoice_uid}?gateway_token=xxx
+     * GET /cashier/stripe/checkout/{invoice_uid}?gateway_token=xxx&payment_gateway_id=xxx&return_url=xxx
      *
      * Display the card input form (Stripe Elements).
      * Called when main app redirects the user here to pay an invoice.
      *
      * Input:
      *   - invoice_uid (URL path): identifies the invoice to pay
-     *   - gateway_token (query string): encrypted payload containing pub_key, secret_key, return_url
+     *   - gateway_token (query string): encrypted payload containing pub_key, secret_key
+     *   - payment_gateway_id (query string): UID of the payment gateway (passed through to pay())
+     *   - return_url (query string): URL to redirect after payment
      *
      * Output: HTML page with Stripe card form.
      *   Page includes clientSecret (for JS to call stripe.confirmCardSetup)
@@ -117,12 +121,14 @@ class StripeController extends Controller
      *
      * Input:
      *   - invoice_uid (URL path): identifies the invoice to pay
-     *   - gateway_token (query string): encrypted payload containing pub_key, secret_key, return_url
+     *   - gateway_token (POST body): encrypted payload containing pub_key, secret_key
      *   - payment_method_id (POST body): returned by Stripe JS after successful confirmCardSetup
+     *   - payment_gateway_id (POST body): UID of the payment gateway (for creating payment method record)
+     *   - return_url (POST body): URL to redirect after payment
      *
      * Processing:
      *   1. Get/create Stripe Customer from local customer uid
-     *   2. Save payment method to DB (card info + customer_id for future auto-billing)
+     *   2. Delegate to CheckoutHandlerInterface::createPaymentMethod() (main app saves to DB)
      *   3. Charge invoice via Stripe PaymentIntent, or mark as success if invoice is free
      *
      * Output: JSON { return_url: "..." } so the browser JS can redirect user back to main app.
