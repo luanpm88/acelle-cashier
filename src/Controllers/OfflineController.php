@@ -10,6 +10,17 @@ use App\Model\PaymentGateway;
 
 class OfflineController extends Controller
 {
+    protected function findOwnedInvoice(Request $request, string $invoiceUid): ?Invoice
+    {
+        $customer = $request->user()?->customer;
+
+        if (!$customer) {
+            return null;
+        }
+
+        return $customer->invoices()->where('invoices.uid', $invoiceUid)->first();
+    }
+
     public function __construct(Request $request)
     {
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
@@ -24,10 +35,15 @@ class OfflineController extends Controller
      **/
     public function checkout(Request $request)
     {
-        $invoice = Invoice::findByUid($request->invoice_uid);
+        $invoice = $this->findOwnedInvoice($request, $request->invoice_uid);
 
         // Service
         $paymentGateway = PaymentGateway::findByUid($request->payment_gateway_id);
+
+        if (!$invoice) {
+            return redirect()->away($request->return_url ?? url('/'))
+                ->with('alert-error', 'Invoice not found.');
+        }
 
         // exceptions
         if (!$invoice->isNew()) {
@@ -49,7 +65,7 @@ class OfflineController extends Controller
      **/
     public function claim(Request $request, $invoice_uid)
     {
-        $invoice = Invoice::findByUid($invoice_uid);
+        $invoice = $this->findOwnedInvoice($request, $invoice_uid);
 
         // Service
         $paymentGateway = PaymentGateway::findByUid($request->payment_gateway_id);
@@ -57,6 +73,11 @@ class OfflineController extends Controller
         // Set return URL for billing
         if ($request->return_url) {
             Billing::setReturnUrl($request->return_url);
+        }
+
+        if (!$invoice) {
+            return redirect()->away(Billing::getReturnUrl() ?: url('/'))
+                ->with('alert-error', 'Invoice not found.');
         }
 
         // exceptions

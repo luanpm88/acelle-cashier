@@ -10,6 +10,17 @@ use App\Model\Invoice;
 
 class BraintreeController extends Controller
 {
+    protected function findOwnedInvoice(Request $request, string $invoiceUid): ?Invoice
+    {
+        $customer = $request->user()?->customer;
+
+        if (!$customer) {
+            return null;
+        }
+
+        return $customer->invoices()->where('invoices.uid', $invoiceUid)->first();
+    }
+
     /**
      * Subscription checkout page.
      *
@@ -19,11 +30,15 @@ class BraintreeController extends Controller
     **/
     public function checkout(Request $request, $invoice_uid)
     {
+        $invoice = $this->findOwnedInvoice($request, $invoice_uid);
+        if (!$invoice) {
+            return redirect()->away(Billing::getReturnUrl() ?: url('/'))
+                ->with('alert-error', 'Invoice not found.');
+        }
+
         // Service
         $paymentGateway = PaymentGateway::findByUid($request->payment_gateway_id);
         $service = $paymentGateway->getService();
-
-        $invoice = Invoice::findByUid($invoice_uid);
         $card = $service->getCardInformation($invoice->billing_email);
 
         // Set return URL for billing

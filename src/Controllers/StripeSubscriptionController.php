@@ -10,6 +10,17 @@ use App\Cashier\Contracts\CheckoutHandlerInterface;
 
 class StripeSubscriptionController extends Controller
 {
+    protected function findOwnedInvoice(Request $request, string $invoiceUid): ?Invoice
+    {
+        $customer = $request->user()?->customer;
+
+        if (!$customer) {
+            return null;
+        }
+
+        return $customer->invoices()->where('invoices.uid', $invoiceUid)->first();
+    }
+
     protected function getGatewayConfig(Request $request)
     {
         return json_decode(decrypt($request->gateway_token), true);
@@ -33,7 +44,7 @@ class StripeSubscriptionController extends Controller
      */
     public function checkout(Request $request, $invoice_uid)
     {
-        $invoice = Invoice::findByUid($invoice_uid);
+        $invoice = $this->findOwnedInvoice($request, $invoice_uid);
         $config = $this->getGatewayConfig($request);
         $service = $this->getServiceFromConfig($config);
         $returnUrl = $request->return_url ?? '/';
@@ -72,11 +83,23 @@ class StripeSubscriptionController extends Controller
     public function pay(Request $request, $invoice_uid)
     {
         try {
-            $invoice = Invoice::findByUid($invoice_uid);
+            $invoice = $this->findOwnedInvoice($request, $invoice_uid);
             $config = $this->getGatewayConfig($request);
             $service = $this->getServiceFromConfig($config);
             $returnUrl = $request->return_url ?? '/';
             $paymentGatewayId = $request->payment_gateway_id;
+
+            if (!$invoice) {
+                return response()->json([
+                    'error' => trans('cashier::messages.stripe_subscription.invoice_not_found'),
+                ], 404);
+            }
+
+            if (!$invoice->isNew()) {
+                return response()->json([
+                    'error' => trans('cashier::messages.already_paid'),
+                ], 422);
+            }
 
             $handler = app(CheckoutHandlerInterface::class);
 

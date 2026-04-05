@@ -11,9 +11,20 @@ use App\Library\Facades\Billing;
 
 class BraintreeSubscriptionController extends Controller
 {
+    protected function findOwnedInvoice(Request $request, string $invoiceUid): ?Invoice
+    {
+        $customer = $request->user()?->customer;
+
+        if (!$customer) {
+            return null;
+        }
+
+        return $customer->invoices()->where('invoices.uid', $invoiceUid)->first();
+    }
+
     public function checkout(Request $request, $invoice_uid)
     {
-        $invoice = Invoice::findByUid($invoice_uid);
+        $invoice = $this->findOwnedInvoice($request, $invoice_uid);
 
         if (!$invoice) {
             return redirect()->away(Billing::getReturnUrl() ?: url('/'))

@@ -66,6 +66,17 @@ use App\Cashier\Contracts\CheckoutHandlerInterface;
  */
 class StripeController extends Controller
 {
+    protected function findOwnedInvoice(Request $request, string $invoiceUid): ?Invoice
+    {
+        $customer = $request->user()?->customer;
+
+        if (!$customer) {
+            return null;
+        }
+
+        return $customer->invoices()->where('invoices.uid', $invoiceUid)->first();
+    }
+
     protected function getGatewayConfig(Request $request)
     {
         return json_decode(decrypt($request->gateway_token), true);
@@ -95,9 +106,14 @@ class StripeController extends Controller
      */
     public function checkout(Request $request, $invoice_uid)
     {
-        $invoice = Invoice::findByUid($invoice_uid);
+        $invoice = $this->findOwnedInvoice($request, $invoice_uid);
         $config = $this->getGatewayConfig($request);
         $service = $this->getServiceFromConfig($config);
+
+        if (!$invoice) {
+            return redirect()->away($request->return_url ?? '/')
+                ->with('alert-error', 'Invoice not found.');
+        }
 
         if (!$invoice->isNew()) {
             throw new \Exception('Invoice is not new');
@@ -136,9 +152,21 @@ class StripeController extends Controller
     public function pay(Request $request, $invoice_uid)
     {
         try {
-            $invoice = Invoice::findByUid($invoice_uid);
+            $invoice = $this->findOwnedInvoice($request, $invoice_uid);
             $config = $this->getGatewayConfig($request);
             $service = $this->getServiceFromConfig($config);
+
+            if (!$invoice) {
+                return response()->json([
+                    'message' => 'Invoice not found.',
+                ], 404);
+            }
+
+            if (!$invoice->isNew()) {
+                return response()->json([
+                    'message' => 'Invoice is not new',
+                ], 422);
+            }
 
             $stripeCustomer = $service->getStripeCustomer($invoice->customer->uid);
             $stripePaymentMethod = $service->getPaymentMethod($request->payment_method_id);
@@ -182,9 +210,14 @@ class StripeController extends Controller
      */
     public function paymentAuth(Request $request, $invoice_uid)
     {
-        $invoice = Invoice::findByUid($invoice_uid);
+        $invoice = $this->findOwnedInvoice($request, $invoice_uid);
         $config = $this->getGatewayConfig($request);
         $service = $this->getServiceFromConfig($config);
+
+        if (!$invoice) {
+            return redirect()->away($request->return_url ?? '/')
+                ->with('alert-error', 'Invoice not found.');
+        }
 
         return redirect()->away($service->getCheckoutUrl($invoice, $request->payment_gateway_id, $request->return_url ?? '/'));
     }
