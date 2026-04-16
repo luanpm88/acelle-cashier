@@ -8,8 +8,8 @@ namespace App\Cashier\DTO;
  */
 class StripeAutoBillingData
 {
-    public string $paymentMethodId;
-    public string $customerId;
+    public string $stripePaymentMethod;
+    public string $stripeCustomer;
     public string $cardType;
     public string $last4;
     public int $expMonth;
@@ -17,14 +17,14 @@ class StripeAutoBillingData
 
     public function __construct(array $data)
     {
-        foreach (['payment_method_id', 'customer_id'] as $key) {
+        foreach (['stripe_payment_method', 'stripe_customer'] as $key) {
             if (empty($data[$key])) {
                 throw new \InvalidArgumentException("Missing required Stripe billing data field: {$key}");
             }
         }
 
-        $this->paymentMethodId = $data['payment_method_id'];
-        $this->customerId = $data['customer_id'];
+        $this->stripePaymentMethod = $data['stripe_payment_method'];
+        $this->stripeCustomer = $data['stripe_customer'];
         $this->cardType = $data['card_type'] ?? '';
         $this->last4 = $data['last_4'] ?? '';
         $this->expMonth = (int) ($data['exp_month'] ?? 0);
@@ -34,8 +34,8 @@ class StripeAutoBillingData
     public function toArray(): array
     {
         return [
-            'payment_method_id' => $this->paymentMethodId,
-            'customer_id' => $this->customerId,
+            'stripe_payment_method' => $this->stripePaymentMethod,
+            'stripe_customer' => $this->stripeCustomer,
             'card_type' => $this->cardType,
             'last_4' => $this->last4,
             'exp_month' => $this->expMonth,

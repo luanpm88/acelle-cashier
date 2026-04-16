@@ -62,8 +62,7 @@
                 type: 'POST',
                 data: {
                     _token: '{{ csrf_token() }}',
-                    payment_method_id: paymentMethodId,
-                    gateway_token: '{{ $gatewayToken }}',
+                    stripe_payment_method: paymentMethodId,
                     payment_gateway_id: '{{ $paymentGatewayId }}',
                     return_url: '{{ $returnUrl }}',
                 }

@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use App\Model\Invoice;
 use App\Cashier\Services\StripePaymentGateway;
 use App\Cashier\Contracts\CheckoutHandlerInterface;
+use App\Cashier\Contracts\PaymentGatewayResolverInterface;
+use App\Cashier\DTO\StripeAutoBillingData;
 
 
 /**
@@ -14,10 +16,14 @@ use App\Cashier\Contracts\CheckoutHandlerInterface;
  * ====================
  *
  * Overview:
- *   Main app creates StripePaymentGateway($pubKey, $secretKey) then calls getCheckoutUrl($invoice, $paymentGatewayId, $returnUrl).
- *   Credentials (pub_key, secret_key) are encrypted into a gateway_token and embedded in the URL.
- *   payment_gateway_id and return_url are passed as separate query/POST parameters.
- *   This library never queries DB or depends on main app models to obtain credentials.
+ *   Main app creates StripePaymentGateway($pubKey, $secretKey) then calls
+ *   getCheckoutUrl($invoice, $paymentGatewayId, $returnUrl). The URL carries only
+ *   payment_gateway_id + return_url (+ invoice_uid in path) — NO credentials.
+ *
+ *   The cashier controller resolves payment_gateway_id → StripePaymentGateway
+ *   (with credentials loaded from DB) via PaymentGatewayResolverInterface, which
+ *   the main app implements. This keeps cashier decoupled from the PaymentGateway
+ *   model — it only knows the resolver + gateway interfaces.
  *
  * Main flow (new card payment):
  *
@@ -26,20 +32,20 @@ use App\Cashier\Contracts\CheckoutHandlerInterface;
  *       │  redirect user to checkout URL
  *       ▼
  *   GET /checkout ── checkout()
- *       │  - Decrypt gateway_token → extract pub_key, secret_key
+ *       │  - Resolve payment_gateway_id → StripePaymentGateway (credentials from DB)
  *       │  - Create Stripe SetupIntent → obtain clientSecret
  *       │  - Render card input form (Stripe Elements JS)
  *       ▼
  *   [Browser - User enters card details]
  *       │
  *       │  JS: stripe.confirmCardSetup(clientSecret)
- *       │       → Stripe returns payment_method_id
+ *       │       → Stripe returns stripe_payment_method
  *       │
  *       │  AJAX POST
  *       ▼
  *   POST /pay ── pay()
- *       │  - Decrypt gateway_token → extract pub_key, secret_key
- *       │  - Read payment_gateway_id, return_url from POST body
+ *       │  - Resolve payment_gateway_id → StripePaymentGateway
+ *       │  - Read return_url from POST body
  *       │  - Call Stripe API: get/create customer, retrieve payment method
  *       │  - Delegate to CheckoutHandlerInterface::createPaymentMethod() (main app saves to DB)
  *       │  - Charge invoice via Stripe PaymentIntent (or mark success if free)
@@ -59,56 +65,57 @@ use App\Cashier\Contracts\CheckoutHandlerInterface;
  *       │  - User receives the link via email/notification
  *       ▼
  *   GET /payment-auth ── paymentAuth()
- *       │  - Decrypt gateway_token → rebuild a new checkout URL
+ *       │  - Rebuild a fresh checkout URL (only payment_gateway_id + return_url)
  *       │  - Redirect back to GET /checkout so user can re-enter card / authenticate
  *       ▼
  *   (Back to main flow above)
  */
 class StripeController extends Controller
 {
-    protected function findOwnedInvoice(Request $request, string $invoiceUid): ?Invoice
+    protected function findInvoice(string $invoiceUid): ?Invoice
     {
-        $customer = $request->user()?->customer;
-
-        if (!$customer) {
-            return null;
-        }
-
-        return $customer->invoices()->where('invoices.uid', $invoiceUid)->first();
-    }
-
-    protected function getGatewayConfig(Request $request)
-    {
-        return json_decode(decrypt($request->gateway_token), true);
-    }
-
-    protected function getServiceFromConfig(array $config)
-    {
-        return new StripePaymentGateway($config['pub_key'], $config['secret_key']);
+        return Invoice::findByUid($invoiceUid);
     }
 
     /**
-     * GET /cashier/stripe/checkout/{invoice_uid}?gateway_token=xxx&payment_gateway_id=xxx&return_url=xxx
+     * Resolve payment_gateway_id from the request into a ready-to-use StripePaymentGateway.
+     *
+     * Credentials are loaded from DB via the resolver — cashier has no knowledge of
+     * how the main app stores them. This replaces the previous gateway_token pattern
+     * (encrypted credentials in URL) with a clean DI lookup.
+     */
+    protected function getService(Request $request): StripePaymentGateway
+    {
+        $service = app(PaymentGatewayResolverInterface::class)
+            ->resolve($request->payment_gateway_id);
+
+        if (!$service instanceof StripePaymentGateway) {
+            throw new \Exception('Invalid payment gateway for Stripe checkout');
+        }
+
+        return $service;
+    }
+
+    /**
+     * GET /cashier/stripe/checkout/{invoice_uid}?payment_gateway_id=xxx&return_url=xxx
      *
      * Display the card input form (Stripe Elements).
      * Called when main app redirects the user here to pay an invoice.
      *
      * Input:
      *   - invoice_uid (URL path): identifies the invoice to pay
-     *   - gateway_token (query string): encrypted payload containing pub_key, secret_key
-     *   - payment_gateway_id (query string): UID of the payment gateway (passed through to pay())
+     *   - payment_gateway_id (query string): UID of the payment gateway (user's choice at checkout UI)
      *   - return_url (query string): URL to redirect after payment
      *
      * Output: HTML page with Stripe card form.
      *   Page includes clientSecret (for JS to call stripe.confirmCardSetup)
      *   and publishableKey (for initializing Stripe.js).
-     *   After user confirms card, JS will AJAX POST to pay() with the payment_method_id.
+     *   After user confirms card, JS will AJAX POST to pay() with the stripe_payment_method.
      */
     public function checkout(Request $request, $invoice_uid)
     {
-        $invoice = $this->findOwnedInvoice($request, $invoice_uid);
-        $config = $this->getGatewayConfig($request);
-        $service = $this->getServiceFromConfig($config);
+        $invoice = $this->findInvoice($invoice_uid);
+        $service = $this->getService($request);
 
         if (!$invoice) {
             return redirect()->away($request->return_url ?? '/')
@@ -120,41 +127,39 @@ class StripeController extends Controller
         }
 
         return view('cashier::stripe.checkout', [
-            'gatewayToken' => $request->gateway_token,
             'paymentGatewayId' => $request->payment_gateway_id,
             'returnUrl' => $request->return_url ?? '/',
             'invoice' => $invoice,
-            'clientSecret' => $service->getClientSecret($invoice->customer->uid, $invoice),
+            'clientSecret' => $service->getClientSecret($invoice->getPayerUid()),
             'publishableKey' => $service->getPublishableKey(),
         ]);
     }
 
     /**
-     * POST /cashier/stripe/pay/{invoice_uid}?gateway_token=xxx
+     * POST /cashier/stripe/pay/{invoice_uid}
      *
      * Process payment after user has confirmed their card in the browser.
      * Called via AJAX from the checkout page (Stripe Elements JS).
      *
      * Input:
      *   - invoice_uid (URL path): identifies the invoice to pay
-     *   - gateway_token (POST body): encrypted payload containing pub_key, secret_key
-     *   - payment_method_id (POST body): returned by Stripe JS after successful confirmCardSetup
-     *   - payment_gateway_id (POST body): UID of the payment gateway (for creating payment method record)
+     *   - stripe_payment_method (POST body): returned by Stripe JS after successful confirmCardSetup
+     *   - payment_gateway_id (POST body): UID of the payment gateway (for resolver + creating payment method record)
      *   - return_url (POST body): URL to redirect after payment
      *
      * Processing:
-     *   1. Get/create Stripe Customer from local customer uid
-     *   2. Delegate to CheckoutHandlerInterface::createPaymentMethod() (main app saves to DB)
-     *   3. Charge invoice via Stripe PaymentIntent, or mark as success if invoice is free
+     *   1. Resolve payment_gateway_id → StripePaymentGateway
+     *   2. Get/create Stripe Customer from local payer uid
+     *   3. Delegate to CheckoutHandlerInterface::createPaymentMethod() (main app saves to DB)
+     *   4. Charge invoice via Stripe PaymentIntent, or mark as success if invoice is free
      *
      * Output: JSON { return_url: "..." } so the browser JS can redirect user back to main app.
      */
     public function pay(Request $request, $invoice_uid)
     {
         try {
-            $invoice = $this->findOwnedInvoice($request, $invoice_uid);
-            $config = $this->getGatewayConfig($request);
-            $service = $this->getServiceFromConfig($config);
+            $invoice = $this->findInvoice($invoice_uid);
+            $service = $this->getService($request);
 
             if (!$invoice) {
                 return response()->json([
@@ -168,22 +173,23 @@ class StripeController extends Controller
                 ], 422);
             }
 
-            $stripeCustomer = $service->getStripeCustomer($invoice->customer->uid);
-            $stripePaymentMethod = $service->getPaymentMethod($request->payment_method_id);
+            $stripeCustomer = $service->getStripeCustomer($invoice->getPayerUid());
+            $stripePaymentMethod = $service->getPaymentMethod($request->stripe_payment_method);
 
-            $autoBillingData = [
-                'payment_method_id' => $request->payment_method_id, # Stripe
-                'customer_id' => $stripeCustomer->id,
+            // Validate + structure the billing data upstream via DTO (throws if required fields missing).
+            $autoBillingData = new StripeAutoBillingData([
+                'stripe_payment_method' => $request->stripe_payment_method,
+                'stripe_customer' => $stripeCustomer->id,
                 'card_type' => ucfirst($stripePaymentMethod->card->brand),
                 'last_4' => $stripePaymentMethod->card->last4,
                 'exp_month' => $stripePaymentMethod->card->exp_month,
                 'exp_year' => $stripePaymentMethod->card->exp_year,
-            ];
+            ]);
 
             $handler = app(CheckoutHandlerInterface::class);
 
             // Main app handles DB operation (save payment method)
-            $paymentMethodInfo = $handler->createPaymentMethod($invoice, $request->payment_gateway_id, $autoBillingData);
+            $paymentMethodInfo = $handler->createPaymentMethod($invoice, $request->payment_gateway_id, $autoBillingData->toArray());
 
             // Library handles Stripe charge, notifies main app of result
             $service->autoCharge($invoice, $paymentMethodInfo);
@@ -199,7 +205,7 @@ class StripeController extends Controller
     }
 
     /**
-     * GET /cashier/stripe/{invoice_uid}/payment-auth?gateway_token=xxx
+     * GET /cashier/stripe/{invoice_uid}/payment-auth?payment_gateway_id=xxx&return_url=xxx
      *
      * Handle 3D Secure / SCA re-authentication.
      * Called when a previous autoCharge() failed due to CardException (card requires verification).
@@ -210,9 +216,8 @@ class StripeController extends Controller
      */
     public function paymentAuth(Request $request, $invoice_uid)
     {
-        $invoice = $this->findOwnedInvoice($request, $invoice_uid);
-        $config = $this->getGatewayConfig($request);
-        $service = $this->getServiceFromConfig($config);
+        $invoice = $this->findInvoice($invoice_uid);
+        $service = $this->getService($request);
 
         if (!$invoice) {
             return redirect()->away($request->return_url ?? '/')

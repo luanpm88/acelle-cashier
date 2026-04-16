@@ -7,46 +7,45 @@ use Illuminate\Http\Request;
 use App\Model\Invoice;
 use App\Cashier\Services\StripeSubscriptionGateway;
 use App\Cashier\Contracts\CheckoutHandlerInterface;
+use App\Cashier\Contracts\PaymentGatewayResolverInterface;
 
 class StripeSubscriptionController extends Controller
 {
-    protected function findOwnedInvoice(Request $request, string $invoiceUid): ?Invoice
+    protected function findInvoice(string $invoiceUid): ?Invoice
     {
-        $customer = $request->user()?->customer;
+        return Invoice::findByUid($invoiceUid);
+    }
 
-        if (!$customer) {
-            return null;
+    /**
+     * Resolve payment_gateway_id from the request into a ready-to-use StripeSubscriptionGateway.
+     *
+     * Credentials (pub_key, secret_key, webhook_secret) are loaded from DB via the resolver —
+     * cashier has no knowledge of how the main app stores them. This replaces the previous
+     * gateway_token pattern (encrypted credentials in URL) with a clean DI lookup.
+     */
+    protected function getService(Request $request): StripeSubscriptionGateway
+    {
+        $service = app(PaymentGatewayResolverInterface::class)
+            ->resolve($request->payment_gateway_id);
+
+        if (!$service instanceof StripeSubscriptionGateway) {
+            throw new \Exception('Invalid payment gateway for Stripe Subscription checkout');
         }
 
-        return $customer->invoices()->where('invoices.uid', $invoiceUid)->first();
-    }
-
-    protected function getGatewayConfig(Request $request)
-    {
-        return json_decode(decrypt($request->gateway_token), true);
-    }
-
-    protected function getServiceFromConfig(array $config)
-    {
-        return new StripeSubscriptionGateway(
-            $config['pub_key'],
-            $config['secret_key'],
-            $config['webhook_secret'] ?? null
-        );
+        return $service;
     }
 
     /**
      * GET /cashier/stripe-subscription/checkout/{invoice_uid}
-     *     ?gateway_token=xxx&payment_gateway_id=xxx&return_url=xxx&remote_plan_id=xxx
+     *     ?payment_gateway_id=xxx&return_url=xxx&remote_plan_id=xxx
      *
-     * Display the card input form for subscription checkout.
-     * remote_plan_id is resolved by the main app before redirecting here.
+     * Display the Stripe Elements card input form for subscription checkout.
+     * Main app redirects user here after creating an invoice + selecting a plan.
      */
     public function checkout(Request $request, $invoice_uid)
     {
-        $invoice = $this->findOwnedInvoice($request, $invoice_uid);
-        $config = $this->getGatewayConfig($request);
-        $service = $this->getServiceFromConfig($config);
+        $invoice = $this->findInvoice($invoice_uid);
+        $service = $this->getService($request);
         $returnUrl = $request->return_url ?? '/';
 
         if (!$invoice) {
@@ -59,17 +58,28 @@ class StripeSubscriptionController extends Controller
                 ->with('alert-success', trans('cashier::messages.already_paid'));
         }
 
-        // Fetch plan details from Stripe for display
+        // Fetch plan details from Stripe API for display (name, price, interval)
         $remotePlan = $service->getRemotePlan($request->remote_plan_id);
 
+        // Get or create Stripe Customer using payer's local UID
+        $stripeCustomer = $service->getStripeCustomer($invoice->getPayerUid())
+            ?? $service->createStripeCustomer($invoice->getPayerUid(), $invoice->getPayerName());
+
+        // Create SetupIntent — JS will use this clientSecret to call stripe.confirmCardSetup()
+        $clientSecret = $service->getSetupIntentSecret($stripeCustomer);
+
         return view('cashier::stripe-subscription.checkout', [
-            'gatewayToken' => $request->gateway_token,
-            'paymentGatewayId' => $request->payment_gateway_id,
-            'returnUrl' => $returnUrl,
-            'remotePlanId' => $request->remote_plan_id,
+            // Pass-through params: view sends these back to POST /pay via AJAX
+            'paymentGatewayId' => $request->payment_gateway_id, // app's gateway record UID (resolver input)
+            'returnUrl' => $returnUrl,                        // redirect after success
+            'remotePlanId' => $request->remote_plan_id,       // Stripe Price ID
+
+            // Display: plan info + invoice amount
             'invoice' => $invoice,
             'remotePlan' => $remotePlan,
-            'clientSecret' => $service->getClientSecret($invoice->customer->uid, $invoice->billing_email ?: $invoice->customer->user->email),
+
+            // Stripe JS: init Stripe Elements + confirm card setup
+            'clientSecret' => $clientSecret,
             'publishableKey' => $service->getPublishableKey(),
         ]);
     }
@@ -77,15 +87,18 @@ class StripeSubscriptionController extends Controller
     /**
      * POST /cashier/stripe-subscription/pay/{invoice_uid}
      *
-     * Process subscription creation after card confirmation.
-     * Also handles 3DS re-confirmation (when remote_subscription_id is sent without payment_method_id).
+     * Called via AJAX from the checkout page after user confirms their card.
+     *
+     * Two modes:
+     * 1. Normal: stripe_payment_method present → create Stripe Subscription
+     * 2. 3DS re-confirmation: remote_subscription_id present, no stripe_payment_method
+     *    → subscription already exists on Stripe, just activate locally
      */
     public function pay(Request $request, $invoice_uid)
     {
         try {
-            $invoice = $this->findOwnedInvoice($request, $invoice_uid);
-            $config = $this->getGatewayConfig($request);
-            $service = $this->getServiceFromConfig($config);
+            $invoice = $this->findInvoice($invoice_uid);
+            $service = $this->getService($request);
             $returnUrl = $request->return_url ?? '/';
             $paymentGatewayId = $request->payment_gateway_id;
 
@@ -101,24 +114,27 @@ class StripeSubscriptionController extends Controller
                 ], 422);
             }
 
+            // Main app's callback handler — receives payment results
             $handler = app(CheckoutHandlerInterface::class);
 
-            // Handle 3DS re-confirmation
-            if ($request->remote_subscription_id && !$request->payment_method_id) {
+            // 3DS re-confirmation: subscription already created on Stripe, activate locally
+            if ($request->remote_subscription_id && !$request->stripe_payment_method) {
                 return $this->handle3dsConfirmation($request, $invoice, $service, $handler, $paymentGatewayId, $returnUrl);
             }
 
-            if (empty($request->payment_method_id)) {
+            if (empty($request->stripe_payment_method)) {
                 return response()->json([
                     'error' => 'Payment method ID is required. Please try again.',
                 ], 422);
             }
 
+            // Create Stripe Subscription with the confirmed payment method
             $result = $service->createRemoteSubscription($invoice, $request->remote_plan_id, [
-                'payment_method_id' => $request->payment_method_id,
+                'stripe_payment_method' => $request->stripe_payment_method,
             ]);
 
             if ($result->success) {
+                // Notify main app: save remote IDs, create payment method record, mark invoice paid
                 $handler->onRemoteSubscriptionCreated($invoice, $paymentGatewayId, [
                     'remote_subscription_id' => $result->remoteSubscriptionId,
                     'remote_customer_id' => $result->remoteCustomerId,
@@ -132,6 +148,7 @@ class StripeSubscriptionController extends Controller
                     'redirect_url' => $returnUrl,
                 ]);
             } elseif ($result->status === 'requires_action') {
+                // Card requires 3DS — return client_secret for JS to call stripe.confirmCardPayment()
                 return response()->json([
                     'requires_action' => true,
                     'client_secret' => $result->metadata['client_secret'] ?? null,
@@ -151,18 +168,24 @@ class StripeSubscriptionController extends Controller
     }
 
     /**
-     * Handle 3DS re-confirmation: subscription already created on Stripe, activate locally.
+     * Handle 3DS re-confirmation.
+     *
+     * After JS calls stripe.confirmCardPayment() successfully, the browser POSTs back
+     * with remote_subscription_id (no stripe_payment_method). We verify the subscription
+     * is active on Stripe, then notify the main app to activate locally.
      */
     protected function handle3dsConfirmation(Request $request, $invoice, $service, $handler, $paymentGatewayId, $returnUrl)
     {
         $remoteSub = $service->getRemoteSubscription($request->remote_subscription_id);
 
+        // Stripe may take a moment to transition from 'incomplete' after 3DS confirmation
         if ($remoteSub->isIncomplete()) {
             sleep(2);
             $remoteSub = $service->getRemoteSubscription($request->remote_subscription_id);
         }
 
         if ($remoteSub->isActive()) {
+            // Get card info: prefer what JS already has, fallback to Stripe API
             $pmData = [];
             if ($request->card_type && $request->card_last4) {
                 $pmData = [
@@ -181,6 +204,7 @@ class StripeSubscriptionController extends Controller
                 }
             }
 
+            // Notify main app: save remote IDs, mark invoice paid, activate subscription
             $handler->onRemoteSubscriptionCreated($invoice, $paymentGatewayId, [
                 'remote_subscription_id' => $remoteSub->id,
                 'remote_customer_id' => $remoteSub->remoteCustomerId,

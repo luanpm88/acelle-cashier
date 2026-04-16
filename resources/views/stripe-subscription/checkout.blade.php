@@ -66,9 +66,8 @@
                 type: 'POST',
                 data: {
                     _token: '{{ csrf_token() }}',
-                    payment_method_id: paymentMethodId,
+                    stripe_payment_method: paymentMethodId,
                     remote_plan_id: '{{ $remotePlanId }}',
-                    gateway_token: '{{ $gatewayToken }}',
                     payment_gateway_id: '{{ $paymentGatewayId }}',
                     return_url: '{{ $returnUrl }}',
                 }
@@ -89,7 +88,6 @@
                                     remote_subscription_id: data.remote_subscription_id,
                                     card_type: pmData.card_type || '',
                                     card_last4: pmData.last_4 || '',
-                                    gateway_token: '{{ $gatewayToken }}',
                                     payment_gateway_id: '{{ $paymentGatewayId }}',
                                     return_url: '{{ $returnUrl }}',
                                 }

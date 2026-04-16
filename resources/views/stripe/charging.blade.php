@@ -36,7 +36,7 @@
                             ]) }}">
                                 {{ csrf_field() }}
 
-                                <input type="hidden" name="payment_method_id" value="{{ request()->payment_method_id }}" />
+                                <input type="hidden" name="stripe_payment_method" value="{{ request()->stripe_payment_method }}" />
                             </form>
         
                             <script>

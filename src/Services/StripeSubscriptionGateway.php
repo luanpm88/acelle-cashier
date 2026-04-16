@@ -35,21 +35,11 @@ class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
     }
 
     // ─── PaymentGatewayInterface (base) ───
-    public function makeGatewayToken($extraData = [])
-    {
-        return encrypt(json_encode(array_merge([
-            'pub_key' => $this->publishableKey,
-            'secret_key' => $this->secretKey,
-            'webhook_secret' => $this->webhookSecret,
-        ], $extraData)));
-    }
-
     public function getCheckoutUrl(Invoice $invoice, string $paymentGatewayId, string $returnUrl = '/'): string
     {
         return action('\App\Cashier\Controllers\StripeSubscriptionController@checkout', [
             'invoice_uid' => $invoice->uid,
             'payment_gateway_id' => $paymentGatewayId,
-            'gateway_token' => $this->makeGatewayToken(),
             'return_url' => $returnUrl,
         ]);
     }
@@ -198,11 +188,10 @@ class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
         array $checkoutData
     ): CreateRemoteSubscriptionResult {
         try {
-            $customer = $invoice->customer;
-            $email = $invoice->billing_email ?: $customer->user->email;
-            $stripeCustomer = $this->getOrCreateStripeCustomer($customer->uid, $email);
+            $stripeCustomer = $this->getStripeCustomer($invoice->getPayerUid())
+                ?? $this->createStripeCustomer($invoice->getPayerUid(), $invoice->getPayerName());
 
-            $paymentMethodId = $checkoutData['payment_method_id'];
+            $paymentMethodId = $checkoutData['stripe_payment_method'];
             $paymentMethod = \Stripe\PaymentMethod::retrieve($paymentMethodId);
 
             // Attach PM to customer — skip if already attached to any customer (e.g. from confirmCardSetup)
@@ -222,7 +211,7 @@ class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
                 'expand' => ['latest_invoice.payment_intent'],
                 'metadata' => [
                     'local_invoice_uid' => $invoice->uid,
-                    'local_customer_uid' => $customer->uid,
+                    'payer_uid' => $invoice->getPayerUid(),
                 ],
             ]);
 
@@ -377,26 +366,28 @@ class StripeSubscriptionGateway implements RemoteSubscriptionGatewayInterface
 
     // ─── Helpers ───
 
-    protected function getOrCreateStripeCustomer(string $localUid, string $email): \Stripe\Customer
+    public function getStripeCustomer(string $payerUid): ?\Stripe\Customer
     {
         $customers = \Stripe\Customer::search([
-            'query' => "metadata['local_uid']:'{$localUid}'",
+            'query' => "metadata['payer_uid']:'{$payerUid}'",
         ]);
 
-        if ($customers->data) {
-            return $customers->data[0];
-        }
-
-        return \Stripe\Customer::create([
-            'email' => $email,
-            'metadata' => ['local_uid' => $localUid],
-        ]);
+        return $customers->data[0] ?? null;
     }
 
-    public function getClientSecret(string $customerUid, string $email): string
+    public function createStripeCustomer(string $payerUid, string $name = ''): \Stripe\Customer
     {
-        $stripeCustomer = $this->getOrCreateStripeCustomer($customerUid, $email);
+        $params = ['metadata' => ['payer_uid' => $payerUid]];
 
+        if ($name) {
+            $params['name'] = $name;
+        }
+
+        return \Stripe\Customer::create($params);
+    }
+
+    public function getSetupIntentSecret(\Stripe\Customer $stripeCustomer): string
+    {
         $intent = \Stripe\SetupIntent::create([
             'customer' => $stripeCustomer->id,
             'usage' => 'off_session',
