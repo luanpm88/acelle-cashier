@@ -22,6 +22,14 @@ interface RemoteSubscriptionGatewayInterface
 
     public function getRemoteSubscription(string $remoteSubscriptionId): RemoteSubscriptionDTO;
 
+    /**
+     * Fetch a page of subscriptions from the remote provider (admin overview).
+     * Cursor-based pagination — pass the last item's id as $startingAfter for the next page.
+     *
+     * @return array{data: RemoteSubscriptionDTO[], has_more: bool, next_cursor: ?string}
+     */
+    public function getRemoteSubscriptions(?string $startingAfter = null, int $limit = 100): array;
+
     public function cancelRemoteSubscription(string $remoteSubscriptionId): void;
 
     public function updateRemoteSubscriptionPlan(

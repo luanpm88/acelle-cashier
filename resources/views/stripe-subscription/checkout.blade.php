@@ -30,6 +30,26 @@
         </button>
     </div>
 
+    {{--
+        STRIPE SUBSCRIPTION CHECKOUT — SINGLE-POPUP 3DS PATTERN
+        ======================================================
+
+        Two ways to handle SCA/3DS for Stripe Subscriptions:
+
+        (A) SetupIntent + Subscription (legacy, 2 popups):
+            - confirmCardSetup(setup_secret) → 3DS popup #1 (attach card)
+            - confirmCardPayment(payment_secret) → 3DS popup #2 (charge first invoice)
+            - Bank treats setup + charge as 2 separate authenticated actions.
+
+        (B) `default_incomplete` Subscription (current, 1 popup) — Stripe recommended:
+            - createPaymentMethod(card) → tokenize only, NO 3DS
+            - Server creates Subscription with payment_behavior=default_incomplete →
+              Stripe creates first invoice's PaymentIntent in requires_action state
+            - confirmCardPayment(invoice_pi_secret) → SINGLE 3DS popup
+              (Stripe atomically: attach card + charge invoice + activate subscription)
+
+        See: https://stripe.com/docs/billing/subscriptions/build-subscriptions
+    --}}
     <script>
         var stripe = Stripe('{{ $publishableKey }}');
         var elements = stripe.elements();
@@ -44,7 +64,6 @@
             el.textContent = event.error ? event.error.message : '';
         });
 
-        var confirmedPaymentMethodId = null;
         var payUrl = '{{ action("\App\Cashier\Controllers\StripeSubscriptionController@pay", ["intent_uid" => $intent->uid]) }}';
         var btnOriginalText = '{{ trans("cashier::messages.stripe.pay") }} {{ number_format($intent->amount, 2) }} ({{ $intent->currency }})';
 
@@ -70,6 +89,7 @@
                     handle3dsChallenge(data.client_secret);
                     return;
                 }
+                // No 3DS needed (e.g. test card 4242, or low-risk transaction) — done.
                 window.location = data.redirect_url || '{{ $returnUrl }}';
             }).fail(function(jqXHR) {
                 var msg = jqXHR.responseJSON ? (jqXHR.responseJSON.error || jqXHR.responseJSON.message) : jqXHR.statusText;
@@ -78,6 +98,7 @@
             });
         }
 
+        // SINGLE 3DS popup — Stripe atomically: attach card + charge invoice + activate sub.
         function handle3dsChallenge(clientSecret) {
             stripe.confirmCardPayment(clientSecret).then(function(result) {
                 if (result.error) {
@@ -109,18 +130,14 @@
             btn.disabled = true;
             btn.textContent = '{{ trans("cashier::messages.stripe_subscription.processing") }}';
 
-            if (confirmedPaymentMethodId) {
-                submitPayment(confirmedPaymentMethodId);
-                return;
-            }
-
-            stripe.confirmCardSetup('{{ $clientSecret }}', {
-                payment_method: {
-                    card: card,
-                    billing_details: {
-                        name: '{{ $intent->payer->billingName }}',
-                        email: '{{ $intent->payer->email }}'
-                    }
+            // Tokenize card — NO 3DS triggered here (just creates pm_xxx).
+            // 3DS happens later inside confirmCardPayment(invoice_pi.client_secret).
+            stripe.createPaymentMethod({
+                type: 'card',
+                card: card,
+                billing_details: {
+                    name: '{{ $intent->payer->billingName }}',
+                    email: '{{ $intent->payer->email }}'
                 }
             }).then(function(result) {
                 if (result.error) {
@@ -128,19 +145,7 @@
                     resetButton();
                     return;
                 }
-                if (result.setupIntent.status === 'succeeded') {
-                    var pmId = result.setupIntent.payment_method;
-                    if (typeof pmId === 'object' && pmId !== null) {
-                        pmId = pmId.id;
-                    }
-                    if (!pmId) {
-                        document.getElementById('card-errors').textContent = 'Could not retrieve payment method. Please try again.';
-                        resetButton();
-                        return;
-                    }
-                    confirmedPaymentMethodId = pmId;
-                    submitPayment(pmId);
-                }
+                submitPayment(result.paymentMethod.id);
             });
         });
     </script>

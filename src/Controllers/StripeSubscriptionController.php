@@ -60,16 +60,18 @@ class StripeSubscriptionController extends Controller
 
         $service = $this->getService($intent);
 
+        // Single-popup 3DS pattern (default_incomplete): no SetupIntent prep.
+        // Frontend creates pm_xxx via stripe.createPaymentMethod (no 3DS),
+        // server creates Subscription with payment_behavior=default_incomplete,
+        // returns invoice PaymentIntent's client_secret → 1 confirmCardPayment popup.
         $remotePlan     = $service->getRemotePlan($intent->subscription->remotePlanId);
         $stripeCustomer = $service->getStripeCustomer($intent->payer->uid)
             ?? $service->createStripeCustomer($intent->payer->uid, $intent->payer->name);
-        $clientSecret   = $service->getSetupIntentSecret($stripeCustomer);
 
         return view('cashier::stripe-subscription.checkout', [
             'intent'         => $intent,
             'remotePlan'     => $remotePlan,
             'returnUrl'      => $returnUrl,
-            'clientSecret'   => $clientSecret,
             'publishableKey' => $service->getPublishableKey(),
         ]);
     }
@@ -139,7 +141,7 @@ class StripeSubscriptionController extends Controller
         CheckoutHandlerInterface $handler,
         string $returnUrl
     ) {
-        $subId = $intent->metadata['remote_reference_id'] ?? null;
+        $subId = $intent->remoteReferenceId;
         if (!$subId) {
             return response()->json(['error' => 'Intent has no pending subscription to confirm'], 422);
         }

@@ -225,7 +225,33 @@ class StripeSubscriptionGateway implements
             'id'     => $remoteSubscriptionId,
             'expand' => ['latest_invoice'],
         ]);
+        return $this->mapSubscriptionToDto($sub);
+    }
 
+    public function getRemoteSubscriptions(?string $startingAfter = null, int $limit = 100): array
+    {
+        $params = [
+            'limit'  => max(1, min($limit, 100)),
+            'status' => 'all',
+            'expand' => ['data.latest_invoice'],
+        ];
+        if ($startingAfter) {
+            $params['starting_after'] = $startingAfter;
+        }
+
+        $page = \Stripe\Subscription::all($params);
+
+        $data = array_map(fn($sub) => $this->mapSubscriptionToDto($sub), $page->data);
+
+        return [
+            'data'        => $data,
+            'has_more'    => (bool) $page->has_more,
+            'next_cursor' => $page->has_more && count($data) > 0 ? end($data)->id : null,
+        ];
+    }
+
+    private function mapSubscriptionToDto(\Stripe\Subscription $sub): RemoteSubscriptionDTO
+    {
         $latestAmount = null;
         $latestStatus = null;
         if ($sub->latest_invoice && is_object($sub->latest_invoice)) {
@@ -237,7 +263,7 @@ class StripeSubscriptionGateway implements
             id:                  $sub->id,
             status:              $sub->status,
             remotePlanId:        $sub->items->data[0]->price->id ?? '',
-            remoteCustomerId:    $sub->customer,
+            remoteCustomerId:    is_string($sub->customer) ? $sub->customer : ($sub->customer->id ?? null),
             currentPeriodEnd:    Carbon::createFromTimestamp($sub->current_period_end),
             currentPeriodStart:  Carbon::createFromTimestamp($sub->current_period_start),
             canceledAt:          $sub->canceled_at ? Carbon::createFromTimestamp($sub->canceled_at) : null,
@@ -345,16 +371,15 @@ class StripeSubscriptionGateway implements
         return \Stripe\Customer::create($params);
     }
 
-    public function getSetupIntentSecret(\Stripe\Customer $stripeCustomer): string
-    {
-        $intent = \Stripe\SetupIntent::create([
-            'customer'             => $stripeCustomer->id,
-            'usage'                => 'off_session',
-            'payment_method_types' => ['card'],
-        ]);
-
-        return $intent->client_secret;
-    }
+    // getSetupIntentSecret() removed.
+    //
+    // Was used by the legacy 2-popup flow:
+    //   confirmCardSetup(setup_secret)   → 3DS popup #1 (attach card)
+    //   confirmCardPayment(invoice_pi)   → 3DS popup #2 (charge first invoice)
+    //
+    // Replaced by single-popup `default_incomplete` pattern:
+    //   stripe.createPaymentMethod(card) → tokenize, NO 3DS
+    //   confirmCardPayment(invoice_pi)   → 3DS popup #1 (atomic: attach + charge + activate)
 
     /**
      * Display helper for payment_methods table. Not part of any interface.

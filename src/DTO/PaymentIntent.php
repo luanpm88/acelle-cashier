@@ -20,6 +20,7 @@ class PaymentIntent
         public readonly Payer $payer,
         public readonly ?SubscriptionSpec $subscription,  // null = one-off charge
         public readonly array $metadata = [],
+        public readonly ?string $remoteReferenceId = null, // gateway-side ID (pi_xxx, sub_xxx)
     ) {}
 
     public function isSubscription(): bool
