@@ -5,8 +5,7 @@
 | Cashier routes
 |--------------------------------------------------------------------------
 |
-| Stripe + StripeSubscription use the new PaymentIntent flow ({intent_uid}).
-| Offline still uses the legacy {invoice_uid} flow.
+| All gateways use the unified PaymentIntent flow ({intent_uid}).
 |
 | Security model: intent_uid is a capability token (UUIDv4 = 122 bits entropy).
 | Pay endpoints are throttled to limit abuse if a uid leaks.
@@ -14,14 +13,15 @@
 */
 
 Route::group(['middleware' => ['web', 'not_installed'], 'namespace' => 'App\Cashier\Controllers'], function () {
-    // Offline (legacy invoice_uid flow)
-    Route::get('/cashier/offline/checkout/{invoice_uid}', 'OfflineController@checkout');
-    Route::post('/cashier/offline/{invoice_uid}//{payment_gateway_id}/claim', 'OfflineController@claim');
+    // Offline (manual payment, admin approves later)
+    Route::get('/cashier/offline/checkout/{intent_uid}', 'OfflineController@checkout');
+    Route::post('/cashier/offline/claim/{intent_uid}', 'OfflineController@claim')
+        ->middleware('throttle:10,1');
 
     // Stripe (one-off, intent-based)
     Route::get('/cashier/stripe/checkout/{intent_uid}', 'StripeController@checkout');
     Route::post('/cashier/stripe/pay/{intent_uid}', 'StripeController@pay')
-        ->middleware('throttle:10,1'); // 10 pay attempts per minute per IP
+        ->middleware('throttle:10,1');
     Route::get('/cashier/stripe/{intent_uid}/payment-auth', 'StripeController@paymentAuth');
 
     // Stripe Subscription (Category B, intent-based)

@@ -64,4 +64,11 @@ interface CheckoutHandlerInterface
      *   - payment_method_data: array      (card_type, last_4, ...)
      */
     public function onSubscriptionCreated(PaymentIntent $intent, array $subscriptionData): void;
+
+    /**
+     * Offline-only: user clicked "Claim payment". Annotates intent metadata with
+     * claimed_at timestamp. Intent stays at status=pending. Admin approves
+     * via separate admin UI flow (SubscriptionManagementService::approvePendingInvoice).
+     */
+    public function onOfflineClaimReceived(PaymentIntent $intent): void;
 }

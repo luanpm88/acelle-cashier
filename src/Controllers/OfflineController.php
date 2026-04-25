@@ -4,98 +4,90 @@ namespace App\Cashier\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Library\Facades\Billing;
-use App\Model\Invoice;
-use App\Model\PaymentGateway;
+use App\Cashier\DTO\PaymentIntent;
+use App\Cashier\Services\OfflinePaymentGateway;
+use App\Cashier\Contracts\CheckoutHandlerInterface;
+use App\Cashier\Contracts\PaymentGatewayResolverInterface;
 
+/**
+ * Offline payment controller.
+ *
+ * Routes:
+ *   GET  /cashier/offline/checkout/{intent_uid}    — show payment instructions + claim button
+ *   POST /cashier/offline/claim/{intent_uid}       — user claims they paid, intent stays pending
+ *
+ * Approval is admin-driven (separate admin UI calls SubscriptionManagementService::approvePendingInvoice).
+ * Cashier never imports App\Model\Invoice.
+ */
 class OfflineController extends Controller
 {
-    protected function findOwnedInvoice(Request $request, string $invoiceUid): ?Invoice
+    protected function findIntent(string $uid): ?PaymentIntent
     {
-        $customer = $request->user()?->customer;
+        return app(CheckoutHandlerInterface::class)->findIntent($uid);
+    }
 
-        if (!$customer) {
-            return null;
+    protected function getService(PaymentIntent $intent): OfflinePaymentGateway
+    {
+        $service = app(PaymentGatewayResolverInterface::class)->resolve($intent->paymentGatewayId);
+
+        if (!$service instanceof OfflinePaymentGateway) {
+            throw new \Exception('Gateway mismatch: expected OfflinePaymentGateway');
         }
-
-        return $customer->invoices()->where('invoices.uid', $invoiceUid)->first();
+        return $service;
     }
 
-    public function __construct(Request $request)
-    {
-        \Carbon\Carbon::setToStringFormat('jS \o\f F');
-    }
-    
     /**
-     * Subscription checkout page.
-     *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function checkout(Request $request)
+     * GET /cashier/offline/checkout/{intent_uid}?return_url=...
+     */
+    public function checkout(Request $request, string $intent_uid)
     {
-        $invoice = $this->findOwnedInvoice($request, $request->invoice_uid);
+        $intent = $this->findIntent($intent_uid);
+        $returnUrl = $request->return_url ?? '/';
 
-        // Service
-        $paymentGateway = PaymentGateway::findByUid($request->payment_gateway_id);
-
-        if (!$invoice) {
-            return redirect()->away($request->return_url ?? url('/'))
-                ->with('alert-error', 'Invoice not found.');
+        if (!$intent) {
+            return redirect()->away($returnUrl)
+                ->with('alert-error', trans('cashier::messages.offline.intent_not_found'));
         }
 
-        // exceptions
-        if (!$invoice->isNew()) {
-            throw new \Exception('Invoice is not new');
-        }
-        
+        $service = $this->getService($intent);
+
         return view('cashier::offline.checkout', [
-            'invoice' => $invoice,
-            'paymentGateway' => $paymentGateway,
+            'intent'              => $intent,
+            'paymentInstruction'  => $service->getPaymentInstruction(),
+            'returnUrl'           => $returnUrl,
         ]);
     }
-    
+
     /**
-     * Claim payment.
+     * POST /cashier/offline/claim/{intent_uid}
      *
-     * @param \Illuminate\Http\Request $request
-     *
-     * @return \Illuminate\Http\Response
-     **/
-    public function claim(Request $request, $invoice_uid)
+     * User clicks "Claim payment". Server records the claim by:
+     *   1. Creating a PaymentMethod row (no autobilling data — offline doesn't recur)
+     *   2. Annotating intent metadata with claimed_at timestamp
+     * Intent stays at status=pending. Admin approves/rejects later via admin UI.
+     */
+    public function claim(Request $request, string $intent_uid)
     {
-        $invoice = $this->findOwnedInvoice($request, $invoice_uid);
+        try {
+            $intent = $this->findIntent($intent_uid);
+            if (!$intent) {
+                return redirect()->away($request->return_url ?? '/')
+                    ->with('alert-error', trans('cashier::messages.offline.intent_not_found'));
+            }
 
-        // Service
-        $paymentGateway = PaymentGateway::findByUid($request->payment_gateway_id);
+            $handler = app(CheckoutHandlerInterface::class);
 
-        // Set return URL for billing
-        if ($request->return_url) {
-            Billing::setReturnUrl($request->return_url);
+            // Empty billing data — offline has no card. PaymentMethod row exists for
+            // referential integrity (handler.onPaymentSuccess expects a $pm later).
+            $handler->createPaymentMethod($intent, ['type' => 'offline']);
+
+            $handler->onOfflineClaimReceived($intent);
+
+            return redirect()->away($request->return_url ?? '/')
+                ->with('alert-success', trans('cashier::messages.offline.claim_received'));
+        } catch (\Throwable $e) {
+            return redirect()->away($request->return_url ?? '/')
+                ->with('alert-error', $e->getMessage());
         }
-
-        if (!$invoice) {
-            return redirect()->away(Billing::getReturnUrl() ?: url('/'))
-                ->with('alert-error', 'Invoice not found.');
-        }
-
-        // exceptions
-        if (!$invoice->isNew()) {
-            throw new \Exception('Invoice is not new');
-        }
-
-        // Payment method
-        $paymentMethod = $invoice->customer->paymentMethods()->create(
-            [
-                'payment_gateway_id' => $paymentGateway->id,
-                'can_auto_charge' => false,
-            ]
-        );
-        
-        // claim invoice
-        $invoice->payPending($paymentMethod);
-        
-        return redirect()->away(Billing::getReturnUrl());
     }
 }

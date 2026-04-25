@@ -2,94 +2,68 @@
 
 namespace App\Cashier\Services;
 
-use App\Cashier\Contracts\PaymentGatewayInterface;
-use App\Model\Transaction;
-use App\Cashier\Contracts\PaymentMethodInfoInterface;
+use App\Cashier\Contracts\IntentGatewayInterface;
+use App\Cashier\DTO\PaymentIntent;
 
-class OfflinePaymentGateway implements PaymentGatewayInterface
+/**
+ * Offline payment gateway — manual payment (bank transfer, etc.).
+ *
+ * User claims intent to pay → admin approves later. No external charge.
+ * Status flow: pending → succeeded (after admin approval)
+ *           or pending → cancelled (after admin rejection)
+ *
+ * Implements only IntentGatewayInterface — no auto-charge, no remote subscription.
+ * Pure: no DB writes; controller orchestrates side-effects.
+ */
+class OfflinePaymentGateway implements IntentGatewayInterface
 {
-    protected $paymentInstruction;
-    protected $active = false;
-
     public const TYPE = 'offline';
 
-    public function __construct($paymentInstruction)
+    private string $paymentInstruction;
+    private bool $active;
+
+    public function __construct(string $paymentInstruction = '')
     {
         $this->paymentInstruction = $paymentInstruction;
-
-        $this->validate();
+        $this->active = !empty($paymentInstruction);
     }
 
-    public function validate()
-    {
-        if (!$this->getPaymentInstruction()) {
-            $this->active = false;
-        } else {
-            $this->active = true;
-        }
-    }
-
-    public function isActive() : bool
+    public function isActive(): bool
     {
         return $this->active;
     }
 
-    public function getCheckoutUrl($invoice, $paymentGatewayId, $returnUrl = '/') : string
+    public function getType(): string
     {
-        return action("\App\Cashier\Controllers\OfflineController@checkout", [
-            'invoice_uid' => $invoice->uid,
-            'payment_gateway_id' => $paymentGatewayId,
-            'return_url' => $returnUrl,
-        ]);
-    }
-
-    public function supportsAutoBilling() : bool
-    {
-        return false;
-    }
-
-    public function verify(Transaction $transaction)
-    {
-        // do nothing because offline need admin to approve
-    }
-
-    public function allowManualReviewingOfTransaction() : bool
-    {
-        return true;
-    }
-
-    public function autoCharge($invoice, PaymentMethodInfoInterface $paymentMethodInfo)
-    {
-        throw new \Exception('Offline payment gateway does not support auto charge!');
+        return self::TYPE;
     }
 
     /**
-     * Get payment guiline message.
-     *
-     * @return Boolean
+     * IntentGatewayInterface — checkout URL with intent_uid.
      */
-    public function getPaymentInstruction()
+    public function getCheckoutUrl(PaymentIntent $intent, string $returnUrl): string
     {
-        if ($this->paymentInstruction) {
-            return $this->paymentInstruction;
-        } else {
-            return trans('cashier::messages.offline.payment_instruction.default');
-        }
-    }
-    
-    public function getMinimumChargeAmount($currency)
-    {
-        return 0;
+        return action('\App\Cashier\Controllers\OfflineController@checkout', [
+            'intent_uid' => $intent->uid,
+        ]) . '?return_url=' . urlencode($returnUrl);
     }
 
-    // get method title
-    public function getMethodTitle($billingData)
+    public function getPaymentInstruction(): string
+    {
+        return $this->paymentInstruction
+            ?: trans('cashier::messages.offline.payment_instruction.default');
+    }
+
+    /**
+     * Display helpers used by main app to render the payment_methods list.
+     * Not part of any interface — main app calls via getService() at view render time.
+     */
+    public function getMethodTitle($billingData): string
     {
         return trans('cashier::messages.offline');
     }
 
-    // get method info
-    public function getMethodInfo($billingData)
+    public function getMethodInfo($billingData): string
     {
         return trans('cashier::messages.offline.description');
     }
