@@ -50,61 +50,15 @@
         <br> Your browser will redirect to next page shortly.',
     'stripe.checkout.processing_payment' => 'Processing your payment... please wait!',
     'pay_invoice' => 'Pay invoice',
-    'braintree' => 'Braintree',
-    'braintree.environment' => 'Environment',
-    'braintree.merchant_id' => 'Merchant ID',
-    'braintree.public_key' => 'Public key',
-    'braintree.private_key' => 'Private key',
-    'braintree.intro' => 'Braintree is a full-stack payments platform that makes it easy to accept online payments. You will need to sign up for a Braintree account, obtain your integration ID and keys and set it up below',
-    'braintree.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
         <br> Your browser will redirect to next page shortly.',
-    'braintree.checkout.processing_payment' => 'Processing your payment... please wait!',
-    'braintree.pending.page_title' => 'Transaction is pending',
-    'braintree.checkout.page_title' => 'Checkout',
-    'braintree.checkout_with_braintree' => 'Checkout with Braintree',
-    'braintree.click_bellow_to_pay' => 'You are checking out <strong>:plan</strong> with Braintree with <strong>:price</strong>.
             Find your card information below and click Pay button to proceed with the payment.',
-    'braintree.current_card' => 'Your current card',
-    'braintree.pay' => 'Pay',
-    'braintree.card_list' => 'Your card information',
-    'braintree.pay_with_new_card' => 'Pay with new card',
-    'braintree.pay_with_this_card' => 'Pay with this card',
-    'braintree.use_new_card' => 'Use new card',
-    'braintree.new_card' => 'New card',
-    'braintree.use_this_card' => 'Use this card',
-    'paystack' => 'Paystack',
-    'paystack.secret_key' => 'Secret key',
-    'paystack.public_key' => 'Public key',
-    'paystack.intro' => 'Start Accepting Payments Instantly with Razorpay\'s Free Payment Gateway.
         Supports Netbanking, Credit, Debit Cards etc',
-    'paystack.checkout_with_paystack' => 'Pay with Paystack',
-    'paystack.click_bellow_to_pay' => 'You are paying an invoice with amount <strong>:price</strong>.
         Please click the button bellow to proceed with the payment information.',
-    'paystack.pay' => 'Pay Now',
-    'paystack.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
         <br> Your browser will redirect to next page shortly.',
-    'paystack.checkout.processing_payment' => 'Processing your payment... please wait!',
-    'paypal' => 'Paypal',
-    'paypal.user.description' => 'Pay for your subscription & services using your PayPal account.',
-    'paypal.environment' => 'Environment',
-    'paypal.client_id' => 'Client ID',
-    'paypal.secret' => 'Secret',
-    'paypal.intro' => 'PayPal is the fast/safe way to send money, make an online payment, receive money or set up a merchant account.',
-    'paypal.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
         <br> Your browser will redirect to next page shortly.',
-    'paypal.checkout.processing_payment' => 'Processing your payment... please wait!',
-    'paypal.checkout.intro' => 'You are paying an invoice with amount <strong>:price</strong>.
         Click on the button below to finish your payment with PayPal before using plan.',
-    'razorpay' => 'Razorpay',
-    'razorpay.key_id' => 'Key ID',
-    'razorpay.key_secret' => 'Key Secret',
-    'razorpay.intro' => 'Start Accepting Payments Instantly with Razorpay\'s Free Payment Gateway. Supports Netbanking, Credit, Debit Cards etc',
-    'razorpay.checkout.processing_payment.intro' => 'This process is automatic. Please do not close this browser/tab or change page.
         <br> Your browser will redirect to next page shortly.',
-    'razorpay.checkout.processing_payment' => 'Processing your payment... please wait!',
-    'razorpay.checkout.intro' => 'You are paying an invoice with amount <strong>:price</strong>.
         Click on the button below to finish your payment with PayPal before using plan.',
-    'razorpay.pay_with_razorpay' => 'Pay with Razorpay',
     'payment.options' => 'Payment Options',
     'go_back' => 'Go back',
     'stripe.no_card' => 'Fill your card information below and click Pay button.',
@@ -112,25 +66,16 @@
     'save_and_enable' => 'Save & Enable',
     'connect' => 'Connect',
     'cancel' => 'Cancel',
-    'braintree.description' => 'Receive payments from Credit / Debit card to your Braintree account',
     'offline.description' => 'Receive payments outside of the application',
-    'paypal.description' => 'PayPal is the fast/safe way to send money, make an online payment, receive money or set up a merchant account',
-    'paystack.description' => 'Receive payments from Credit / Debit card to your Paystack account',
-    'razorpay.description' => 'Start Accepting Payments Instantly with Razorpay\'s
         Free Payment Gateway. Supports Netbanking, Credit, Debit Cards etc',
     'stripe.description' => 'Receive payments from Credit / Debit card to your Stripe account',
-    'braintree.short_description' => 'Pay for your subscription & services using your debit
         or credit cards. Auto billing is supported',
     'offline.short_description' => 'Pay for your subscription & services outside of
         the application, following the instructions provided during checkout',
-    'paypal.short_description' => 'Pay for your subscription & services using your PayPal account.',
-    'paystack.short_description' => 'Pay for your subscription & services using your debit
         or credit cards. Auto billing is supported',
-    'razorpay.short_description' => 'Pay for your subscription & services using your debit
         or credit cards. Auto billing is not supported',
     'stripe.short_description' => 'Pay for your subscription & services using your debit
         or credit cards. Auto billing is supported',
-    'braintree.click_to_auth' => 'Click <a href=":link">here</a> to authenticate the payment.',
     'quantity' => 'Quantity',
     'total_due' => 'Total due',
     'pay_invoice' => 'Pay Invoice',
@@ -159,13 +104,6 @@
     'stripe_subscription.no_subscription' => 'No subscription found for this invoice.',
 
     // ─── Braintree Subscription ───
-    'braintree_subscription.checkout_title' => 'Checkout with Braintree',
-    'braintree_subscription.subscribing_to' => 'Subscribing to',
-    'braintree_subscription.processing' => 'Processing...',
-    'braintree_subscription.payment_failed' => 'Payment failed',
-    'braintree_subscription.invoice_not_found' => 'Invoice not found.',
-    'braintree_subscription.gateway_not_found' => 'Payment gateway not found.',
-    'braintree_subscription.no_subscription' => 'No subscription found for this invoice.',
 
     // ─── Webhook ───
     'webhook.invalid_signature' => 'Invalid signature',
