@@ -77,9 +77,9 @@ class OfflineController extends Controller
 
             $handler = app(CheckoutHandlerInterface::class);
 
-            // Empty billing data — offline has no card. PaymentMethod row exists for
-            // referential integrity (handler.onPaymentSuccess expects a $pm later).
-            $handler->createPaymentMethod($intent, ['type' => 'offline']);
+            // Offline has no card — skip persisting a PaymentMethod row.
+            // (Card-based gateways call createPaymentMethod here; offline doesn't need it.)
+            // $handler->createPaymentMethod($intent, ['type' => 'offline']);
 
             $handler->onOfflineClaimReceived($intent);
 
