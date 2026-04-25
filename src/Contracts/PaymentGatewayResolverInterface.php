@@ -2,7 +2,7 @@
 
 namespace App\Cashier\Contracts;
 
-use App\Library\Contracts\PaymentGatewayInterface;
+use App\Cashier\Contracts\PaymentGatewayInterface;
 
 interface PaymentGatewayResolverInterface
 {

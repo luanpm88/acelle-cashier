@@ -2,48 +2,30 @@
 
 /*
 |--------------------------------------------------------------------------
-| Application Routes
+| Cashier routes
 |--------------------------------------------------------------------------
 |
-| Here is where you can register all of the routes for an application.
-| It's a breeze. Simply tell Laravel the URIs it should respond to
-| and give it the controller to call when that URI is requested.
+| Stripe + StripeSubscription use the new PaymentIntent flow ({intent_uid}).
+| Offline still uses the legacy {invoice_uid} flow.
 |
 */
 
-Route::group(['middleware' => ['web','not_installed'], 'namespace' => 'App\Cashier\Controllers'], function () {
-    // direct
+Route::group(['middleware' => ['web', 'not_installed'], 'namespace' => 'App\Cashier\Controllers'], function () {
+    // Offline (legacy invoice_uid flow)
     Route::get('/cashier/offline/checkout/{invoice_uid}', 'OfflineController@checkout');
     Route::post('/cashier/offline/{invoice_uid}//{payment_gateway_id}/claim', 'OfflineController@claim');
 
-    // Stripe
-    Route::get('/cashier/stripe/checkout/{invoice_uid}', 'StripeController@checkout');
-    Route::post('/cashier/stripe/pay/{invoice_uid}', 'StripeController@pay');
-    Route::get('/cashier/stripe/{invoice_uid}/payment-auth', 'StripeController@paymentAuth');
+    // Stripe (one-off, intent-based)
+    Route::get('/cashier/stripe/checkout/{intent_uid}', 'StripeController@checkout');
+    Route::post('/cashier/stripe/pay/{intent_uid}', 'StripeController@pay');
+    Route::get('/cashier/stripe/{intent_uid}/payment-auth', 'StripeController@paymentAuth');
 
-    // Braintree
-    Route::match(['get', 'post'], '/cashier/braintree/checkout/{invoice_uid}/{payment_gateway_id}', 'BraintreeController@checkout');
-
-    // Paystack
-    Route::match(['get', 'post'], '/cashier/paystack/checkout/{invoice_uid}/{payment_gateway_id}', 'PaystackController@checkout');
-    Route::post('/cashier/paystack/{invoice_uid}/charge', 'PaystackController@charge');
-
-    // Paypal
-    Route::match(['get', 'post'], '/cashier/paypal/checkout/{invoice_uid}/{payment_gateway_id}', 'PaypalController@checkout');
-
-    // Razorpay
-    Route::match(['get', 'post'], '/cashier/razorpay/checkout/{invoice_uid}/{payment_gateway_id}', 'RazorpayController@checkout');
-
-    // Stripe Subscription (Category B)
-    Route::get('/cashier/stripe-subscription/checkout/{invoice_uid}', 'StripeSubscriptionController@checkout');
-    Route::post('/cashier/stripe-subscription/pay/{invoice_uid}', 'StripeSubscriptionController@pay');
-
-    // Braintree Subscription (Category B)
-    Route::match(['get', 'post'], '/cashier/braintree-subscription/checkout/{invoice_uid}/{payment_gateway_id}', 'BraintreeSubscriptionController@checkout');
+    // Stripe Subscription (Category B, intent-based)
+    Route::get('/cashier/stripe-subscription/checkout/{intent_uid}', 'StripeSubscriptionController@checkout');
+    Route::post('/cashier/stripe-subscription/pay/{intent_uid}', 'StripeSubscriptionController@pay');
 });
 
-// Webhook routes — outside web middleware group (no CSRF verification needed)
+// Webhooks (no CSRF)
 Route::group(['namespace' => 'App\Cashier\Controllers'], function () {
     Route::post('/cashier/webhooks/stripe-subscription', 'RemoteSubscriptionWebhookController@stripeSubscription');
-    Route::post('/cashier/webhooks/braintree-subscription', 'RemoteSubscriptionWebhookController@braintreeSubscription');
 });

@@ -2,7 +2,7 @@
 
 namespace App\Cashier\Services;
 
-use App\Library\Contracts\PaymentGatewayInterface;
+use App\Cashier\Contracts\PaymentGatewayInterface;
 use App\Model\Transaction;
 use App\Cashier\Contracts\PaymentMethodInfoInterface;
 

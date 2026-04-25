@@ -16,10 +16,6 @@
         </svg>
     </span>
     <div class="py-5">
-        @if ($errors->has('payment'))
-            <div class="alert alert-danger mb-3">{{ $errors->first('payment') }}</div>
-        @endif
-
         <p class="text-muted mb-3">
             {{ trans('cashier::messages.stripe_subscription.subscribing_to') }} <strong>{{ $remotePlan->name }}</strong>
             — {{ number_format($remotePlan->price, 2) }} {{ $remotePlan->currency }}/{{ $remotePlan->intervalUnit }}
@@ -30,7 +26,7 @@
         <div id="card-element" class="form-control py-3 shadow-sm" style="height: auto!important;"></div>
         <div id="card-errors" class="text-danger mt-2" role="alert"></div>
         <button id="submit" class="btn btn-dark w-100 mt-4 py-2 fs-5">
-            {{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})
+            {{ trans('cashier::messages.stripe.pay') }} {{ number_format($intent->amount, 2) }} ({{ $intent->currency }})
         </button>
     </div>
 
@@ -49,8 +45,8 @@
         });
 
         var confirmedPaymentMethodId = null;
-        var payUrl = '{{ action("\App\Cashier\Controllers\StripeSubscriptionController@pay", ["invoice_uid" => $invoice->uid]) }}';
-        var btnOriginalText = '{{ trans("cashier::messages.stripe.pay") }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})';
+        var payUrl = '{{ action("\App\Cashier\Controllers\StripeSubscriptionController@pay", ["intent_uid" => $intent->uid]) }}';
+        var btnOriginalText = '{{ trans("cashier::messages.stripe.pay") }} {{ number_format($intent->amount, 2) }} ({{ $intent->currency }})';
 
         function resetButton() {
             var btn = document.getElementById('submit');
@@ -67,46 +63,44 @@
                 data: {
                     _token: '{{ csrf_token() }}',
                     stripe_payment_method: paymentMethodId,
-                    remote_plan_id: '{{ $remotePlanId }}',
-                    payment_gateway_id: '{{ $paymentGatewayId }}',
                     return_url: '{{ $returnUrl }}',
                 }
             }).done(function(data) {
                 if (data.requires_action && data.client_secret) {
-                    stripe.confirmCardPayment(data.client_secret).then(function(result) {
-                        if (result.error) {
-                            document.getElementById('card-errors').textContent = result.error.message;
-                            resetButton();
-                        } else {
-                            btn.textContent = '{{ trans("cashier::messages.stripe_subscription.completing") }}';
-                            var pmData = data.payment_method_data || {};
-                            $.ajax({
-                                url: payUrl,
-                                type: 'POST',
-                                data: {
-                                    _token: '{{ csrf_token() }}',
-                                    remote_subscription_id: data.remote_subscription_id,
-                                    card_type: pmData.card_type || '',
-                                    card_last4: pmData.last_4 || '',
-                                    payment_gateway_id: '{{ $paymentGatewayId }}',
-                                    return_url: '{{ $returnUrl }}',
-                                }
-                            }).done(function(confirmData) {
-                                window.location = confirmData.redirect_url || '{{ $returnUrl }}';
-                            }).fail(function(jqXHR) {
-                                var msg = jqXHR.responseJSON ? (jqXHR.responseJSON.error || jqXHR.responseJSON.message) : jqXHR.statusText;
-                                document.getElementById('card-errors').textContent = msg;
-                                resetButton();
-                            });
-                        }
-                    });
-                } else {
-                    window.location = data.redirect_url || '{{ $returnUrl }}';
+                    handle3dsChallenge(data.client_secret);
+                    return;
                 }
+                window.location = data.redirect_url || '{{ $returnUrl }}';
             }).fail(function(jqXHR) {
                 var msg = jqXHR.responseJSON ? (jqXHR.responseJSON.error || jqXHR.responseJSON.message) : jqXHR.statusText;
                 document.getElementById('card-errors').textContent = msg;
                 resetButton();
+            });
+        }
+
+        function handle3dsChallenge(clientSecret) {
+            stripe.confirmCardPayment(clientSecret).then(function(result) {
+                if (result.error) {
+                    document.getElementById('card-errors').textContent = result.error.message;
+                    resetButton();
+                    return;
+                }
+                // Server reads sub_xxx from intent.remote_reference_id (server-stored, never trust client)
+                $.ajax({
+                    url: payUrl,
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        confirm_3ds: true,
+                        return_url: '{{ $returnUrl }}',
+                    }
+                }).done(function(confirmData) {
+                    window.location = confirmData.redirect_url || '{{ $returnUrl }}';
+                }).fail(function(jqXHR) {
+                    var msg = jqXHR.responseJSON ? (jqXHR.responseJSON.error || jqXHR.responseJSON.message) : jqXHR.statusText;
+                    document.getElementById('card-errors').textContent = msg;
+                    resetButton();
+                });
             });
         }
 
@@ -124,15 +118,17 @@
                 payment_method: {
                     card: card,
                     billing_details: {
-                        name: '{{ $invoice->getBillingName() }}',
-                        email: '{{ $invoice->billing_email }}'
+                        name: '{{ $intent->payer->billingName }}',
+                        email: '{{ $intent->payer->email }}'
                     }
                 }
             }).then(function(result) {
                 if (result.error) {
                     document.getElementById('card-errors').textContent = result.error.message;
                     resetButton();
-                } else if (result.setupIntent.status === 'succeeded') {
+                    return;
+                }
+                if (result.setupIntent.status === 'succeeded') {
                     var pmId = result.setupIntent.payment_method;
                     if (typeof pmId === 'object' && pmId !== null) {
                         pmId = pmId.id;

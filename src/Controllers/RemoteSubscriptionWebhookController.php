@@ -7,8 +7,7 @@ use Illuminate\Http\Request;
 use App\Model\Subscription;
 use App\Model\PaymentGateway;
 use App\Cashier\Services\StripeSubscriptionGateway;
-use App\Cashier\Services\BraintreeSubscriptionGateway;
-use App\Library\Contracts\RemoteSubscriptionGatewayInterface;
+use App\Cashier\Contracts\RemoteSubscriptionGatewayInterface;
 use Illuminate\Support\Facades\Log;
 
 class RemoteSubscriptionWebhookController extends Controller
@@ -35,33 +34,6 @@ class RemoteSubscriptionWebhookController extends Controller
         } catch (\Exception $e) {
             Log::error('Stripe subscription webhook signature verification failed: ' . $e->getMessage());
             return response()->json(['error' => trans('cashier::messages.webhook.invalid_signature')], 400);
-        }
-
-        return $this->handleWebhookEvent($parsed, $gateway);
-    }
-
-    public function braintreeSubscription(Request $request)
-    {
-        $gateway = PaymentGateway::where('type', BraintreeSubscriptionGateway::TYPE)->active()->first();
-
-        if (!$gateway) {
-            Log::warning('Braintree subscription webhook received but no active gateway found');
-            return response()->json(['status' => 'no_gateway'], 200);
-        }
-
-        $service = $gateway->getService();
-        if (!($service instanceof RemoteSubscriptionGatewayInterface)) {
-            return response()->json(['status' => 'invalid_service'], 400);
-        }
-
-        try {
-            $parsed = $service->parseWebhookPayload(
-                $request->input('bt_payload', ''),
-                ['bt-signature' => $request->input('bt_signature', '')]
-            );
-        } catch (\Exception $e) {
-            Log::error('Braintree subscription webhook verification failed: ' . $e->getMessage());
-            return response()->json(['error' => trans('cashier::messages.webhook.invalid_payload')], 400);
         }
 
         return $this->handleWebhookEvent($parsed, $gateway);
@@ -117,17 +89,14 @@ class RemoteSubscriptionWebhookController extends Controller
             $service = $gateway->getService();
             $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
 
-            // Activate new subscription if remote is active
             if ($subscription->isNew() && ($remoteSub->isActive() || $remoteSub->isTrialing())) {
                 $subscription->activateFromRemote($gateway);
             }
 
-            // Sync period end date for active subscriptions
             if ($remoteSub->currentPeriodEnd && $subscription->isActive()) {
                 $subscription->current_period_ends_at = $remoteSub->currentPeriodEnd;
             }
 
-            // Store remote metadata
             $meta = $subscription->getRemoteMetadataArray();
             $meta['remote_status'] = $remoteSub->status;
             if ($remoteSub->remotePlanId) {
@@ -164,17 +133,14 @@ class RemoteSubscriptionWebhookController extends Controller
             $service = $gateway->getService();
             $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
 
-            // Activate new subscription if remote is active (first payment succeeded)
             if ($subscription->isNew() && ($remoteSub->isActive() || $remoteSub->isTrialing())) {
                 $subscription->activateFromRemote($gateway);
             }
 
-            // Sync period end date for active subscriptions
             if ($remoteSub->currentPeriodEnd && $subscription->isActive()) {
                 $subscription->current_period_ends_at = $remoteSub->currentPeriodEnd;
             }
 
-            // Store remote metadata
             $meta = $subscription->getRemoteMetadataArray();
             $meta['remote_status'] = $remoteSub->status;
             if ($remoteSub->latestInvoiceAmount !== null) {

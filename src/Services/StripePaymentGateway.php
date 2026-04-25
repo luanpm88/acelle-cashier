@@ -2,22 +2,28 @@
 
 namespace App\Cashier\Services;
 
-use App\Library\Contracts\PaymentGatewayInterface;
-use App\Model\Transaction;
-use App\Cashier\Contracts\PaymentMethodInfoInterface;
-use App\Cashier\DTO\StripeAutoBillingData;
+use App\Cashier\Contracts\IntentGatewayInterface;
+use App\Cashier\Contracts\SupportsAutoChargeInterface;
+use App\Cashier\DTO\PaymentIntent;
+use App\Cashier\DTO\PaymentResult;
 
-class StripePaymentGateway implements PaymentGatewayInterface
+/**
+ * Stripe one-off payment gateway.
+ *
+ * Implements:
+ * - IntentGatewayInterface  → consumes PaymentIntent DTO at checkout
+ * - SupportsAutoChargeInterface  → charges card off-session, returns pure PaymentResult
+ *
+ * Pure: no DB writes, no handler callbacks. Controller orchestrates side-effects.
+ */
+class StripePaymentGateway implements IntentGatewayInterface, SupportsAutoChargeInterface
 {
+    public const TYPE = 'stripe';
+
     protected $secretKey;
     protected $publishableKey;
     protected $active = false;
 
-    public const TYPE = 'stripe';
-
-    /**
-     * Construction
-     */
     public function __construct($publishableKey, $secretKey)
     {
         $this->publishableKey = $publishableKey;
@@ -33,14 +39,10 @@ class StripePaymentGateway implements PaymentGatewayInterface
 
     public function validate()
     {
-        if (!$this->publishableKey || !$this->secretKey) {
-            $this->active = false;
-        } else {
-            $this->active = true;
-        }
+        $this->active = ($this->publishableKey && $this->secretKey);
     }
 
-    public function isActive() : bool
+    public function isActive(): bool
     {
         return $this->active;
     }
@@ -55,123 +57,87 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return $this->publishableKey;
     }
 
-    public function supportsAutoBilling() : bool
+    public function getType(): string
     {
-        return true;
+        return self::TYPE;
     }
 
-    public function verify(Transaction $transaction)
+    /**
+     * IntentGatewayInterface — build the checkout URL the user is redirected to.
+     */
+    public function getCheckoutUrl(PaymentIntent $intent, string $returnUrl): string
     {
-        throw new \Exception("Payment service {$this->getType()} should not have pending transaction to verify");
+        return action('\App\Cashier\Controllers\StripeController@checkout', [
+            'intent_uid' => $intent->uid,
+        ]) . '?return_url=' . urlencode($returnUrl);
     }
 
-    public function allowManualReviewingOfTransaction() : bool
+    /**
+     * SupportsAutoChargeInterface — attempt off-session charge. PURE.
+     *
+     * @param array $pmData StripeAutoBillingData::toArray() — must contain stripe_customer + stripe_payment_method
+     */
+    public function autoCharge(PaymentIntent $intent, array $pmData): PaymentResult
     {
-        return false;
-    }
-
-    public function autoCharge($invoice, PaymentMethodInfoInterface $paymentMethodInfo)
-    {
-        $handler = app(\App\Cashier\Contracts\CheckoutHandlerInterface::class);
-        $billingData = new StripeAutoBillingData($paymentMethodInfo->getAutoBillingData());
-
-        // Free invoice — no Stripe charge needed
-        if ($invoice->total() <= 0) {
-            $handler->onPaymentSuccess($invoice, $paymentMethodInfo);
-            return;
+        // Free invoice: skip Stripe call. Caller dispatches success.
+        if ($intent->amount <= 0) {
+            return PaymentResult::success('FREE_NO_CHARGE');
         }
 
         try {
-            \Stripe\PaymentIntent::create([
-                'amount' => $this->convertPrice($invoice->total(), $invoice->getCurrencyCode()),
-                'currency' => $invoice->getCurrencyCode(),
-                'customer' => $billingData->stripeCustomer,
-                'payment_method' => $billingData->stripePaymentMethod,
-                'off_session' => true,
-                'confirm' => true,
-                'description' => trans('messages.pay_invoice', [
-                    'id' => $invoice->uid,
-                ]),
+            $pi = \Stripe\PaymentIntent::create([
+                'amount'         => $this->convertPrice($intent->amount, $intent->currency),
+                'currency'       => strtolower($intent->currency),
+                'customer'       => $pmData['stripe_customer'] ?? null,
+                'payment_method' => $pmData['stripe_payment_method'] ?? null,
+                'off_session'    => true,
+                'confirm'        => true,
+                'description'    => $intent->description,
+                'metadata'       => ['intent_uid' => $intent->uid],
             ]);
 
-            $handler->onPaymentSuccess($invoice, $paymentMethodInfo);
+            if ($pi->status === 'succeeded') {
+                return PaymentResult::success($pi->id);
+            }
+
+            if ($pi->status === 'requires_action') {
+                return PaymentResult::requiresAuth(
+                    clientSecret: $pi->client_secret,
+                    remoteRef: $pi->id
+                );
+            }
+
+            return PaymentResult::failed("Unexpected PaymentIntent status: {$pi->status}", $pi->id);
         } catch (\Stripe\Exception\CardException $e) {
-            $authPaymentLink = action("\App\Cashier\Controllers\StripeController@paymentAuth", [
-                'invoice_uid' => $invoice->uid,
-                'payment_gateway_id' => $paymentMethodInfo->getPaymentGatewayUid(),
-            ]);
+            $remotePi = $e->getError()->payment_intent ?? null;
 
-            $handler->onPaymentFailed(
-                $invoice,
-                $paymentMethodInfo,
-                $e->getError()->message . ' ' . trans('cashier::messages.stripe.click_to_auth', [
-                    'link' => $authPaymentLink,
-                ])
-            );
+            if ($remotePi && ($remotePi->status ?? null) === 'requires_action') {
+                return PaymentResult::requiresAuth(
+                    clientSecret: $remotePi->client_secret,
+                    remoteRef: $remotePi->id
+                );
+            }
+
+            return PaymentResult::failed($e->getMessage(), $remotePi?->id);
         } catch (\Throwable $e) {
-            $authPaymentLink = action("\App\Cashier\Controllers\StripeController@paymentAuth", [
-                'invoice_uid' => $invoice->uid,
-                'payment_gateway_id' => $paymentMethodInfo->getPaymentGatewayUid(),
-            ]);
-
-            $handler->onPaymentFailed(
-                $invoice,
-                $paymentMethodInfo,
-                $e->getMessage() . ' ' . trans('cashier::messages.stripe.click_to_auth', [
-                    'link' => $authPaymentLink,
-                ])
-            );
+            return PaymentResult::failed($e->getMessage());
         }
     }
 
     /**
-     * Check if service is valid.
-     *
-     * @return void
+     * Health check on credentials.
      */
     public function test()
     {
         try {
             \Stripe\Customer::all(['limit' => 1]);
-        } catch (\Stripe\Error\Card $e) {
-            // Since it's a decline, \Stripe\Error\Card will be caught
-        } catch (\Stripe\Error\RateLimit $e) {
-            // Too many requests made to the API too quickly
-        } catch (\Stripe\Error\InvalidRequest $e) {
-            // Invalid parameters were supplied to Stripe's API
-        } catch (\Stripe\Error\Authentication $e) {
-            // Authentication with Stripe's API failed
-            // (maybe you changed API keys recently)
-            throw new \Stripe\Error\Authentication($e->getMessage());
-        } catch (\Stripe\Error\ApiConnection $e) {
-            // Network communication with Stripe failed
-        } catch (\Stripe\Error\Base $e) {
-            // Display a very generic error to the user, and maybe send
-            // yourself an email
-        } catch (Exception $e) {
-            // Something else happened, completely unrelated to Stripe
+        } catch (\Throwable $e) {
             throw new \Exception($e->getMessage());
         }
     }
 
     /**
-     * Get checkout url.
-     *
-     * @return string
-     */
-    public function getCheckoutUrl($invoice, $paymentGatewayId, $returnUrl = '/') : string
-    {
-        return action("\App\Cashier\Controllers\StripeController@checkout", [
-            'invoice_uid' => $invoice->uid,
-            'payment_gateway_id' => $paymentGatewayId,
-            'return_url' => $returnUrl,
-        ]);
-    }
-
-    /**
      * Get user has card.
-     *
-     * @return string
      */
     public function hasCard($customerUid)
     {
@@ -179,10 +145,7 @@ class StripePaymentGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Get card information from Stripe user.
-     *
-     * @param  User    $user
-     * @return Boolean
+     * Get card information from Stripe customer.
      */
     public function getCardInformation($customerUid)
     {
@@ -197,98 +160,56 @@ class StripePaymentGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Get the Stripe customer instance for the current user and token.
-     *
-     * @param  User    $user
-     * @return \Stripe\Customer
+     * Find a Stripe Customer by local payer UID, or create one.
      */
     public function getStripeCustomer($customerUid)
     {
-        // Find in gateway server
         $stripeCustomers = \Stripe\Customer::all();
         foreach ($stripeCustomers as $stripeCustomer) {
-            if ($stripeCustomer->metadata->local_user_id == $customerUid) {
+            if (($stripeCustomer->metadata->local_user_id ?? null) == $customerUid) {
                 return $stripeCustomer;
             }
         }
 
-        // create if not exist
-        $stripeCustomer = \Stripe\Customer::create([
-            'metadata' => [
-                'local_user_id' => $customerUid,
-            ],
+        return \Stripe\Customer::create([
+            'metadata' => ['local_user_id' => $customerUid],
         ]);
-
-        return $stripeCustomer;
     }
 
     /**
-     * Current rate for convert/revert Stripe price.
-     *
-     * @param  mixed    $price
-     * @param  string    $currency
-     * @return integer
+     * Currency-specific divisor (Stripe wants amount in smallest unit; some are zero-decimal).
      */
     public function currencyRates()
     {
         return [
-            'CLP' => 1,
-            'DJF' => 1,
-            'JPY' => 1,
-            'KMF' => 1,
-            'RWF' => 1,
-            'VUV' => 1,
-            'XAF' => 1,
-            'XOF' => 1,
-            'BIF' => 1,
-            'GNF' => 1,
-            'KRW' => 1,
-            'MGA' => 1,
-            'PYG' => 1,
-            'VND' => 1,
-            'XPF' => 1,
+            'CLP' => 1, 'DJF' => 1, 'JPY' => 1, 'KMF' => 1, 'RWF' => 1,
+            'VUV' => 1, 'XAF' => 1, 'XOF' => 1, 'BIF' => 1, 'GNF' => 1,
+            'KRW' => 1, 'MGA' => 1, 'PYG' => 1, 'VND' => 1, 'XPF' => 1,
         ];
     }
 
-    /**
-     * Convert price to Stripe price.
-     *
-     * @param  mixed    $price
-     * @param  string    $currency
-     * @return integer
-     */
     public function convertPrice($price, $currency)
     {
-        $currencyRates = $this->currencyRates();
-
-        $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
-
-        return round($price * $rate);
+        $rate = $this->currencyRates()[$currency] ?? 100;
+        return (int) round($price * $rate);
     }
 
-    /**
-     * Revert price from Stripe price.
-     *
-     * @param  mixed    $price
-     * @param  string    $currency
-     * @return integer
-     */
     public function revertPrice($price, $currency)
     {
-        $currencyRates = $this->currencyRates();
-
-        $rate = isset($currencyRates[$currency]) ? $currencyRates[$currency] : 100;
-
+        $rate = $this->currencyRates()[$currency] ?? 100;
         return $price / $rate;
     }
 
+    /**
+     * Create a SetupIntent and return its client_secret for stripe.confirmCardSetup() in JS.
+     */
     public function getClientSecret($customerUid)
     {
         $stripeCustomer = $this->getStripeCustomer($customerUid);
 
         $intent = \Stripe\SetupIntent::create([
             'customer' => $stripeCustomer->id,
-            'usage' => 'off_session',
+            'usage'    => 'off_session',
         ]);
 
         return $intent->client_secret;
@@ -304,15 +225,22 @@ class StripePaymentGateway implements PaymentGatewayInterface
         return 0;
     }
 
-    // get method title
+    /**
+     * Display helpers used by main app to render payment_methods table.
+     * Kept as concrete methods (no interface) — main app calls via getService().
+     */
     public function getMethodTitle($billingData)
     {
         return $billingData['card_type'] ?? 'Unknown';
     }
 
-    // get method info
     public function getMethodInfo($billingData)
     {
         return "*** *** *** " . ($billingData['last_4'] ?? 'Unknown');
+    }
+
+    public function supportsAutoBilling(): bool
+    {
+        return true;
     }
 }

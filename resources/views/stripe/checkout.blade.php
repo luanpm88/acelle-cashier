@@ -10,7 +10,7 @@
         <div id="card-element" class="form-control py-3 shadow-sm" style="height: auto!important;"></div>
         <div id="card-errors" class="text-danger mt-2" role="alert"></div>
         <button id="submit" class="btn btn-dark w-100 mt-4 py-2 fs-5">
-            {{ trans('cashier::messages.stripe.pay') }} {{ number_format($invoice->total(), 2) }} ({{ $invoice->getCurrencyCode() }})
+            {{ trans('cashier::messages.stripe.pay') }} {{ number_format($intent->amount, 2) }} ({{ $intent->currency }})
         </button>
 
         <div class="d-flex align-items-center mt-5">
@@ -22,110 +22,123 @@
                 <a class="text-dark small" href="https://stripe.com/privacy" target="_blank">{{ trans('cashier::messages.privacy_terms') }}</a>
             </div>
         </div>
-
     </div>
 
     <script>
-        // Set your publishable key: remember to change this to your live publishable key in production
-        // See your keys here: https://dashboard.stripe.com/apikeys
         var stripe = Stripe('{{ $publishableKey }}');
         var elements = stripe.elements();
 
-        // Set up Stripe.js and Elements to use in checkout form
-        var style = {
-            base: {
-                color: "#32325d",
-            }
-        };
-
-        var card = elements.create("card", { style: style, hidePostalCode: true });
-        // var card = elements.create("card", { style: style });
+        var card = elements.create("card", {
+            style: { base: { color: "#32325d" } },
+            hidePostalCode: true
+        });
         card.mount("#card-element");
 
         card.on('change', function(event) {
             var displayError = document.getElementById('card-errors');
-            if (event.error) {
-                displayError.textContent = event.error.message;
-            } else {
-                displayError.textContent = '';
-            }
+            displayError.textContent = event.error ? event.error.message : '';
         });
 
         var confirmedPaymentMethodId = null;
+        var payUrl = '{{ action("\App\Cashier\Controllers\StripeController@pay", ["intent_uid" => $intent->uid]) }}';
 
         function submitPayment(paymentMethodId) {
             addMaskLoading(`{!! trans('cashier::messages.stripe.checkout.processing_payment.intro') !!}`);
             $.ajax({
-                url: '{{ action("\App\Cashier\Controllers\StripeController@pay", [
-                    'invoice_uid' => $invoice->uid,
-                ]) }}',
+                url: payUrl,
                 type: 'POST',
                 data: {
                     _token: '{{ csrf_token() }}',
                     stripe_payment_method: paymentMethodId,
-                    payment_gateway_id: '{{ $paymentGatewayId }}',
                     return_url: '{{ $returnUrl }}',
                 }
             }).done(function(response) {
+                if (response.requires_action && response.client_secret) {
+                    handle3dsChallenge(response.client_secret);
+                    return;
+                }
                 window.location = response.return_url;
             }).fail(function(jqXHR) {
-                var message = jqXHR.responseJSON ? jqXHR.responseJSON.message : jqXHR.statusText;
-                new Dialog('alert', {
-                    message: message
-                });
+                var message = jqXHR.responseJSON
+                    ? (jqXHR.responseJSON.error || jqXHR.responseJSON.message)
+                    : jqXHR.statusText;
+                new Dialog('alert', { message: message });
                 removeMaskLoading();
                 removeButtonMask($('#submit'));
+            });
+        }
+
+        function handle3dsChallenge(clientSecret) {
+            stripe.confirmCardPayment(clientSecret).then(function(result) {
+                if (result.error) {
+                    new Dialog('alert', { message: result.error.message });
+                    removeMaskLoading();
+                    removeButtonMask($('#submit'));
+                    return;
+                }
+                // Server reads pi_xxx from intent.remote_reference_id (server-stored, never trust client)
+                $.ajax({
+                    url: payUrl,
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        confirm_3ds: true,
+                        return_url: '{{ $returnUrl }}',
+                    }
+                }).done(function(confirmRes) {
+                    window.location = confirmRes.return_url || '{{ $returnUrl }}';
+                }).fail(function(jqXHR) {
+                    var msg = jqXHR.responseJSON
+                        ? (jqXHR.responseJSON.error || jqXHR.responseJSON.message)
+                        : jqXHR.statusText;
+                    new Dialog('alert', { message: msg });
+                    removeMaskLoading();
+                    removeButtonMask($('#submit'));
+                });
             });
         }
 
         $('#submit').on('click', function() {
             addButtonMask($(this));
 
-            // If card was already confirmed, skip confirmCardSetup and retry payment
             if (confirmedPaymentMethodId) {
                 submitPayment(confirmedPaymentMethodId);
                 return;
             }
 
-            // Build address object and only include country if not empty
             var address = {
                 city: null,
-                line1: '{{ $invoice->billing_address }}',
+                line1: '{{ $intent->payer->billingAddress }}',
                 line2: null,
                 postal_code: null,
                 state: null
             };
-            var countryCode = '{{ $invoice->getBillingCountryCode() }}';
+            var countryCode = '{{ $intent->payer->billingCountryCode }}';
             if (countryCode) {
                 address.country = countryCode;
             }
+
             stripe.confirmCardSetup('{{ $clientSecret }}', {
                 payment_method: {
                     card: card,
                     billing_details: {
-                        name: '{{ $invoice->getBillingName() }}',
+                        name: '{{ $intent->payer->billingName }}',
                         address: address,
-                        email: '{{ $invoice->billing_email }}',
-                        phone: '{{ $invoice->billing_phone }}'
+                        email: '{{ $intent->payer->email }}',
+                        phone: '{{ $intent->payer->phone }}'
                     }
                 }
             }).then(function(result) {
                 if (result.error) {
-                    new Dialog('alert', {
-                        message: result.error.message
-                    });
+                    new Dialog('alert', { message: result.error.message });
                     removeButtonMask($('#submit'));
-                } else {
-                    if (result.setupIntent.status === 'succeeded') {
-                        confirmedPaymentMethodId = result.setupIntent.payment_method;
-                        submitPayment(confirmedPaymentMethodId);
-                    }
+                    return;
+                }
+                if (result.setupIntent.status === 'succeeded') {
+                    confirmedPaymentMethodId = result.setupIntent.payment_method;
+                    submitPayment(confirmedPaymentMethodId);
                 }
             });
-        });
-        
-        $('#payWithCurrentCard').on('click', function() {
-            addMaskLoading(`{!! trans('cashier::messages.stripe.checkout.processing_payment.intro') !!}`);
         });
     </script>
 @endsection

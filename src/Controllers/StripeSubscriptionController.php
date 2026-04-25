@@ -4,223 +4,225 @@ namespace App\Cashier\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Model\Invoice;
+use App\Cashier\DTO\PaymentIntent;
+use App\Cashier\DTO\SubscriptionResult;
+use App\Cashier\DTO\StripeAutoBillingData;
 use App\Cashier\Services\StripeSubscriptionGateway;
 use App\Cashier\Contracts\CheckoutHandlerInterface;
 use App\Cashier\Contracts\PaymentGatewayResolverInterface;
 
+/**
+ * Stripe Subscription Controller (Category B)
+ * ============================================
+ *
+ * Routes:
+ *   GET  /cashier/stripe-subscription/checkout/{intent_uid}  — render card form + plan info
+ *   POST /cashier/stripe-subscription/pay/{intent_uid}       — create subscription (or 3DS confirm)
+ *
+ * 3DS confirmation security: client supplies only intent_uid + confirm_3ds flag.
+ * remote_subscription_id (sub_xxx) is server-stored in intent.remote_reference_id —
+ * NEVER trust a client-supplied sub_xxx.
+ */
 class StripeSubscriptionController extends Controller
 {
-    protected function findInvoice(string $invoiceUid): ?Invoice
+    protected function findIntent(string $uid): ?PaymentIntent
     {
-        return Invoice::findByUid($invoiceUid);
+        return app(CheckoutHandlerInterface::class)->findIntent($uid);
     }
 
-    /**
-     * Resolve payment_gateway_id from the request into a ready-to-use StripeSubscriptionGateway.
-     *
-     * Credentials (pub_key, secret_key, webhook_secret) are loaded from DB via the resolver —
-     * cashier has no knowledge of how the main app stores them. This replaces the previous
-     * gateway_token pattern (encrypted credentials in URL) with a clean DI lookup.
-     */
-    protected function getService(Request $request): StripeSubscriptionGateway
+    protected function getService(PaymentIntent $intent): StripeSubscriptionGateway
     {
-        $service = app(PaymentGatewayResolverInterface::class)
-            ->resolve($request->payment_gateway_id);
+        $service = app(PaymentGatewayResolverInterface::class)->resolve($intent->paymentGatewayId);
 
         if (!$service instanceof StripeSubscriptionGateway) {
-            throw new \Exception('Invalid payment gateway for Stripe Subscription checkout');
+            throw new \Exception('Gateway mismatch: expected StripeSubscriptionGateway');
         }
-
         return $service;
     }
 
     /**
-     * GET /cashier/stripe-subscription/checkout/{invoice_uid}
-     *     ?payment_gateway_id=xxx&return_url=xxx&remote_plan_id=xxx
-     *
-     * Display the Stripe Elements card input form for subscription checkout.
-     * Main app redirects user here after creating an invoice + selecting a plan.
+     * GET /cashier/stripe-subscription/checkout/{intent_uid}?return_url=...
      */
-    public function checkout(Request $request, $invoice_uid)
+    public function checkout(Request $request, string $intent_uid)
     {
-        $invoice = $this->findInvoice($invoice_uid);
-        $service = $this->getService($request);
+        $intent = $this->findIntent($intent_uid);
         $returnUrl = $request->return_url ?? '/';
 
-        if (!$invoice) {
+        if (!$intent) {
             return redirect()->away($returnUrl)
-                ->with('alert-error', trans('cashier::messages.stripe_subscription.invoice_not_found'));
+                ->with('alert-error', trans('cashier::messages.stripe_subscription.intent_not_found'));
         }
 
-        if (!$invoice->isNew()) {
+        if (!$intent->subscription) {
             return redirect()->away($returnUrl)
-                ->with('alert-success', trans('cashier::messages.already_paid'));
+                ->with('alert-error', 'Intent missing subscription spec');
         }
 
-        // Fetch plan details from Stripe API for display (name, price, interval)
-        $remotePlan = $service->getRemotePlan($request->remote_plan_id);
+        $service = $this->getService($intent);
 
-        // Get or create Stripe Customer using payer's local UID
-        $stripeCustomer = $service->getStripeCustomer($invoice->getPayerUid())
-            ?? $service->createStripeCustomer($invoice->getPayerUid(), $invoice->getPayerName());
-
-        // Create SetupIntent — JS will use this clientSecret to call stripe.confirmCardSetup()
-        $clientSecret = $service->getSetupIntentSecret($stripeCustomer);
+        $remotePlan     = $service->getRemotePlan($intent->subscription->remotePlanId);
+        $stripeCustomer = $service->getStripeCustomer($intent->payer->uid)
+            ?? $service->createStripeCustomer($intent->payer->uid, $intent->payer->name);
+        $clientSecret   = $service->getSetupIntentSecret($stripeCustomer);
 
         return view('cashier::stripe-subscription.checkout', [
-            // Pass-through params: view sends these back to POST /pay via AJAX
-            'paymentGatewayId' => $request->payment_gateway_id, // app's gateway record UID (resolver input)
-            'returnUrl' => $returnUrl,                        // redirect after success
-            'remotePlanId' => $request->remote_plan_id,       // Stripe Price ID
-
-            // Display: plan info + invoice amount
-            'invoice' => $invoice,
-            'remotePlan' => $remotePlan,
-
-            // Stripe JS: init Stripe Elements + confirm card setup
-            'clientSecret' => $clientSecret,
+            'intent'         => $intent,
+            'remotePlan'     => $remotePlan,
+            'returnUrl'      => $returnUrl,
+            'clientSecret'   => $clientSecret,
             'publishableKey' => $service->getPublishableKey(),
         ]);
     }
 
     /**
-     * POST /cashier/stripe-subscription/pay/{invoice_uid}
+     * POST /cashier/stripe-subscription/pay/{intent_uid}
      *
-     * Called via AJAX from the checkout page after user confirms their card.
-     *
-     * Two modes:
-     * 1. Normal: stripe_payment_method present → create Stripe Subscription
-     * 2. 3DS re-confirmation: remote_subscription_id present, no stripe_payment_method
-     *    → subscription already exists on Stripe, just activate locally
+     * Body modes:
+     *   - First hit: { stripe_payment_method, return_url } → create subscription
+     *   - 3DS confirm: { confirm_3ds: true, return_url }   → re-check intent.remote_reference_id
      */
-    public function pay(Request $request, $invoice_uid)
+    public function pay(Request $request, string $intent_uid)
     {
         try {
-            $invoice = $this->findInvoice($invoice_uid);
-            $service = $this->getService($request);
+            $intent = $this->findIntent($intent_uid);
+            if (!$intent) {
+                return response()->json(['error' => trans('cashier::messages.stripe_subscription.intent_not_found')], 404);
+            }
+
             $returnUrl = $request->return_url ?? '/';
-            $paymentGatewayId = $request->payment_gateway_id;
-
-            if (!$invoice) {
-                return response()->json([
-                    'error' => trans('cashier::messages.stripe_subscription.invoice_not_found'),
-                ], 404);
-            }
-
-            if (!$invoice->isNew()) {
-                return response()->json([
-                    'error' => trans('cashier::messages.already_paid'),
-                ], 422);
-            }
-
-            // Main app's callback handler — receives payment results
+            $service = $this->getService($intent);
             $handler = app(CheckoutHandlerInterface::class);
 
-            // 3DS re-confirmation: subscription already created on Stripe, activate locally
-            if ($request->remote_subscription_id && !$request->stripe_payment_method) {
-                return $this->handle3dsConfirmation($request, $invoice, $service, $handler, $paymentGatewayId, $returnUrl);
+            // 3DS re-confirmation — server uses intent.remote_reference_id
+            if ($request->confirm_3ds && !$request->stripe_payment_method) {
+                return $this->handle3dsConfirmation($intent, $service, $handler, $returnUrl);
             }
 
             if (empty($request->stripe_payment_method)) {
-                return response()->json([
-                    'error' => 'Payment method ID is required. Please try again.',
-                ], 422);
+                return response()->json(['error' => 'Payment method ID is required'], 422);
             }
 
-            // Create Stripe Subscription with the confirmed payment method
-            $result = $service->createRemoteSubscription($invoice, $request->remote_plan_id, [
+            // Get-or-create Stripe customer
+            $stripeCustomer = $service->getStripeCustomer($intent->payer->uid)
+                ?? $service->createStripeCustomer($intent->payer->uid, $intent->payer->name);
+
+            // Service constructor sets Stripe API key — direct SDK call OK
+            $pm = \Stripe\PaymentMethod::retrieve($request->stripe_payment_method);
+
+            $billingData = new StripeAutoBillingData([
                 'stripe_payment_method' => $request->stripe_payment_method,
+                'stripe_customer'       => $stripeCustomer->id,
+                'card_type'             => ucfirst($pm->card->brand ?? ''),
+                'last_4'                => $pm->card->last4 ?? '',
+                'exp_month'             => $pm->card->exp_month ?? 0,
+                'exp_year'              => $pm->card->exp_year ?? 0,
             ]);
 
-            if ($result->success) {
-                // Notify main app: save remote IDs, create payment method record, mark invoice paid
-                $handler->onRemoteSubscriptionCreated($invoice, $paymentGatewayId, [
-                    'remote_subscription_id' => $result->remoteSubscriptionId,
-                    'remote_customer_id' => $result->remoteCustomerId,
-                    'status' => $result->status,
-                    'current_period_end' => $result->currentPeriodEnd,
-                    'payment_method_data' => $result->paymentMethodData ?? [],
-                ]);
+            // Persist payment method first so handler.onSubscriptionCreated can reference it
+            $handler->createPaymentMethod($intent, $billingData->toArray());
 
-                return response()->json([
-                    'success' => true,
-                    'redirect_url' => $returnUrl,
-                ]);
-            } elseif ($result->status === 'requires_action') {
-                // Card requires 3DS — return client_secret for JS to call stripe.confirmCardPayment()
-                return response()->json([
-                    'requires_action' => true,
-                    'client_secret' => $result->metadata['client_secret'] ?? null,
-                    'remote_subscription_id' => $result->remoteSubscriptionId,
-                    'payment_method_data' => $result->paymentMethodData,
-                ]);
-            } else {
-                return response()->json([
-                    'error' => $result->error ?? trans('cashier::messages.stripe_subscription.payment_failed'),
-                ], 422);
-            }
+            $result = $service->createSubscription($intent, $billingData->toArray());
+
+            return $this->dispatchResult($result, $intent, $handler, $returnUrl);
         } catch (\Throwable $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-            ], 400);
+            return response()->json(['message' => $e->getMessage()], 400);
         }
     }
 
     /**
-     * Handle 3DS re-confirmation.
-     *
-     * After JS calls stripe.confirmCardPayment() successfully, the browser POSTs back
-     * with remote_subscription_id (no stripe_payment_method). We verify the subscription
-     * is active on Stripe, then notify the main app to activate locally.
+     * Server reads sub_xxx from intent.remote_reference_id (server-stored), re-checks Stripe status.
+     * Client's only auth is intent_uid (URL path) — no sub_xxx accepted from request body.
      */
-    protected function handle3dsConfirmation(Request $request, $invoice, $service, $handler, $paymentGatewayId, $returnUrl)
-    {
-        $remoteSub = $service->getRemoteSubscription($request->remote_subscription_id);
-
-        // Stripe may take a moment to transition from 'incomplete' after 3DS confirmation
-        if ($remoteSub->isIncomplete()) {
-            sleep(2);
-            $remoteSub = $service->getRemoteSubscription($request->remote_subscription_id);
+    protected function handle3dsConfirmation(
+        PaymentIntent $intent,
+        StripeSubscriptionGateway $service,
+        CheckoutHandlerInterface $handler,
+        string $returnUrl
+    ) {
+        $subId = $intent->metadata['remote_reference_id'] ?? null;
+        if (!$subId) {
+            return response()->json(['error' => 'Intent has no pending subscription to confirm'], 422);
         }
 
-        if ($remoteSub->isActive()) {
-            // Get card info: prefer what JS already has, fallback to Stripe API
-            $pmData = [];
-            if ($request->card_type && $request->card_last4) {
-                $pmData = [
-                    'card_type' => $request->card_type,
-                    'last_4' => $request->card_last4,
-                ];
-            } else {
-                try {
-                    $remotePaymentMethod = $service->getRemotePaymentMethod($remoteSub->id);
-                    $pmData = $remotePaymentMethod ? [
-                        'card_type' => $remotePaymentMethod->cardType,
-                        'last_4' => $remotePaymentMethod->last4,
-                    ] : [];
-                } catch (\Throwable $e) {
-                    // Card info fetch failed — not critical
-                }
-            }
+        $remoteSub = $service->getRemoteSubscription($subId);
 
-            // Notify main app: save remote IDs, mark invoice paid, activate subscription
-            $handler->onRemoteSubscriptionCreated($invoice, $paymentGatewayId, [
-                'remote_subscription_id' => $remoteSub->id,
-                'remote_customer_id' => $remoteSub->remoteCustomerId,
-                'status' => $remoteSub->status,
-                'current_period_end' => $remoteSub->currentPeriodEnd,
-                'payment_method_data' => $pmData,
-            ]);
+        // Stripe sometimes lags transitioning out of incomplete after 3DS — short retry
+        if ($remoteSub->isIncomplete()) {
+            sleep(2);
+            $remoteSub = $service->getRemoteSubscription($subId);
+        }
 
-            return response()->json([
-                'success' => true,
-                'redirect_url' => $returnUrl,
-            ]);
-        } else {
+        if (!$remoteSub->isActive()) {
             return response()->json([
                 'error' => trans('cashier::messages.stripe_subscription.payment_failed'),
             ], 422);
+        }
+
+        // Card display info (best-effort — fall back to nothing if Stripe lookup fails)
+        $pmData = [];
+        try {
+            $pm = $service->getRemotePaymentMethod($subId);
+            if ($pm) {
+                $pmData = [
+                    'card_type' => $pm->cardType,
+                    'last_4'    => $pm->last4,
+                ];
+            }
+        } catch (\Throwable $e) {
+            // Non-fatal — proceed without card info
+        }
+
+        $handler->onSubscriptionCreated($intent, [
+            'remote_subscription_id' => $remoteSub->id,
+            'remote_customer_id'     => $remoteSub->remoteCustomerId,
+            'status'                 => $remoteSub->status,
+            'current_period_end'     => $remoteSub->currentPeriodEnd?->getTimestamp(),
+            'payment_method_data'    => $pmData,
+        ]);
+
+        return response()->json([
+            'success'      => true,
+            'redirect_url' => $returnUrl,
+        ]);
+    }
+
+    private function dispatchResult(
+        SubscriptionResult $result,
+        PaymentIntent $intent,
+        CheckoutHandlerInterface $handler,
+        string $returnUrl
+    ) {
+        switch ($result->status) {
+            case SubscriptionResult::STATUS_ACTIVE:
+                $handler->onSubscriptionCreated($intent, [
+                    'remote_subscription_id' => $result->remoteSubscriptionId,
+                    'remote_customer_id'     => $result->remoteCustomerId,
+                    'status'                 => 'active',
+                    'current_period_end'     => $result->currentPeriodEnd,
+                    'payment_method_data'    => $result->paymentMethodData,
+                ]);
+                return response()->json([
+                    'success'      => true,
+                    'redirect_url' => $returnUrl,
+                ]);
+
+            case SubscriptionResult::STATUS_REQUIRES_ACTION:
+                $handler->onSubscriptionRequiresAuth(
+                    $intent,
+                    $result->clientSecret,
+                    $result->remoteSubscriptionId
+                );
+                return response()->json([
+                    'requires_action'        => true,
+                    'client_secret'          => $result->clientSecret,
+                    'payment_method_data'    => $result->paymentMethodData,
+                ]);
+
+            case SubscriptionResult::STATUS_FAILED:
+            default:
+                return response()->json([
+                    'error' => $result->error ?? trans('cashier::messages.stripe_subscription.payment_failed'),
+                ], 422);
         }
     }
 }

@@ -2,43 +2,66 @@
 
 namespace App\Cashier\Contracts;
 
+use App\Cashier\DTO\PaymentIntent;
+
 /**
  * Callback interface for the main app to handle checkout lifecycle events.
- * Library calls these methods — main app provides the implementation.
+ * Cashier calls these methods — main app provides the implementation.
  *
  * Main app must bind an implementation in the service container:
  *   $this->app->bind(CheckoutHandlerInterface::class, MyCheckoutHandler::class);
+ *
+ * All methods receive a PaymentIntent DTO (not Eloquent Invoice).
+ * Main app dereferences invoice + customer + gateway from intent_uid.
  */
 interface CheckoutHandlerInterface
 {
     /**
-     * Save a payment method to the database for future auto-billing.
+     * Cashier asks main app to rehydrate an intent UID into a DTO.
+     * MUST authorize ownership: only return intent if it belongs to the authenticated user.
+     * Returns null if not found or not authorized.
+     */
+    public function findIntent(string $intentUid): ?PaymentIntent;
+
+    /**
+     * Persist the payment method (card info) returned by gateway, for future auto-billing.
+     */
+    public function createPaymentMethod(PaymentIntent $intent, array $autoBillingData): PaymentMethodInfoInterface;
+
+    /**
+     * Charge succeeded. Mark intent + invoice paid; activate any pending subscription.
      *
-     * @param  mixed  $invoice           The invoice (used to find the customer)
-     * @param  string $paymentGatewayId  UID of the payment gateway (for DB association)
-     * @param  array  $autoBillingData   Card + customer info from the gateway
-     * @return PaymentMethodInfoInterface
+     * @param string $remoteRef  Stripe pi_xxx — server-stored, never trust client-supplied later.
      */
-    public function createPaymentMethod($invoice, string $paymentGatewayId, array $autoBillingData): PaymentMethodInfoInterface;
+    public function onPaymentSuccess(PaymentIntent $intent, PaymentMethodInfoInterface $pm, string $remoteRef): void;
 
     /**
-     * Called when payment succeeds (charge completed or invoice is free).
+     * Charge attempt failed (card decline, etc.). Mark intent failed; main app may notify user.
      */
-    public function onPaymentSuccess($invoice, PaymentMethodInfoInterface $paymentMethodInfo);
+    public function onPaymentFailed(PaymentIntent $intent, PaymentMethodInfoInterface $pm, string $reason): void;
 
     /**
-     * Called when payment fails (e.g. card declined, 3D Secure required).
-     */
-    public function onPaymentFailed($invoice, PaymentMethodInfoInterface $paymentMethodInfo, string $reason);
-
-    /**
-     * Called when a remote subscription is successfully created or confirmed (3DS).
-     * Main app should: save remote subscription data, create payment method, mark invoice as paid.
+     * Card requires 3DS challenge. Lock the remote PaymentIntent ID into the intent row
+     * so subsequent confirmation reads server-stored ref (not client-supplied).
      *
-     * @param  mixed  $invoice
-     * @param  string $paymentGatewayId  UID of the payment gateway
-     * @param  array  $subscriptionData  Contains: remote_subscription_id, remote_customer_id, status,
-     *                                   current_period_end, payment_method_data (card_type, last_4, etc.)
+     * @param string $clientSecret  Stripe pi_xxx_secret_yyy for stripe.confirmCardPayment()
+     * @param string $remoteRef     Stripe pi_xxx
      */
-    public function onRemoteSubscriptionCreated($invoice, string $paymentGatewayId, array $subscriptionData);
+    public function onPaymentRequiresAuth(PaymentIntent $intent, string $clientSecret, string $remoteRef): void;
+
+    /**
+     * Subscription requires 3DS challenge during creation. Lock the remote sub_xxx + client_secret.
+     */
+    public function onSubscriptionRequiresAuth(PaymentIntent $intent, string $clientSecret, string $remoteSubscriptionId): void;
+
+    /**
+     * Remote subscription successfully active. Persist sub IDs, mark invoice paid, activate local sub.
+     *
+     * @param array $subscriptionData
+     *   - remote_subscription_id: string  (sub_xxx)
+     *   - remote_customer_id: string      (cus_xxx)
+     *   - current_period_end: int         (unix timestamp)
+     *   - payment_method_data: array      (card_type, last_4, ...)
+     */
+    public function onSubscriptionCreated(PaymentIntent $intent, array $subscriptionData): void;
 }
