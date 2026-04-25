@@ -93,6 +93,11 @@
     'powered_by' => 'Powered by',
     'privacy_terms' => 'Privacy & terms',
     'offline.payment_instructions' => 'Please follow the instructions below to complete your payment:',
+    'offline.amount_due' => 'Amount due',
+    'offline.claim_received' => 'Your payment claim has been received. An administrator will review and approve it shortly.',
+    'offline.intent_not_found' => 'Payment intent not found.',
+    'stripe.intent_not_found' => 'Payment intent not found.',
+    'stripe_subscription.intent_not_found' => 'Payment intent not found.',
 
     // ─── Stripe Subscription ───
     'stripe_subscription.subscribing_to' => 'Subscribing to',
