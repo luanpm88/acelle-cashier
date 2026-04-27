@@ -12,7 +12,7 @@
 
     <p>{{ trans('cashier::messages.offline.payment_instructions') }}</p>
     <div class="p-4 bg-grey-light" style="min-height: 150px;">
-        {!! nl2br(e($paymentInstruction)) !!}
+        {!! $paymentInstruction !!}
     </div>
 
     <hr>
