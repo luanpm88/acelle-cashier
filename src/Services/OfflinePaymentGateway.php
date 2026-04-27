@@ -22,10 +22,10 @@ class OfflinePaymentGateway implements IntentGatewayInterface
     private string $paymentInstruction;
     private bool $active;
 
-    public function __construct(string $paymentInstruction = '')
+    public function __construct(?string $paymentInstruction = '')
     {
-        $this->paymentInstruction = $paymentInstruction;
-        $this->active = !empty($paymentInstruction);
+        $this->paymentInstruction = $paymentInstruction ?? '';
+        $this->active = !empty($this->paymentInstruction);
     }
 
     public function isActive(): bool
