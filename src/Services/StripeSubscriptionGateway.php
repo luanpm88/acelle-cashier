@@ -384,12 +384,12 @@ class StripeSubscriptionGateway implements
     /**
      * Display helper for payment_methods table. Not part of any interface.
      */
-    public function getMethodTitle($billingData): string
+    public function getMethodTitle(array $billingData): string
     {
         return $billingData['card_type'] ?? 'Card';
     }
 
-    public function getMethodInfo($billingData): string
+    public function getMethodInfo(array $billingData): string
     {
         return '*** *** *** ' . ($billingData['last_4'] ?? '****');
     }

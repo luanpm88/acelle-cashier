@@ -229,12 +229,12 @@ class StripePaymentGateway implements IntentGatewayInterface, SupportsAutoCharge
      * Display helpers used by main app to render payment_methods table.
      * Kept as concrete methods (no interface) — main app calls via getService().
      */
-    public function getMethodTitle($billingData)
+    public function getMethodTitle(array $billingData): string
     {
         return $billingData['card_type'] ?? 'Unknown';
     }
 
-    public function getMethodInfo($billingData)
+    public function getMethodInfo(array $billingData): string
     {
         return "*** *** *** " . ($billingData['last_4'] ?? 'Unknown');
     }
