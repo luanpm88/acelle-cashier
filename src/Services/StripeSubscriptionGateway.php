@@ -368,14 +368,15 @@ class StripeSubscriptionGateway implements
     /**
      * List Stripe Invoices for a subscription, oldest-first.
      *
-     * Stripe natively returns DESC by created. We page DESC then array_reverse
-     * the page so each call yields oldest-first within its window — sync layer
-     * relies on monotonic order to advance its cursor safely.
+     * Stripe pagination is DESC-by-created with two cursor params:
+     *   - `starting_after=X` walks BACKWARD in the result list (returns items
+     *     OLDER than X — the next page).
+     *   - `ending_before=X`  walks FORWARD (returns items NEWER than X).
      *
-     * Cursor semantics:
-     *   - Stripe pagination uses `starting_after` (newer than X) — natural
-     *     fit when pulling DESC.
-     *   - We pass app-level `$afterId` directly as `starting_after`.
+     * Our app-level cursor semantics is "give me items NEWER than $afterId" so
+     * we map to `ending_before`. We then reverse the DESC response to yield
+     * oldest-first within each page so the sync layer can advance its cursor
+     * monotonically.
      *
      * @return array{data: RemoteInvoiceDTO[], has_more: bool, next_cursor: ?string}
      */
@@ -393,7 +394,7 @@ class StripeSubscriptionGateway implements
             'expand'       => ['data.payment_intent.payment_method'],
         ];
         if ($afterId) {
-            $params['starting_after'] = $afterId;
+            $params['ending_before'] = $afterId;
         }
 
         $invoices = \Stripe\Invoice::all($params, ['api_key' => $this->secretKey]);
