@@ -5,7 +5,9 @@ namespace App\Cashier\Services;
 use App\Cashier\Contracts\IntentGatewayInterface;
 use App\Cashier\Contracts\SupportsSubscriptionInterface;
 use App\Cashier\Contracts\RemoteSubscriptionGatewayInterface;
+use App\Cashier\DTO\BillingOrigin;
 use App\Cashier\DTO\PaymentIntent;
+use App\Cashier\DTO\RemoteInvoiceDTO;
 use App\Cashier\DTO\SubscriptionResult;
 use App\Cashier\DTO\RemotePlanDTO;
 use App\Cashier\DTO\RemoteSubscriptionDTO;
@@ -321,6 +323,18 @@ class StripeSubscriptionGateway implements
         ]);
     }
 
+    public function resumeRemoteSubscription(string $remoteSubscriptionId): void
+    {
+        \Stripe\Subscription::update($remoteSubscriptionId, [
+            'cancel_at_period_end' => false,
+        ]);
+    }
+
+    public function extractRemotePaymentMethodId(array $autobillingData): ?string
+    {
+        return $autobillingData['stripe_payment_method'] ?? null;
+    }
+
     public function updateRemoteSubscriptionPlan(
         string $remoteSubscriptionId,
         string $newRemotePlanId
@@ -349,6 +363,130 @@ class StripeSubscriptionGateway implements
             'data'      => $event->data->object->toArray(),
             'raw_event' => $event,
         ];
+    }
+
+    /**
+     * List Stripe Invoices for a subscription, oldest-first.
+     *
+     * Stripe natively returns DESC by created. We page DESC then array_reverse
+     * the page so each call yields oldest-first within its window — sync layer
+     * relies on monotonic order to advance its cursor safely.
+     *
+     * Cursor semantics:
+     *   - Stripe pagination uses `starting_after` (newer than X) — natural
+     *     fit when pulling DESC.
+     *   - We pass app-level `$afterId` directly as `starting_after`.
+     *
+     * @return array{data: RemoteInvoiceDTO[], has_more: bool, next_cursor: ?string}
+     */
+    public function getRemoteInvoices(
+        string $remoteSubscriptionId,
+        ?string $afterId = null,
+        int $limit = 50,
+    ): array {
+        $params = [
+            'subscription' => $remoteSubscriptionId,
+            'limit'        => min($limit, 100),
+            // Inline-expand payment method per invoice — saves N+1 fetches when
+            // the join-table view wants per-row card info. Stripe allows up to
+            // 4 levels of `expand`; this is 3 (data → payment_intent → payment_method).
+            'expand'       => ['data.payment_intent.payment_method'],
+        ];
+        if ($afterId) {
+            $params['starting_after'] = $afterId;
+        }
+
+        $invoices = \Stripe\Invoice::all($params, ['api_key' => $this->secretKey]);
+
+        // Stripe returns DESC by created — reverse to make oldest-first per page.
+        $reversed = array_reverse($invoices->data);
+
+        $data = [];
+        $lastId = null;
+        foreach ($reversed as $inv) {
+            $dto = $this->stripeInvoiceToDto($inv);
+            if ($dto !== null) {
+                $data[] = $dto;
+                $lastId = $dto->id;
+            }
+        }
+
+        return [
+            'data'        => $data,
+            'has_more'    => (bool) $invoices->has_more,
+            'next_cursor' => $invoices->has_more ? $lastId : null,
+        ];
+    }
+
+    /**
+     * Map Stripe\Invoice → RemoteInvoiceDTO. Returns null for draft invoices
+     * (will materialize on next sync after Stripe finalizes them).
+     */
+    private function stripeInvoiceToDto(\Stripe\Invoice $inv): ?RemoteInvoiceDTO
+    {
+        if ($inv->status === 'draft') {
+            return null;  // not yet finalized; skip
+        }
+
+        // Stripe `billing_reason` discriminates initial vs renewal vs upgrade.
+        $origin = match ($inv->billing_reason) {
+            'subscription_create'    => BillingOrigin::INITIAL,
+            'subscription_cycle'     => BillingOrigin::RECURRING,
+            'subscription_update'    => BillingOrigin::PLAN_CHANGE,
+            'subscription_threshold' => BillingOrigin::PLAN_CHANGE,
+            'manual'                 => BillingOrigin::MANUAL,
+            default                  => BillingOrigin::MANUAL,
+        };
+
+        $status = match ($inv->status) {
+            'paid'           => 'paid',
+            'open'           => 'open',
+            'uncollectible',
+            'void'           => 'failed',
+            default          => 'open',
+        };
+
+        $line = $inv->lines->data[0] ?? null;
+        $period = $line && isset($line->period) ? $line->period : null;
+
+        // Payment method came back inline via expand=data.payment_intent.payment_method.
+        // Three guards: invoice may have no payment_intent (free / draft), the
+        // payment_intent may not be expanded (Stripe omits expansion for some
+        // states), and the payment_method may be null (e.g. SEPA mandates).
+        $pmRemoteId = null;
+        $pmBrand    = null;
+        $pmLast4    = null;
+        $pi = $inv->payment_intent ?? null;
+        if (is_object($pi)) {
+            $pm = $pi->payment_method ?? null;
+            if (is_object($pm)) {
+                $pmRemoteId = $pm->id ?? null;
+                $card = $pm->card ?? null;
+                if (is_object($card)) {
+                    $pmBrand = ucfirst((string) ($card->brand ?? ''));
+                    $pmLast4 = (string) ($card->last4 ?? '');
+                }
+            } elseif (is_string($pm)) {
+                $pmRemoteId = $pm;  // not expanded; still useful for reverse-lookup
+            }
+        }
+
+        return new RemoteInvoiceDTO(
+            id:                   (string) $inv->id,
+            remoteSubscriptionId: (string) $inv->subscription,
+            origin:               $origin,
+            status:               $status,
+            amount:               ((int) ($inv->amount_paid ?? 0)) / 100.0,
+            currency:             strtoupper((string) $inv->currency),
+            periodStart:          $period ? Carbon::createFromTimestamp($period->start) : null,
+            periodEnd:            $period ? Carbon::createFromTimestamp($period->end)   : null,
+            billedAt:             Carbon::createFromTimestamp($inv->created),
+            failureReason:        $inv->last_finalization_error->message ?? null,
+            hostedInvoiceUrl:     $inv->hosted_invoice_url ?? $inv->invoice_pdf,
+            paymentMethodRemoteId: $pmRemoteId,
+            paymentMethodBrand:    $pmBrand ?: null,
+            paymentMethodLast4:    $pmLast4 ?: null,
+        );
     }
 
     // ─── Customer + SetupIntent helpers (used by controller / sync flows) ───
