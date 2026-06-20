@@ -2,34 +2,27 @@
 
 namespace App\Cashier\Contracts;
 
-use App\Cashier\DTO\RemotePlanDTO;
 use App\Cashier\DTO\RemoteSubscriptionDTO;
 use App\Cashier\DTO\RemotePaymentMethodDTO;
-use App\Cashier\DTO\RemoteInvoiceDTO;
 
 /**
  * Capability for gateways that manage subscriptions on a remote provider
- * (Stripe, etc.). Read/sync side — write side is via SupportsSubscriptionInterface.
+ * (Stripe, Paddle, Braintree, 2C2P …). Read/sync side — write side is via
+ * SupportsSubscriptionInterface.
+ *
+ * This is the BY-ID / lifecycle / webhook core that EVERY remote-subscription
+ * gateway supports. The catalog & enumeration methods (plan catalog, list
+ * subscriptions, invoice history) are split into one capability interface a
+ * gateway may additionally implement:
+ *   - {@see SupportsRemoteCatalogInterface} — plans + list-subs + invoice history
+ *
+ * An inquiry-only gateway (2C2P RPP — recurring terms embedded per charge, no
+ * catalog, no list API) implements ONLY this base. Consumers MUST `instanceof`
+ * the capability interface before calling a catalog/enumeration method.
  */
 interface RemoteSubscriptionGatewayInterface
 {
-    /**
-     * Fetch all available plans/prices from the remote provider.
-     * @return RemotePlanDTO[]
-     */
-    public function getRemotePlans(): array;
-
-    public function getRemotePlan(string $remotePlanId): RemotePlanDTO;
-
     public function getRemoteSubscription(string $remoteSubscriptionId): RemoteSubscriptionDTO;
-
-    /**
-     * Fetch a page of subscriptions from the remote provider (admin overview).
-     * Cursor-based pagination — pass the last item's id as $startingAfter for the next page.
-     *
-     * @return array{data: RemoteSubscriptionDTO[], has_more: bool, next_cursor: ?string}
-     */
-    public function getRemoteSubscriptions(?string $startingAfter = null, int $limit = 100): array;
 
     public function cancelRemoteSubscription(string $remoteSubscriptionId): void;
 
@@ -60,11 +53,6 @@ interface RemoteSubscriptionGatewayInterface
      */
     public function resumeRemoteSubscription(string $remoteSubscriptionId): void;
 
-    public function updateRemoteSubscriptionPlan(
-        string $remoteSubscriptionId,
-        string $newRemotePlanId
-    ): RemoteSubscriptionDTO;
-
     public function getRemotePaymentMethod(string $remoteSubscriptionId): ?RemotePaymentMethodDTO;
 
     public function getWebhookSecret(): ?string;
@@ -73,26 +61,4 @@ interface RemoteSubscriptionGatewayInterface
      * @return array{event: string, data: array}
      */
     public function parseWebhookPayload(string $payload, array $headers): array;
-
-    /**
-     * List billing events (invoices/transactions) for a subscription, oldest-first.
-     *
-     * Used by the sync layer to detect new auto-billing charges (RECURRING),
-     * plan-change prorations, and refunds — vendor objects that don't surface
-     * via getRemoteSubscription's scalar `latestInvoiceAmount`.
-     *
-     * Drivers MUST sort oldest-first so cursor advance is monotonic and a
-     * mid-loop materialize failure can resume cleanly on next tick.
-     *
-     * @param  string       $remoteSubscriptionId  vendor sub id (sub_xxx)
-     * @param  string|null  $afterId               vendor invoice/txn id; return events strictly after it
-     * @param  int          $limit                 page size cap
-     *
-     * @return array{data: RemoteInvoiceDTO[], has_more: bool, next_cursor: ?string}
-     */
-    public function getRemoteInvoices(
-        string $remoteSubscriptionId,
-        ?string $afterId = null,
-        int $limit = 50,
-    ): array;
 }

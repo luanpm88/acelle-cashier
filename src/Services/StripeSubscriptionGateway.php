@@ -5,6 +5,7 @@ namespace App\Cashier\Services;
 use App\Cashier\Contracts\IntentGatewayInterface;
 use App\Cashier\Contracts\SupportsSubscriptionInterface;
 use App\Cashier\Contracts\RemoteSubscriptionGatewayInterface;
+use App\Cashier\Contracts\SupportsRemoteCatalogInterface;
 use App\Cashier\DTO\BillingOrigin;
 use App\Cashier\DTO\PaymentIntent;
 use App\Cashier\DTO\RemoteInvoiceDTO;
@@ -20,14 +21,16 @@ use Carbon\Carbon;
  * Implements:
  * - IntentGatewayInterface  → consumes PaymentIntent at checkout
  * - SupportsSubscriptionInterface  → creates remote subscription, returns SubscriptionResult
- * - RemoteSubscriptionGatewayInterface  → read/sync side (plans, webhook, etc.)
+ * - RemoteSubscriptionGatewayInterface  → read/sync by-id core (inquiry, cancel, resume, webhook)
+ * - SupportsRemoteCatalogInterface  → Stripe has a queryable catalog: plans, list-subs, invoice history
  *
  * Pure: no DB writes, no handler callbacks. Controller orchestrates side-effects.
  */
 class StripeSubscriptionGateway implements
     IntentGatewayInterface,
     SupportsSubscriptionInterface,
-    RemoteSubscriptionGatewayInterface
+    RemoteSubscriptionGatewayInterface,
+    SupportsRemoteCatalogInterface
 {
     public const TYPE = 'stripe-subscription';
 
