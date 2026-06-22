@@ -67,12 +67,17 @@ interface SupportsRemoteCatalogInterface
     /**
      * List billing events (invoices/transactions) for a subscription, oldest-first.
      *
-     * Drivers MUST sort oldest-first so cursor advance is monotonic and a
-     * mid-loop materialize failure can resume cleanly on next tick.
+     * Drivers MUST sort oldest-first. The CALLER is responsible for dedup (it
+     * keys on the remote invoice id + a unique DB index), so a driver MAY return
+     * a superset — e.g. the full history — and $afterId is only a best-effort
+     * "newer than" hint, NOT a guarantee. Returning the full list with
+     * has_more=false is valid and preferred where the vendor SDK can auto-drain,
+     * because a strict "newer than X" cursor can silently skip older charges on
+     * the first sync of a sub that already has vendor-side history.
      *
      * @param  string       $remoteSubscriptionId  vendor sub id
-     * @param  string|null  $afterId               return events strictly after this id
-     * @param  int          $limit                 page size cap
+     * @param  string|null  $afterId               best-effort "newer than" hint (may be ignored)
+     * @param  int          $limit                 page-size hint (may be ignored when auto-draining)
      * @return array{data: RemoteInvoiceDTO[], has_more: bool, next_cursor: ?string}
      */
     public function getRemoteInvoices(

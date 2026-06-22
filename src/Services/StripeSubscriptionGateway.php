@@ -369,17 +369,18 @@ class StripeSubscriptionGateway implements
     }
 
     /**
-     * List Stripe Invoices for a subscription, oldest-first.
+     * List ALL Stripe Invoices for a subscription, oldest-first, in one call.
      *
-     * Stripe pagination is DESC-by-created with two cursor params:
-     *   - `starting_after=X` walks BACKWARD in the result list (returns items
-     *     OLDER than X — the next page).
-     *   - `ending_before=X`  walks FORWARD (returns items NEWER than X).
+     * Deliberately pulls the FULL history every time (auto-paginated) and lets
+     * the caller dedup on remote_invoice_id — no chunk/limit, no "newer than X"
+     * cursor. A cursor that only fetches newer-than-X can silently SKIP older
+     * charges the first time we sync a sub the vendor already has history for
+     * (imported / dashboard-created sub): `ending_before=<newest>` returns
+     * nothing and the older charges never materialize. Pulling full + dedup
+     * cannot lose a charge. A pathological history just makes this slow → it
+     * fails LOUDLY (timeout) rather than mis-paginating silently.
      *
-     * Our app-level cursor semantics is "give me items NEWER than $afterId" so
-     * we map to `ending_before`. We then reverse the DESC response to yield
-     * oldest-first within each page so the sync layer can advance its cursor
-     * monotonically.
+     * $afterId / $limit are accepted for interface compatibility but ignored.
      *
      * @return array{data: RemoteInvoiceDTO[], has_more: bool, next_cursor: ?string}
      */
@@ -388,37 +389,34 @@ class StripeSubscriptionGateway implements
         ?string $afterId = null,
         int $limit = 50,
     ): array {
-        $params = [
+        $invoices = \Stripe\Invoice::all([
             'subscription' => $remoteSubscriptionId,
-            'limit'        => min($limit, 100),
+            'limit'        => 100,   // page size for the auto-paginator (Stripe max)
             // Inline-expand payment method per invoice — saves N+1 fetches when
-            // the join-table view wants per-row card info. Stripe allows up to
-            // 4 levels of `expand`; this is 3 (data → payment_intent → payment_method).
+            // the join-table view wants per-row card info.
             'expand'       => ['data.payment_intent.payment_method'],
-        ];
-        if ($afterId) {
-            $params['ending_before'] = $afterId;
+        ], ['api_key' => $this->secretKey]);
+
+        // Drain every page (autoPagingIterator handles the multi-page fetch),
+        // then sort oldest-first so the sync layer materializes chronologically.
+        $all = [];
+        foreach ($invoices->autoPagingIterator() as $inv) {
+            $all[] = $inv;
         }
-
-        $invoices = \Stripe\Invoice::all($params, ['api_key' => $this->secretKey]);
-
-        // Stripe returns DESC by created — reverse to make oldest-first per page.
-        $reversed = array_reverse($invoices->data);
+        usort($all, fn ($a, $b) => $a->created <=> $b->created);
 
         $data = [];
-        $lastId = null;
-        foreach ($reversed as $inv) {
+        foreach ($all as $inv) {
             $dto = $this->stripeInvoiceToDto($inv);
             if ($dto !== null) {
                 $data[] = $dto;
-                $lastId = $dto->id;
             }
         }
 
         return [
             'data'        => $data,
-            'has_more'    => (bool) $invoices->has_more,
-            'next_cursor' => $invoices->has_more ? $lastId : null,
+            'has_more'    => false,   // full list returned in one logical call
+            'next_cursor' => null,
         ];
     }
 
