@@ -3,14 +3,17 @@
 namespace App\Cashier\Services;
 
 use App\Cashier\Contracts\IntentGatewayInterface;
-use App\Cashier\Contracts\SupportsSubscriptionInterface;
-use App\Cashier\Contracts\RemoteSubscriptionGatewayInterface;
+use App\Cashier\Contracts\SupportRemoteSubscriptionViaRemoteCheckoutPage;
+use App\Cashier\Contracts\ManageRemoteSubscriptionInterface;
 use App\Cashier\Contracts\SupportsRemoteCatalogInterface;
 use App\Cashier\DTO\BillingOrigin;
+use App\Cashier\DTO\RemoteCheckoutSpec;
+use App\Cashier\DTO\RemoteCheckoutHandle;
+use App\Cashier\DTO\RemoteCheckoutSessionDTO;
 use App\Cashier\DTO\PaymentIntent;
 use App\Cashier\DTO\RemoteInvoiceDTO;
-use App\Cashier\DTO\SubscriptionResult;
 use App\Cashier\DTO\RemotePlanDTO;
+use App\Cashier\DTO\RemoteOneTimePriceDTO;
 use App\Cashier\DTO\RemoteSubscriptionDTO;
 use App\Cashier\DTO\RemotePaymentMethodDTO;
 use Carbon\Carbon;
@@ -18,18 +21,20 @@ use Carbon\Carbon;
 /**
  * Stripe Subscription gateway (Category B — provider manages billing).
  *
- * Implements:
- * - IntentGatewayInterface  → consumes PaymentIntent at checkout
- * - SupportsSubscriptionInterface  → creates remote subscription, returns SubscriptionResult
- * - RemoteSubscriptionGatewayInterface  → read/sync by-id core (inquiry, cancel, resume, webhook)
+ * Creation approach: HOSTED checkout page (SupportRemoteSubscriptionViaRemoteCheckoutPage)
+ * — NOT the imperative SupportCreateRemoteSubscription. Implements:
+ * - IntentGatewayInterface  → base (but getCheckoutUrl is unused: remote subs go via hosted page)
+ * - SupportRemoteSubscriptionViaRemoteCheckoutPage  → one-time price catalog + a single hosted
+ *       checkout that charges one-off items up-front AND starts a trialing subscription
+ * - ManageRemoteSubscriptionInterface  → read/sync by-id core (inquiry, cancel, resume, webhook)
  * - SupportsRemoteCatalogInterface  → Stripe has a queryable catalog: plans, list-subs, invoice history
  *
  * Pure: no DB writes, no handler callbacks. Controller orchestrates side-effects.
  */
 class StripeSubscriptionGateway implements
     IntentGatewayInterface,
-    SupportsSubscriptionInterface,
-    RemoteSubscriptionGatewayInterface,
+    SupportRemoteSubscriptionViaRemoteCheckoutPage,
+    ManageRemoteSubscriptionInterface,
     SupportsRemoteCatalogInterface
 {
     public const TYPE = 'stripe-subscription';
@@ -73,114 +78,20 @@ class StripeSubscriptionGateway implements
     }
 
     /**
-     * IntentGatewayInterface — checkout URL the user is redirected to.
+     * IntentGatewayInterface base method — NOT used by this gateway. Remote
+     * subscriptions are created via the provider's HOSTED checkout page
+     * (buildRemoteCheckoutUrl), never the intent-based on-site flow. Throws if a
+     * caller mistakenly routes a remote-subscription invoice through here.
      */
     public function getCheckoutUrl(PaymentIntent $intent, string $returnUrl): string
     {
-        return action('\App\Cashier\Controllers\StripeSubscriptionController@checkout', [
-            'intent_uid' => $intent->uid,
-        ]) . '?return_url=' . urlencode($returnUrl);
+        throw new \LogicException(
+            'StripeSubscriptionGateway creates subscriptions via the hosted checkout page '
+            . '(buildRemoteCheckoutUrl), not the intent-based getCheckoutUrl.'
+        );
     }
 
-    /**
-     * SupportsSubscriptionInterface — create the remote subscription. PURE.
-     */
-    public function createSubscription(PaymentIntent $intent, array $pmData): SubscriptionResult
-    {
-        if (!$intent->subscription) {
-            return SubscriptionResult::failed('PaymentIntent missing SubscriptionSpec for createSubscription()');
-        }
-
-        $customerId      = $pmData['stripe_customer'] ?? null;
-        $paymentMethodId = $pmData['stripe_payment_method'] ?? null;
-
-        if (!$customerId || !$paymentMethodId) {
-            return SubscriptionResult::failed('Missing stripe_customer or stripe_payment_method in pmData');
-        }
-
-        try {
-            // Attach PM to customer if not already
-            $pm = \Stripe\PaymentMethod::retrieve($paymentMethodId);
-            if (!$pm->customer) {
-                $pm->attach(['customer' => $customerId]);
-            }
-
-            \Stripe\Customer::update($customerId, [
-                'invoice_settings' => ['default_payment_method' => $paymentMethodId],
-            ]);
-
-            $sub = \Stripe\Subscription::create([
-                'customer'               => $customerId,
-                'items'                  => [['price' => $intent->subscription->remotePlanId]],
-                'default_payment_method' => $paymentMethodId,
-                'payment_behavior'       => 'default_incomplete',
-                'expand'                 => ['latest_invoice.payment_intent'],
-                'metadata'               => [
-                    'intent_uid'        => $intent->uid,
-                    'local_payer_uid'   => $intent->payer->uid,
-                ],
-            ]);
-
-            $cardInfo = $this->extractCardInfo($pm);
-
-            // Active or trialing immediately — happy path
-            if (in_array($sub->status, ['active', 'trialing'])) {
-                return SubscriptionResult::active(
-                    subId: $sub->id,
-                    customerId: $customerId,
-                    periodEnd: (int) $sub->current_period_end,
-                    pmData: $cardInfo,
-                );
-            }
-
-            // Incomplete because card needs 3DS
-            if ($sub->status === 'incomplete') {
-                $pi = $sub->latest_invoice->payment_intent ?? null;
-
-                if ($pi && in_array($pi->status, ['requires_action', 'requires_confirmation'])) {
-                    return SubscriptionResult::requiresAuth(
-                        subId: $sub->id,
-                        clientSecret: $pi->client_secret,
-                        pmData: $cardInfo,
-                    );
-                }
-
-                if ($pi && $pi->status === 'succeeded') {
-                    // Race: PI succeeded but sub status hasn't transitioned yet — re-fetch
-                    $sub = \Stripe\Subscription::retrieve($sub->id);
-                    if (in_array($sub->status, ['active', 'trialing'])) {
-                        return SubscriptionResult::active(
-                            subId: $sub->id,
-                            customerId: $customerId,
-                            periodEnd: (int) $sub->current_period_end,
-                            pmData: $cardInfo,
-                        );
-                    }
-                }
-            }
-
-            return SubscriptionResult::failed("Unexpected subscription status: {$sub->status}");
-        } catch (\Stripe\Exception\CardException $e) {
-            return SubscriptionResult::failed($e->getError()->message ?? $e->getMessage());
-        } catch (\Throwable $e) {
-            return SubscriptionResult::failed($e->getMessage());
-        }
-    }
-
-    private function extractCardInfo(\Stripe\PaymentMethod $pm): array
-    {
-        if ($pm->type !== 'card' || !$pm->card) {
-            return [];
-        }
-        return [
-            'card_type' => ucfirst($pm->card->brand),
-            'last_4'    => $pm->card->last4,
-            'exp_month' => (int) $pm->card->exp_month,
-            'exp_year'  => (int) $pm->card->exp_year,
-        ];
-    }
-
-    // ─── RemoteSubscriptionGatewayInterface — read/sync ───
+    // ─── ManageRemoteSubscriptionInterface — read/sync ───
 
     public function getRemotePlans(): array
     {
@@ -222,6 +133,145 @@ class StripeSubscriptionGateway implements
                 'stripe_price_id'   => $price->id,
             ],
         );
+    }
+
+    // ── SupportRemoteSubscriptionViaRemoteCheckoutPage ───────────────────────────────
+
+    /**
+     * List active Stripe ONE-TIME prices (type=one_time). Mirrors getRemotePlans()
+     * but for non-recurring prices — these are the one-off items an admin can map
+     * into a remote checkout. A separate mapper is required because a one_time price has
+     * `recurring === null` (mapPriceToPlanDto would null-deref it).
+     *
+     * @return RemoteOneTimePriceDTO[]
+     */
+    public function getRemoteOneTimePrices(): array
+    {
+        $prices = \Stripe\Price::all([
+            'active' => true,
+            'type'   => 'one_time',
+            'limit'  => 100,
+            'expand' => ['data.product'],
+        ]);
+
+        return array_map(fn ($price) => $this->mapPriceToOneTimeDto($price), $prices->data);
+    }
+
+    public function getRemoteOneTimePrice(string $remotePriceId): RemoteOneTimePriceDTO
+    {
+        $price = \Stripe\Price::retrieve([
+            'id'     => $remotePriceId,
+            'expand' => ['product'],
+        ]);
+
+        if ($price->type !== 'one_time' || $price->recurring !== null) {
+            throw new \InvalidArgumentException("Price {$remotePriceId} is not a one_time price.");
+        }
+
+        return $this->mapPriceToOneTimeDto($price);
+    }
+
+    private function mapPriceToOneTimeDto(\Stripe\Price $price): RemoteOneTimePriceDTO
+    {
+        $product = $price->product;
+
+        return new RemoteOneTimePriceDTO(
+            id:        $price->id,
+            name:      is_object($product) ? $product->name : $price->id,
+            price:     $price->unit_amount / 100,
+            currency:  strtoupper($price->currency),
+            status:    $price->active ? 'active' : 'inactive',
+            productId: is_object($product) ? $product->id : (string) $price->product,
+            metadata: [
+                'stripe_product_id' => is_object($product) ? $product->id : $price->product,
+                'stripe_price_id'   => $price->id,
+            ],
+        );
+    }
+
+    /**
+     * Build a single Stripe Checkout Session (subscription mode) that charges the
+     * one-off items up-front AND starts the (trialing) subscription — one card
+     * entry. One-time line items are billed on the session's first invoice; the
+     * trial defers only the recurring line. The actual charge happens on Stripe's
+     * hosted page; completion is detected by polling the session (or via webhook).
+     *
+     * Returns a {@see RemoteCheckoutHandle} carrying the `cs_xxx` session id so the
+     * host can poll completion without a webhook.
+     */
+    public function buildRemoteCheckoutUrl(RemoteCheckoutSpec $spec, string $returnUrl): RemoteCheckoutHandle
+    {
+        $lineItems = [['price' => $spec->recurringPriceId, 'quantity' => 1]];
+        foreach ($spec->oneTimePriceIds as $oneTimePriceId) {
+            $lineItems[] = ['price' => $oneTimePriceId, 'quantity' => 1];
+        }
+
+        $params = [
+            'mode'       => 'subscription',
+            'line_items' => $lineItems,
+            // Always collect (and store) a card, even while the recurring line is
+            // trialing at $0 — needed to charge the one-off now + auto-charge later.
+            'payment_method_collection' => 'always',
+            'success_url' => $this->appendQueryParam($returnUrl, 'session_id', '{CHECKOUT_SESSION_ID}'),
+            'cancel_url'  => $spec->cancelUrl ?: $returnUrl,
+            'metadata'    => $spec->metadata,
+            'subscription_data' => array_filter([
+                'trial_period_days' => $spec->trialDays,
+                'metadata'          => $spec->metadata ?: null,
+            ]),
+        ];
+
+        if ($spec->customerId) {
+            $params['customer'] = $spec->customerId;
+        } elseif ($spec->customerEmail) {
+            $params['customer_email'] = $spec->customerEmail;
+        }
+
+        $session = \Stripe\Checkout\Session::create($params);
+
+        return new RemoteCheckoutHandle(
+            url:       $session->url,
+            sessionId: $session->id,          // cs_xxx — the pollable handle (was discarded)
+            expiresAt: $session->expires_at,  // unix ts (~24h)
+        );
+    }
+
+    /**
+     * Read back a Checkout Session by id, expanding the subscription it created.
+     * Used by the host's webhook-independent poll to decide completion. Throws
+     * \Stripe\Exception\InvalidRequestException for an unknown/expired-deleted id.
+     */
+    public function getCheckoutSession(string $sessionId): RemoteCheckoutSessionDTO
+    {
+        $s = \Stripe\Checkout\Session::retrieve([
+            'id'     => $sessionId,
+            'expand' => ['subscription'],
+        ]);
+
+        $sub         = $s->subscription;
+        $remoteSubId = is_object($sub) ? $sub->id : (is_string($sub) ? $sub : null);
+        $periodEnd   = (is_object($sub) && isset($sub->current_period_end))
+            ? Carbon::createFromTimestamp($sub->current_period_end)
+            : null;
+
+        $customer         = $s->customer;
+        $remoteCustomerId = is_object($customer) ? $customer->id : (is_string($customer) ? $customer : null);
+
+        return new RemoteCheckoutSessionDTO(
+            id:                   $s->id,
+            status:               $s->status,         // open | complete | expired — Stripe's own vocab
+            paymentStatus:        $s->payment_status, // paid | unpaid | no_payment_required
+            remoteSubscriptionId: $remoteSubId,
+            remoteCustomerId:     $remoteCustomerId,
+            currentPeriodEnd:     $periodEnd,
+        );
+    }
+
+    /** Append a query param to a URL without clobbering an existing query string. */
+    private function appendQueryParam(string $url, string $key, string $value): string
+    {
+        $sep = str_contains($url, '?') ? '&' : '?';
+        return $url . $sep . $key . '=' . $value;
     }
 
     public function getRemoteSubscription(string $remoteSubscriptionId): RemoteSubscriptionDTO

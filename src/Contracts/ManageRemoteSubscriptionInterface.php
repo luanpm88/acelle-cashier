@@ -8,7 +8,7 @@ use App\Cashier\DTO\RemotePaymentMethodDTO;
 /**
  * Capability for gateways that manage subscriptions on a remote provider
  * (Stripe, Paddle, Braintree, 2C2P …). Read/sync side — write side is via
- * SupportsSubscriptionInterface.
+ * SupportCreateRemoteSubscription.
  *
  * This is the BY-ID / lifecycle / webhook core that EVERY remote-subscription
  * gateway supports. The catalog & enumeration methods (plan catalog, list
@@ -20,7 +20,7 @@ use App\Cashier\DTO\RemotePaymentMethodDTO;
  * catalog, no list API) implements ONLY this base. Consumers MUST `instanceof`
  * the capability interface before calling a catalog/enumeration method.
  */
-interface RemoteSubscriptionGatewayInterface
+interface ManageRemoteSubscriptionInterface
 {
     public function getRemoteSubscription(string $remoteSubscriptionId): RemoteSubscriptionDTO;
 

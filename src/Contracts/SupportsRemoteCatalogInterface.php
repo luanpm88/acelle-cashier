@@ -13,7 +13,7 @@ use App\Cashier\DTO\RemoteInvoiceDTO;
  * Braintree all work this way.
  *
  * WHY THIS IS A SEPARATE INTERFACE (not part of the base
- * {@see RemoteSubscriptionGatewayInterface}):
+ * {@see ManageRemoteSubscriptionInterface}):
  *
  *   Not every gateway has a catalog. Some create each subscription
  *   DYNAMICALLY — the recurring terms (amount, interval, count) are embedded

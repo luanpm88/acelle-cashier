@@ -3,6 +3,7 @@
 namespace App\Cashier\Contracts;
 
 use App\Cashier\DTO\PaymentIntent;
+use App\Cashier\DTO\RemoteSubscriptionDTO;
 
 /**
  * Callback interface for the main app to handle checkout lifecycle events.
@@ -49,21 +50,24 @@ interface CheckoutHandlerInterface
      */
     public function onPaymentRequiresAuth(PaymentIntent $intent, string $clientSecret, string $remoteRef): void;
 
-    /**
-     * Subscription requires 3DS challenge during creation. Lock the remote sub_xxx + client_secret.
-     */
-    public function onSubscriptionRequiresAuth(PaymentIntent $intent, string $clientSecret, string $remoteSubscriptionId): void;
+    // NOTE: onSubscriptionRequiresAuth (the on-site 3DS challenge for imperative
+    // createSubscription) was removed with Lane A — no gateway drives that path anymore.
 
     /**
-     * Remote subscription successfully active. Persist sub IDs, mark invoice paid, activate local sub.
+     * Completion callback for an INTENT-BASED redirect subscription gateway: the
+     * provider hosted its own payment page, created the recurring subscription, and
+     * reported success (via webhook, poll, or its own controller — e.g. 2C2P RPP). The
+     * app owns a local PaymentIntent for this flow and settles it here, then activates
+     * the local subscription via SubscriptionManagementService::handleRemoteSubscriptionCreated.
      *
-     * @param array $subscriptionData
-     *   - remote_subscription_id: string  (sub_xxx)
-     *   - remote_customer_id: string      (cus_xxx)
-     *   - current_period_end: int         (unix timestamp)
-     *   - payment_method_data: array      (card_type, last_4, ...)
+     * NOT the imperative on-site creation (that was removed).
+     *
+     * @param RemoteSubscriptionDTO $subscription   the created remote subscription (id, status, customer, period).
+     * @param array $autoBillingData                gateway-specific bag persisted as the local PaymentMethod's
+     *                                              autobilling_data (e.g. Stripe card display, 2C2P recurring id).
+     *                                              Opaque + heterogeneous → json-encoded wholesale, not typed.
      */
-    public function onSubscriptionCreated(PaymentIntent $intent, array $subscriptionData): void;
+    public function onSubscriptionCreated(PaymentIntent $intent, RemoteSubscriptionDTO $subscription, array $autoBillingData = []): void;
 
     /**
      * Offline-only: user clicked "Claim payment". Annotates intent metadata with

@@ -23,11 +23,6 @@ Route::group(['middleware' => ['web', 'not_installed'], 'namespace' => 'App\Cash
     Route::post('/cashier/stripe/pay/{intent_uid}', 'StripeController@pay')
         ->middleware('throttle:10,1');
     Route::get('/cashier/stripe/{intent_uid}/payment-auth', 'StripeController@paymentAuth');
-
-    // Stripe Subscription (Category B, intent-based)
-    Route::get('/cashier/stripe-subscription/checkout/{intent_uid}', 'StripeSubscriptionController@checkout');
-    Route::post('/cashier/stripe-subscription/pay/{intent_uid}', 'StripeSubscriptionController@pay')
-        ->middleware('throttle:10,1');
 });
 
 // Webhooks (no CSRF, no throttle — Stripe sends bursts)

@@ -3,7 +3,7 @@
 namespace App\Cashier\DTO;
 
 /**
- * Return value of SupportsSubscriptionInterface::createSubscription().
+ * Return value of SupportCreateRemoteSubscription::createSubscription().
  *
  * Same pattern as PaymentResult — pure, no side-effects. Controller dispatches.
  */
