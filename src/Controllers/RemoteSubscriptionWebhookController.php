@@ -155,86 +155,47 @@ class RemoteSubscriptionWebhookController extends Controller
                 return response()->json(['status' => 'remote_checkout_sub_fetch_failed'], 500); // 500 → Stripe retries
             }
 
-            $autoBillingData = [];
+            // Only the Stripe call is in the narrow catch (non-fatal); the canonical
+            // bag is built after, so a missing identifier fails loud, not silently.
+            $pm = null;
             try {
                 $pm = $service->getRemotePaymentMethod($remoteSubId);
-                if ($pm) {
-                    $autoBillingData = ['card_type' => $pm->cardType, 'last_4' => $pm->last4, 'exp' => $pm->expirationDate, 'type' => $pm->type];
-                }
             } catch (\Stripe\Exception\ApiErrorException $e) {
                 Log::warning('Remote-checkout webhook: getRemotePaymentMethod failed (non-fatal)', ['error' => $e->getMessage()]);
             }
+            $autoBillingData = $pm
+                ? ($service instanceof \App\Cashier\Contracts\BuildsAutoBillingDataInterface
+                    ? $service->buildAutoBillingData($pm)
+                    : ['card_type' => $pm->cardType, 'last_4' => $pm->last4])
+                : [];
+
+            // Billing details come straight from the event's customer_details (no session
+            // DTO on the webhook path) — same factory the poller's session DTO uses.
+            $billing = !empty($data['customer_details'])
+                ? \App\Cashier\DTO\RemoteBillingDetailsDTO::fromStripeCustomerDetails($data['customer_details'])
+                : null;
 
             app(\App\Cashier\Contracts\CheckoutHandlerInterface::class)->onSubscriptionCreated(
                 $intent->toDto(),
                 $remoteSub,
                 $autoBillingData,
+                $billing,
             );
 
             return response()->json(['status' => 'remote_checkout_completed'], 200);
         }
 
-        // FALLBACK (legacy session built before the PaymentIntent handle existed):
-        // complete via the invoice tag directly, link the remote sub + mark PAID +
-        // fulfil EVERY item. Reuses the exact path the normal remote-sub checkout uses.
-        if ($remoteSubId && !empty($meta['invoice_uid'])) {
-            $invoice = \App\Model\Invoice::where('uid', $meta['invoice_uid'])->first();
-            if (!$invoice) {
-                Log::warning('Remote-checkout checkout: invoice_uid not found', ['invoice_uid' => $meta['invoice_uid']]);
-                return response()->json(['status' => 'remote_checkout_invoice_missing'], 200);
-            }
-            // Idempotency: a Stripe webhook retry after completion must no-op (200),
-            // not throw (completeInvoice would 500 → Stripe keeps retrying).
-            if (!$invoice->isNew()) {
-                Log::info('Remote-checkout checkout: invoice already settled, skipping', ['invoice_uid' => $invoice->uid]);
-                return response()->json(['status' => 'remote_checkout_already_processed'], 200);
-            }
+        // Every checkout session we create carries a local PaymentIntent tagged with
+        // its cs_xxx (buildRemoteCheckoutUrl → remote_reference_id), so the preferred
+        // branch above is the ONLY live completion path. Reaching here means the session
+        // isn't one of ours (or its intent vanished) — surface it, but don't make Stripe
+        // retry forever (a 500 would loop).
+        Log::warning('Remote-checkout webhook: no local PaymentIntent for completed session', [
+            'session'       => $sessionId,
+            'remote_sub_id' => $remoteSubId,
+        ]);
 
-            $service = $gateway->getService();
-
-            // The webhook payload is a checkout-session (no period_end) — fetch the
-            // Stripe subscription for status + current_period_end (mandatory).
-            try {
-                $remoteSub = $service->getRemoteSubscription($remoteSubId);
-            } catch (\Stripe\Exception\ApiErrorException $e) {
-                Log::error('Remote-checkout checkout: getRemoteSubscription failed, will retry', ['error' => $e->getMessage()]);
-                return response()->json(['status' => 'remote_checkout_sub_fetch_failed'], 500); // 500 → Stripe retries
-            }
-
-            // Payment method is best-effort (nicer saved-card display); a hiccup must
-            // not block completion.
-            $autoBillingData = [];
-            try {
-                $pm = $service->getRemotePaymentMethod($remoteSubId);
-                if ($pm) {
-                    $autoBillingData = ['card_type' => $pm->cardType, 'last_4' => $pm->last4, 'exp' => $pm->expirationDate, 'type' => $pm->type];
-                }
-            } catch (\Stripe\Exception\ApiErrorException $e) {
-                Log::warning('Remote-checkout checkout: getRemotePaymentMethod failed (non-fatal)', ['error' => $e->getMessage()]);
-            }
-
-            app(\App\Services\Subscription\SubscriptionManagementService::class)->handleRemoteSubscriptionCreated(
-                $invoice,
-                $gateway->uid,
-                $remoteSub,
-                $autoBillingData,
-            );
-
-            return response()->json(['status' => 'remote_checkout_completed'], 200);
-        }
-
-        // Fallback (no invoice tagged): best-effort link of the remote sub only.
-        if ($remoteSubId && !empty($meta['subscription_uid'])) {
-            $subscription = Subscription::where('uid', $meta['subscription_uid'])->first();
-            if ($subscription && !$subscription->remote_subscription_id) {
-                $subscription->remote_subscription_id = $remoteSubId;
-                $subscription->remote_gateway_id      = $gateway->id;
-                $subscription->save();
-                Log::info("Linked remote subscription {$remoteSubId} to local {$subscription->uid}");
-            }
-        }
-
-        return response()->json(['status' => 'remote_checkout_processed'], 200);
+        return response()->json(['status' => 'no_local_intent_for_session'], 200);
     }
 
     protected function handleSubscriptionUpdated(Subscription $subscription, array $data, PaymentGateway $gateway)

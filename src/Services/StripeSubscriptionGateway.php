@@ -6,6 +6,10 @@ use App\Cashier\Contracts\IntentGatewayInterface;
 use App\Cashier\Contracts\SupportRemoteSubscriptionViaRemoteCheckoutPage;
 use App\Cashier\Contracts\ManageRemoteSubscriptionInterface;
 use App\Cashier\Contracts\SupportsRemoteCatalogInterface;
+use App\Cashier\Contracts\SupportsAutoChargeInterface;
+use App\Cashier\Contracts\BuildsAutoBillingDataInterface;
+use App\Cashier\DTO\StripeAutoBillingData;
+use App\Cashier\DTO\PaymentResult;
 use App\Cashier\DTO\BillingOrigin;
 use App\Cashier\DTO\RemoteCheckoutSpec;
 use App\Cashier\DTO\RemoteCheckoutHandle;
@@ -16,6 +20,7 @@ use App\Cashier\DTO\RemotePlanDTO;
 use App\Cashier\DTO\RemoteOneTimePriceDTO;
 use App\Cashier\DTO\RemoteSubscriptionDTO;
 use App\Cashier\DTO\RemotePaymentMethodDTO;
+use App\Cashier\DTO\RemoteBillingDetailsDTO;
 use Carbon\Carbon;
 
 /**
@@ -35,7 +40,9 @@ class StripeSubscriptionGateway implements
     IntentGatewayInterface,
     SupportRemoteSubscriptionViaRemoteCheckoutPage,
     ManageRemoteSubscriptionInterface,
-    SupportsRemoteCatalogInterface
+    SupportsRemoteCatalogInterface,
+    SupportsAutoChargeInterface,
+    BuildsAutoBillingDataInterface
 {
     public const TYPE = 'stripe-subscription';
 
@@ -212,6 +219,10 @@ class StripeSubscriptionGateway implements
             // Always collect (and store) a card, even while the recurring line is
             // trialing at $0 — needed to charge the one-off now + auto-charge later.
             'payment_method_collection' => 'always',
+            // Collect the buyer's full billing address on the hosted page so we can
+            // backfill the local invoice at completion. Without this (default 'auto')
+            // Stripe returns only country in customer_details — street/city/postal null.
+            'billing_address_collection' => 'required',
             'success_url' => $this->appendQueryParam($returnUrl, 'session_id', '{CHECKOUT_SESSION_ID}'),
             'cancel_url'  => $spec->cancelUrl ?: $returnUrl,
             'metadata'    => $spec->metadata,
@@ -257,6 +268,10 @@ class StripeSubscriptionGateway implements
         $customer         = $s->customer;
         $remoteCustomerId = is_object($customer) ? $customer->id : (is_string($customer) ? $customer : null);
 
+        $billing = $s->customer_details
+            ? RemoteBillingDetailsDTO::fromStripeCustomerDetails($s->customer_details)
+            : null;
+
         return new RemoteCheckoutSessionDTO(
             id:                   $s->id,
             status:               $s->status,         // open | complete | expired — Stripe's own vocab
@@ -264,6 +279,7 @@ class StripeSubscriptionGateway implements
             remoteSubscriptionId: $remoteSubId,
             remoteCustomerId:     $remoteCustomerId,
             currentPeriodEnd:     $periodEnd,
+            billingDetails:       $billing,
         );
     }
 
@@ -350,22 +366,35 @@ class StripeSubscriptionGateway implements
 
         $pm = \Stripe\PaymentMethod::retrieve($paymentMethodId);
 
+        // Both ids are reusable identifiers: the pm_… (already resolved above) and
+        // the cus_… off the subscription. Carry them so the saved card can be
+        // charged off-session later, not just displayed. $sub->customer is an id
+        // string here (the retrieve at the top is not expanded), but normalise an
+        // expanded object defensively, same as mapSubscriptionToDto().
+        $customerId = is_object($sub->customer) ? ($sub->customer->id ?? null) : $sub->customer;
+
         if ($pm->type === 'card' && $pm->card) {
             return new RemotePaymentMethodDTO(
-                cardType:       ucfirst($pm->card->brand),
-                last4:          $pm->card->last4,
-                expirationDate: $pm->card->exp_month . '/' . $pm->card->exp_year,
-                email:          null,
-                type:           'card',
+                cardType:              ucfirst($pm->card->brand),
+                last4:                 $pm->card->last4,
+                expirationDate:        $pm->card->exp_month . '/' . $pm->card->exp_year,
+                email:                 null,
+                type:                  'card',
+                remotePaymentMethodId: $paymentMethodId,
+                remoteCustomerId:      $customerId,
+                expMonth:              (int) $pm->card->exp_month,
+                expYear:               (int) $pm->card->exp_year,
             );
         }
 
         return new RemotePaymentMethodDTO(
-            cardType:       null,
-            last4:          null,
-            expirationDate: null,
-            email:          null,
-            type:           $pm->type,
+            cardType:              null,
+            last4:                 null,
+            expirationDate:        null,
+            email:                 null,
+            type:                  $pm->type,
+            remotePaymentMethodId: $paymentMethodId,
+            remoteCustomerId:      $customerId,
         );
     }
 
@@ -386,6 +415,40 @@ class StripeSubscriptionGateway implements
     public function extractRemotePaymentMethodId(array $autobillingData): ?string
     {
         return $autobillingData['stripe_payment_method'] ?? null;
+    }
+
+    /**
+     * BuildsAutoBillingDataInterface — map the card read back from the hosted
+     * checkout into the SAME canonical bag the local Stripe path persists, so a
+     * sub-checkout card is stored identically and is reusable as a saved method.
+     * Routes through StripeAutoBillingData (the same validating DTO the on-site
+     * path uses) — it throws if the two ids are absent, so a degraded display-only
+     * bag can never silently slip through.
+     */
+    public function buildAutoBillingData(RemotePaymentMethodDTO $pm): array
+    {
+        return (new StripeAutoBillingData([
+            'stripe_payment_method' => $pm->remotePaymentMethodId,
+            'stripe_customer'       => $pm->remoteCustomerId,
+            'card_type'             => $pm->cardType ?? '',
+            'last_4'                => $pm->last4 ?? '',
+            'exp_month'             => $pm->expMonth ?? 0,
+            'exp_year'              => $pm->expYear ?? 0,
+        ]))->toArray();
+    }
+
+    /**
+     * SupportsAutoChargeInterface — off-session charge of a card captured during
+     * hosted subscription checkout, used when the customer reuses it for a one-off
+     * invoice. The pm_…/cus_… ids stored in autobilling_data belong to the same
+     * Stripe account as the on-site gateway, so the charge mechanics are identical
+     * — delegate to StripePaymentGateway rather than duplicate the off_session
+     * PaymentIntent + SCA handling. PURE: no DB writes, no handler callbacks.
+     */
+    public function autoCharge(PaymentIntent $intent, array $paymentMethodData): PaymentResult
+    {
+        return (new StripePaymentGateway($this->publishableKey, $this->secretKey))
+            ->autoCharge($intent, $paymentMethodData);
     }
 
     public function updateRemoteSubscriptionPlan(

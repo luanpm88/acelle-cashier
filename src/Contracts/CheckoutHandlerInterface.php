@@ -4,6 +4,7 @@ namespace App\Cashier\Contracts;
 
 use App\Cashier\DTO\PaymentIntent;
 use App\Cashier\DTO\RemoteSubscriptionDTO;
+use App\Cashier\DTO\RemoteBillingDetailsDTO;
 
 /**
  * Callback interface for the main app to handle checkout lifecycle events.
@@ -67,7 +68,7 @@ interface CheckoutHandlerInterface
      *                                              autobilling_data (e.g. Stripe card display, 2C2P recurring id).
      *                                              Opaque + heterogeneous → json-encoded wholesale, not typed.
      */
-    public function onSubscriptionCreated(PaymentIntent $intent, RemoteSubscriptionDTO $subscription, array $autoBillingData = []): void;
+    public function onSubscriptionCreated(PaymentIntent $intent, RemoteSubscriptionDTO $subscription, array $autoBillingData = [], ?RemoteBillingDetailsDTO $billing = null): void;
 
     /**
      * Offline-only: user clicked "Claim payment". Annotates intent metadata with

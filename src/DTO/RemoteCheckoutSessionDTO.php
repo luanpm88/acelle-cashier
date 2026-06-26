@@ -35,6 +35,10 @@ class RemoteCheckoutSessionDTO
         public readonly ?string $remoteSubscriptionId,    // sub_xxx once created, else null
         public readonly ?string $remoteCustomerId,        // cus_xxx
         public readonly ?Carbon $currentPeriodEnd = null,
+        // Buyer billing details the provider collected on its hosted page — carried so
+        // the host can backfill the local invoice at completion (poll path). The webhook
+        // path builds the same DTO straight from the event's customer_details.
+        public readonly ?RemoteBillingDetailsDTO $billingDetails = null,
     ) {
         if (!in_array($status, [self::STATUS_OPEN, self::STATUS_COMPLETE, self::STATUS_EXPIRED], true)) {
             throw new \InvalidArgumentException("RemoteCheckoutSessionDTO: unknown session status '{$status}'.");
