@@ -6,6 +6,7 @@ use App\Cashier\DTO\RemoteCheckoutSpec;
 use App\Cashier\DTO\RemoteCheckoutHandle;
 use App\Cashier\DTO\RemoteCheckoutSessionDTO;
 use App\Cashier\DTO\RemoteOneTimePriceDTO;
+use App\Cashier\DTO\RemotePaymentMethodDTO;
 
 /**
  * APPROACH to creating a remote subscription: **delegate to the provider's HOSTED
@@ -56,4 +57,15 @@ interface SupportRemoteSubscriptionViaRemoteCheckoutPage
      * Pure: no DB writes. Throws the provider's not-found exception for an unknown id.
      */
     public function getCheckoutSession(string $sessionId): RemoteCheckoutSessionDTO;
+
+    /**
+     * Map the card read back from the completed hosted checkout (via
+     * {@see \App\Cashier\Contracts\ManageRemoteSubscriptionInterface::getRemotePaymentMethod})
+     * into THIS gateway's canonical autobilling_data bag — the same shape its on-site
+     * path persists, so a hosted-checkout card is stored identically and is reusable as
+     * a saved payment method. Each driver owns its own key shape; the host stays
+     * gateway-agnostic. Throws if the DTO lacks the load-bearing identifiers — callers
+     * only invoke this when a payment method was actually resolved.
+     */
+    public function buildAutoBillingData(RemotePaymentMethodDTO $pm): array;
 }

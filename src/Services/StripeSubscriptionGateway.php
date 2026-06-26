@@ -7,7 +7,6 @@ use App\Cashier\Contracts\SupportRemoteSubscriptionViaRemoteCheckoutPage;
 use App\Cashier\Contracts\ManageRemoteSubscriptionInterface;
 use App\Cashier\Contracts\SupportsRemoteCatalogInterface;
 use App\Cashier\Contracts\SupportsAutoChargeInterface;
-use App\Cashier\Contracts\BuildsAutoBillingDataInterface;
 use App\Cashier\DTO\StripeAutoBillingData;
 use App\Cashier\DTO\PaymentResult;
 use App\Cashier\DTO\BillingOrigin;
@@ -41,8 +40,7 @@ class StripeSubscriptionGateway implements
     SupportRemoteSubscriptionViaRemoteCheckoutPage,
     ManageRemoteSubscriptionInterface,
     SupportsRemoteCatalogInterface,
-    SupportsAutoChargeInterface,
-    BuildsAutoBillingDataInterface
+    SupportsAutoChargeInterface
 {
     public const TYPE = 'stripe-subscription';
 
@@ -418,8 +416,8 @@ class StripeSubscriptionGateway implements
     }
 
     /**
-     * BuildsAutoBillingDataInterface — map the card read back from the hosted
-     * checkout into the SAME canonical bag the local Stripe path persists, so a
+     * SupportRemoteSubscriptionViaRemoteCheckoutPage — map the card read back from the
+     * hosted checkout into the SAME canonical bag the local Stripe path persists, so a
      * sub-checkout card is stored identically and is reusable as a saved method.
      * Routes through StripeAutoBillingData (the same validating DTO the on-site
      * path uses) — it throws if the two ids are absent, so a degraded display-only

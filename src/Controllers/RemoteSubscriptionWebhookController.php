@@ -163,11 +163,9 @@ class RemoteSubscriptionWebhookController extends Controller
             } catch (\Stripe\Exception\ApiErrorException $e) {
                 Log::warning('Remote-checkout webhook: getRemotePaymentMethod failed (non-fatal)', ['error' => $e->getMessage()]);
             }
-            $autoBillingData = $pm
-                ? ($service instanceof \App\Cashier\Contracts\BuildsAutoBillingDataInterface
-                    ? $service->buildAutoBillingData($pm)
-                    : ['card_type' => $pm->cardType, 'last_4' => $pm->last4])
-                : [];
+            // $service is the stripe-subscription gateway (resolved by type), which
+            // implements SupportRemoteSubscriptionViaRemoteCheckoutPage → builder always present.
+            $autoBillingData = $pm ? $service->buildAutoBillingData($pm) : [];
 
             // Billing details come straight from the event's customer_details (no session
             // DTO on the webhook path) — same factory the poller's session DTO uses.
