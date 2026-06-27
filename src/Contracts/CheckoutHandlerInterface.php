@@ -30,19 +30,19 @@ interface CheckoutHandlerInterface
      * Persist the captured card (a typed PaymentMethodDTO) for future auto-billing. The
      * gateway sets PaymentMethodDTO.autoCharge to flag whether it's off-session chargeable.
      */
-    public function createPaymentMethod(PaymentIntent $intent, PaymentMethodDTO $card): PaymentMethodInfoInterface;
+    public function createPaymentMethod(PaymentIntent $intent, PaymentMethodDTO $card): void;
 
     /**
      * Charge succeeded. Mark intent + invoice paid; activate any pending subscription.
      *
      * @param string $remoteRef  Stripe pi_xxx — server-stored, never trust client-supplied later.
      */
-    public function onPaymentSuccess(PaymentIntent $intent, PaymentMethodInfoInterface $pm, string $remoteRef): void;
+    public function onPaymentSuccess(PaymentIntent $intent, string $remoteRef): void;
 
     /**
      * Charge attempt failed (card decline, etc.). Mark intent failed; main app may notify user.
      */
-    public function onPaymentFailed(PaymentIntent $intent, PaymentMethodInfoInterface $pm, string $reason): void;
+    public function onPaymentFailed(PaymentIntent $intent, string $reason): void;
 
     /**
      * Card requires 3DS challenge. Lock the remote PaymentIntent ID into the intent row

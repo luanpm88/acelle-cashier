@@ -106,11 +106,11 @@ class StripeController extends Controller
                 autoCharge:            true,
             );
 
-            $pmInfo = $handler->createPaymentMethod($intent, $card);
+            $handler->createPaymentMethod($intent, $card);
 
             $result = $service->autoCharge($intent, $card);
 
-            return $this->dispatchResult($result, $intent, $pmInfo, $handler, $returnUrl);
+            return $this->dispatchResult($result, $intent, $handler, $returnUrl);
         } catch (\Throwable $e) {
             return response()->json(['message' => $e->getMessage()], 400);
         }
@@ -139,13 +139,12 @@ class StripeController extends Controller
     private function dispatchResult(
         PaymentResult $result,
         PaymentIntent $intent,
-        $pmInfo,
         CheckoutHandlerInterface $handler,
         string $returnUrl
     ) {
         switch ($result->status) {
             case PaymentResult::STATUS_SUCCESS:
-                $handler->onPaymentSuccess($intent, $pmInfo, $result->remoteReferenceId);
+                $handler->onPaymentSuccess($intent, $result->remoteReferenceId);
                 return response()->json(['return_url' => $returnUrl]);
 
             case PaymentResult::STATUS_REQUIRES_ACTION:
@@ -157,7 +156,7 @@ class StripeController extends Controller
 
             case PaymentResult::STATUS_FAILED:
             default:
-                $handler->onPaymentFailed($intent, $pmInfo, $result->error ?? 'Charge failed');
+                $handler->onPaymentFailed($intent, $result->error ?? 'Charge failed');
                 return response()->json(['error' => $result->error ?? 'Charge failed'], 422);
         }
     }
