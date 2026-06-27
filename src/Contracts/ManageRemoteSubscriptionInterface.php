@@ -3,7 +3,7 @@
 namespace App\Cashier\Contracts;
 
 use App\Cashier\DTO\RemoteSubscriptionDTO;
-use App\Cashier\DTO\RemotePaymentMethodDTO;
+use App\Cashier\DTO\PaymentMethodDTO;
 
 /**
  * Capability for gateways that manage subscriptions on a remote provider
@@ -27,20 +27,6 @@ interface ManageRemoteSubscriptionInterface
     public function cancelRemoteSubscription(string $remoteSubscriptionId): void;
 
     /**
-     * Extract the vendor's payment-method id from a local PaymentMethod's
-     * `autobilling_data` JSON. Different gateways use different key names
-     * (Stripe: `stripe_payment_method`, Paddle: `paddle_payment_method_id`,
-     * etc.) — having the driver own the key avoids hardcoded fallback chains
-     * in core code.
-     *
-     * Returns null if the gateway doesn't track per-customer payment methods
-     * locally (e.g. Paddle hosted-checkout where vendor owns the card vault).
-     * Used by the admin invoice-mapping view to reverse-lookup local PM rows
-     * from vendor invoice's payment_method_id.
-     */
-    public function extractRemotePaymentMethodId(array $autobillingData): ?string;
-
-    /**
      * Undo a soft-cancellation: tell the vendor to resume billing past the
      * current period end. Symmetric counterpart of cancelRemoteSubscription().
      *
@@ -53,7 +39,7 @@ interface ManageRemoteSubscriptionInterface
      */
     public function resumeRemoteSubscription(string $remoteSubscriptionId): void;
 
-    public function getRemotePaymentMethod(string $remoteSubscriptionId): ?RemotePaymentMethodDTO;
+    public function getRemotePaymentMethod(string $remoteSubscriptionId): ?PaymentMethodDTO;
 
     public function getWebhookSecret(): ?string;
 

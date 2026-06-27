@@ -49,6 +49,28 @@ class RemoteBillingDetailsDTO
     }
 
     /**
+     * Build from a Stripe Invoice object, whose billing snapshot is flat:
+     * customer_name / customer_email / customer_phone at the top level and the address
+     * under customer_address. (Distinct from a Checkout Session's nested customer_details.)
+     */
+    public static function fromStripeInvoice($inv): self
+    {
+        $addr = $inv->customer_address ?? [];
+
+        return new self(
+            name:       $inv->customer_name ?? null,
+            email:      $inv->customer_email ?? null,
+            phone:      $inv->customer_phone ?? null,
+            line1:      $addr['line1'] ?? null,
+            line2:      $addr['line2'] ?? null,
+            city:       $addr['city'] ?? null,
+            state:      $addr['state'] ?? null,
+            postalCode: $addr['postal_code'] ?? null,
+            country:    $addr['country'] ?? null,
+        );
+    }
+
+    /**
      * The whole address as one string (every non-empty part, incl. country) — the
      * provider gives structured fields but the local invoice has a single address
      * column and no country FK to resolve, so we don't split/parse: just join it all.

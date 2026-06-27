@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Cashier\DTO\PaymentIntent;
 use App\Cashier\DTO\PaymentResult;
-use App\Cashier\DTO\StripeAutoBillingData;
+use App\Cashier\DTO\PaymentMethodDTO;
 use App\Cashier\Services\StripePaymentGateway;
 use App\Cashier\Contracts\CheckoutHandlerInterface;
 use App\Cashier\Contracts\PaymentGatewayResolverInterface;
@@ -29,6 +29,7 @@ class StripeController extends Controller
 {
     protected function findIntent(string $uid): ?PaymentIntent
     {
+        // return App\Cashier\DTO\PaymentIntent (DTO, not DB record)
         return app(CheckoutHandlerInterface::class)->findIntent($uid);
     }
 
@@ -93,18 +94,21 @@ class StripeController extends Controller
             $stripeCustomer = $service->getStripeCustomer($intent->payer->uid);
             $pm = $service->getPaymentMethod($request->stripe_payment_method);
 
-            $billingData = new StripeAutoBillingData([
-                'stripe_payment_method' => $request->stripe_payment_method,
-                'stripe_customer'       => $stripeCustomer->id,
-                'card_type'             => ucfirst($pm->card->brand),
-                'last_4'                => $pm->card->last4,
-                'exp_month'             => $pm->card->exp_month,
-                'exp_year'              => $pm->card->exp_year,
-            ]);
+            $card = new PaymentMethodDTO(
+                cardType:              ucfirst($pm->card->brand),
+                last4:                 $pm->card->last4,
+                expirationDate:        $pm->card->exp_month . '/' . $pm->card->exp_year,
+                email:                 null,
+                remotePaymentMethodId: $request->stripe_payment_method,
+                remoteCustomerId:      $stripeCustomer->id,
+                expMonth:              (int) $pm->card->exp_month,
+                expYear:               (int) $pm->card->exp_year,
+                autoCharge:            true,
+            );
 
-            $pmInfo = $handler->createPaymentMethod($intent, $billingData->toArray());
+            $pmInfo = $handler->createPaymentMethod($intent, $card);
 
-            $result = $service->autoCharge($intent, $billingData->toArray());
+            $result = $service->autoCharge($intent, $card);
 
             return $this->dispatchResult($result, $intent, $pmInfo, $handler, $returnUrl);
         } catch (\Throwable $e) {

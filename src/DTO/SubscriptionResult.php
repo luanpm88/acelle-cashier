@@ -20,28 +20,28 @@ class SubscriptionResult
         public readonly ?int $currentPeriodEnd = null,        // unix timestamp
         public readonly ?string $clientSecret = null,
         public readonly ?string $error = null,
-        public readonly array $paymentMethodData = [],         // card_type, last_4, ...
+        public readonly ?PaymentMethodDTO $card = null,        // the captured card to persist
         public readonly array $metadata = [],
     ) {}
 
-    public static function active(string $subId, string $customerId, int $periodEnd, array $pmData = []): self
+    public static function active(string $subId, string $customerId, int $periodEnd, ?PaymentMethodDTO $card = null): self
     {
         return new self(
             status: self::STATUS_ACTIVE,
             remoteSubscriptionId: $subId,
             remoteCustomerId: $customerId,
             currentPeriodEnd: $periodEnd,
-            paymentMethodData: $pmData,
+            card: $card,
         );
     }
 
-    public static function requiresAuth(string $subId, string $clientSecret, array $pmData = []): self
+    public static function requiresAuth(string $subId, string $clientSecret, ?PaymentMethodDTO $card = null): self
     {
         return new self(
             status: self::STATUS_REQUIRES_ACTION,
             remoteSubscriptionId: $subId,
             clientSecret: $clientSecret,
-            paymentMethodData: $pmData,
+            card: $card,
         );
     }
 

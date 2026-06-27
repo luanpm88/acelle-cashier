@@ -5,8 +5,6 @@ namespace App\Cashier\Contracts;
 use App\Cashier\DTO\RemoteCheckoutSpec;
 use App\Cashier\DTO\RemoteCheckoutHandle;
 use App\Cashier\DTO\RemoteCheckoutSessionDTO;
-use App\Cashier\DTO\RemoteOneTimePriceDTO;
-use App\Cashier\DTO\RemotePaymentMethodDTO;
 
 /**
  * APPROACH to creating a remote subscription: **delegate to the provider's HOSTED
@@ -17,25 +15,20 @@ use App\Cashier\DTO\RemotePaymentMethodDTO;
  * This is ORTHOGONAL to {@see SupportCreateRemoteSubscription} (the imperative
  * approach where the APP itself calls `createSubscription`). A gateway picks the
  * approach it offers — neither extends the other. One-off add-ons in the same
- * hosted checkout are a DEFAULT part of this approach (no separate capability).
+ * hosted checkout are a DEFAULT part of this approach: the spec's oneTimePriceIds
+ * are charged up-front. WHERE those ids come from (a remote price catalog vs local
+ * data) is a SEPARATE concern — see {@see SupportsRemoteOneTimePriceCatalogInterface}.
  *
  * OPTIONAL capability — consumers MUST `instanceof` this before using the hosted
- * checkout. The recurring catalog lives on {@see SupportsRemoteCatalogInterface};
- * the ONE-TIME price catalog (for the add-ons) is surfaced here.
+ * checkout. This interface is purely the hosted-checkout MECHANISM (build URL +
+ * poll session). The recurring plan catalog lives on
+ * {@see SupportsRemoteCatalogInterface}; the ONE-TIME price catalog on
+ * {@see SupportsRemoteOneTimePriceCatalogInterface}; charging the saved card the buyer
+ * entered is {@see SupportsAutoChargeInterface}'s job — each is a separate,
+ * independently-`instanceof`'d capability.
  */
 interface SupportRemoteSubscriptionViaRemoteCheckoutPage
 {
-    // ── One-time price catalog (add-ons charged in the hosted checkout) ──────
-
-    /**
-     * List the provider's available ONE-TIME (non-recurring) prices.
-     * @return RemoteOneTimePriceDTO[]
-     */
-    public function getRemoteOneTimePrices(): array;
-
-    /** Fetch a single one-time price by its remote id. */
-    public function getRemoteOneTimePrice(string $remotePriceId): RemoteOneTimePriceDTO;
-
     // ── Hosted checkout ─────────────────────────────────────────────────────
 
     /**
@@ -57,15 +50,4 @@ interface SupportRemoteSubscriptionViaRemoteCheckoutPage
      * Pure: no DB writes. Throws the provider's not-found exception for an unknown id.
      */
     public function getCheckoutSession(string $sessionId): RemoteCheckoutSessionDTO;
-
-    /**
-     * Map the card read back from the completed hosted checkout (via
-     * {@see \App\Cashier\Contracts\ManageRemoteSubscriptionInterface::getRemotePaymentMethod})
-     * into THIS gateway's canonical autobilling_data bag — the same shape its on-site
-     * path persists, so a hosted-checkout card is stored identically and is reusable as
-     * a saved payment method. Each driver owns its own key shape; the host stays
-     * gateway-agnostic. Throws if the DTO lacks the load-bearing identifiers — callers
-     * only invoke this when a payment method was actually resolved.
-     */
-    public function buildAutoBillingData(RemotePaymentMethodDTO $pm): array;
 }

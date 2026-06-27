@@ -3,6 +3,7 @@
 namespace App\Cashier\Contracts;
 
 use App\Cashier\DTO\PaymentIntent;
+use App\Cashier\DTO\PaymentMethodDTO;
 use App\Cashier\DTO\RemoteSubscriptionDTO;
 use App\Cashier\DTO\RemoteBillingDetailsDTO;
 
@@ -26,9 +27,10 @@ interface CheckoutHandlerInterface
     public function findIntent(string $intentUid): ?PaymentIntent;
 
     /**
-     * Persist the payment method (card info) returned by gateway, for future auto-billing.
+     * Persist the captured card (a typed PaymentMethodDTO) for future auto-billing. The
+     * gateway sets PaymentMethodDTO.autoCharge to flag whether it's off-session chargeable.
      */
-    public function createPaymentMethod(PaymentIntent $intent, array $autoBillingData): PaymentMethodInfoInterface;
+    public function createPaymentMethod(PaymentIntent $intent, PaymentMethodDTO $card): PaymentMethodInfoInterface;
 
     /**
      * Charge succeeded. Mark intent + invoice paid; activate any pending subscription.
@@ -64,11 +66,9 @@ interface CheckoutHandlerInterface
      * NOT the imperative on-site creation (that was removed).
      *
      * @param RemoteSubscriptionDTO $subscription   the created remote subscription (id, status, customer, period).
-     * @param array $autoBillingData                gateway-specific bag persisted as the local PaymentMethod's
-     *                                              autobilling_data (e.g. Stripe card display, 2C2P recurring id).
-     *                                              Opaque + heterogeneous → json-encoded wholesale, not typed.
+     * @param ?PaymentMethodDTO     $card           the captured card to persist (null if the vendor owns the vault).
      */
-    public function onSubscriptionCreated(PaymentIntent $intent, RemoteSubscriptionDTO $subscription, array $autoBillingData = [], ?RemoteBillingDetailsDTO $billing = null): void;
+    public function onSubscriptionCreated(PaymentIntent $intent, RemoteSubscriptionDTO $subscription, ?PaymentMethodDTO $card = null, ?RemoteBillingDetailsDTO $billing = null): void;
 
     /**
      * Offline-only: user clicked "Claim payment". Annotates intent metadata with

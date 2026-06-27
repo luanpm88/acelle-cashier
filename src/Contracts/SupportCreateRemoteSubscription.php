@@ -3,6 +3,7 @@
 namespace App\Cashier\Contracts;
 
 use App\Cashier\DTO\PaymentIntent;
+use App\Cashier\DTO\PaymentMethodDTO;
 use App\Cashier\DTO\SubscriptionResult;
 
 /**
@@ -21,5 +22,5 @@ interface SupportCreateRemoteSubscription
     /**
      * Create the remote subscription. Pure function — no side-effects.
      */
-    public function createSubscription(PaymentIntent $intent, array $paymentMethodData): SubscriptionResult;
+    public function createSubscription(PaymentIntent $intent, PaymentMethodDTO $card): SubscriptionResult;
 }

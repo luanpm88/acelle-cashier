@@ -54,17 +54,4 @@ class OfflinePaymentGateway implements IntentGatewayInterface
             ?: trans('cashier::messages.offline.payment_instruction.default');
     }
 
-    /**
-     * Display helpers used by main app to render the payment_methods list.
-     * Not part of any interface — main app calls via getService() at view render time.
-     */
-    public function getMethodTitle(array $billingData): string
-    {
-        return trans('cashier::messages.offline');
-    }
-
-    public function getMethodInfo(array $billingData): string
-    {
-        return trans('cashier::messages.offline.description');
-    }
 }

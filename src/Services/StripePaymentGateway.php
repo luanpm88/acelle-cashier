@@ -6,6 +6,7 @@ use App\Cashier\Contracts\IntentGatewayInterface;
 use App\Cashier\Contracts\SupportsAutoChargeInterface;
 use App\Cashier\DTO\PaymentIntent;
 use App\Cashier\DTO\PaymentResult;
+use App\Cashier\DTO\PaymentMethodDTO;
 
 /**
  * Stripe one-off payment gateway.
@@ -73,11 +74,9 @@ class StripePaymentGateway implements IntentGatewayInterface, SupportsAutoCharge
     }
 
     /**
-     * SupportsAutoChargeInterface — attempt off-session charge. PURE.
-     *
-     * @param array $pmData StripeAutoBillingData::toArray() — must contain stripe_customer + stripe_payment_method
+     * SupportsAutoChargeInterface — attempt off-session charge of a saved card. PURE.
      */
-    public function autoCharge(PaymentIntent $intent, array $pmData): PaymentResult
+    public function autoCharge(PaymentIntent $intent, PaymentMethodDTO $pm): PaymentResult
     {
         // Free invoice: skip Stripe call. Caller dispatches success.
         if ($intent->amount <= 0) {
@@ -88,8 +87,8 @@ class StripePaymentGateway implements IntentGatewayInterface, SupportsAutoCharge
             $pi = \Stripe\PaymentIntent::create([
                 'amount'         => $this->convertPrice($intent->amount, $intent->currency),
                 'currency'       => strtolower($intent->currency),
-                'customer'       => $pmData['stripe_customer'] ?? null,
-                'payment_method' => $pmData['stripe_payment_method'] ?? null,
+                'customer'       => $pm->remoteCustomerId,
+                'payment_method' => $pm->remotePaymentMethodId,
                 'off_session'    => true,
                 'confirm'        => true,
                 'description'    => $intent->description,
@@ -223,20 +222,6 @@ class StripePaymentGateway implements IntentGatewayInterface, SupportsAutoCharge
     public function getMinimumChargeAmount($currency)
     {
         return 0;
-    }
-
-    /**
-     * Display helpers used by main app to render payment_methods table.
-     * Kept as concrete methods (no interface) — main app calls via getService().
-     */
-    public function getMethodTitle(array $billingData): string
-    {
-        return $billingData['card_type'] ?? 'Unknown';
-    }
-
-    public function getMethodInfo(array $billingData): string
-    {
-        return "*** *** *** " . ($billingData['last_4'] ?? 'Unknown');
     }
 
     public function supportsAutoBilling(): bool

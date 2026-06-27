@@ -39,6 +39,11 @@ class RemoteInvoiceDTO
         public readonly ?string $paymentMethodRemoteId = null,   // pm_xxx (Stripe) / paddle card id
         public readonly ?string $paymentMethodBrand = null,      // 'Visa' | 'Mastercard' | ...
         public readonly ?string $paymentMethodLast4 = null,      // '3155'
+        // Buyer billing snapshot the vendor stamped onto THIS invoice (Stripe:
+        // customer_name/email/phone/customer_address). Vendor is source-of-truth for a
+        // renewal it billed, so the local renewal invoice is filled from here rather than
+        // the customer's default billing address. Null for vendors that don't surface it.
+        public readonly ?RemoteBillingDetailsDTO $billingDetails = null,
     ) {}
 
     public function isPaid(): bool
