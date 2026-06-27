@@ -14,10 +14,14 @@ use App\Cashier\DTO\RemoteCheckoutSessionDTO;
  *
  * This is ORTHOGONAL to {@see SupportCreateRemoteSubscription} (the imperative
  * approach where the APP itself calls `createSubscription`). A gateway picks the
- * approach it offers — neither extends the other. One-off add-ons in the same
- * hosted checkout are a DEFAULT part of this approach: the spec's oneTimePriceIds
- * are charged up-front. WHERE those ids come from (a remote price catalog vs local
- * data) is a SEPARATE concern — see {@see SupportsRemoteOneTimePriceCatalogInterface}.
+ * approach it offers — neither extends the other. This interface is PURELY the
+ * hosted-checkout MECHANISM (build a redirect URL + poll a session); it does NOT imply
+ * bundling. Charging one-off add-ons alongside the subscription in the same checkout is a
+ * SEPARATE capability — {@see SupportsBundledItems} — that a hosted-checkout gateway may or
+ * may not have. Only a bundling gateway has the host populate the spec's oneTimePriceIds /
+ * upfrontAmount; a non-bundling one runs a pure-subscription checkout with no one-offs.
+ * WHERE the one-off prices come from (a remote catalog vs local amounts) is yet another
+ * concern — see {@see SupportsRemoteOneTimePriceCatalogInterface}.
  *
  * OPTIONAL capability — consumers MUST `instanceof` this before using the hosted
  * checkout. This interface is purely the hosted-checkout MECHANISM (build URL +

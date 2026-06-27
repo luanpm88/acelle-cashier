@@ -4,6 +4,7 @@ namespace App\Cashier\Services;
 
 use App\Cashier\Contracts\IntentGatewayInterface;
 use App\Cashier\Contracts\SupportRemoteSubscriptionViaRemoteCheckoutPage;
+use App\Cashier\Contracts\SupportsBundledItems;
 use App\Cashier\Contracts\SupportsRemoteOneTimePriceCatalogInterface;
 use App\Cashier\Contracts\ManageRemoteSubscriptionInterface;
 use App\Cashier\Contracts\SupportsRemoteCatalogInterface;
@@ -40,6 +41,7 @@ use Carbon\Carbon;
 class StripeSubscriptionGateway implements
     IntentGatewayInterface,
     SupportRemoteSubscriptionViaRemoteCheckoutPage,
+    SupportsBundledItems,
     SupportsRemoteOneTimePriceCatalogInterface,
     ManageRemoteSubscriptionInterface,
     SupportsRemoteCatalogInterface,
