@@ -171,44 +171,26 @@ class RemoteSubscriptionWebhookController extends Controller
             : null;
 
         if ($remoteSubId && $intent) {
-            // Idempotency (poller/webhook race): if already settled, no-op 200 — never
-            // throw (a 500 would make Stripe retry forever).
-            if (!$intent->isPending() || !$intent->invoice || !$intent->invoice->isNew()) {
-                Log::info('Remote-checkout webhook: intent already settled, skipping', ['intent' => $intent->uid]);
-                return response()->json(['status' => 'remote_checkout_already_processed'], 200);
-            }
-
-            $service = $gateway->getService();
+            // Converge on the SAME locked, atomic, idempotent completion the proactive poller
+            // uses: checkRemoteCheckoutIntent locks the intent (lockForUpdate) + re-checks
+            // isPending UNDER the lock + runs completeCheckoutIntent → the shared
+            // onSubscriptionCreated. This SERIALIZES webhook vs poll vs browser-return (no
+            // duplicate PaymentMethod, no double-complete) and makes the whole completion atomic.
+            // The webhook is just the fast trigger; the poller is the durable mechanism. Never
+            // throw a fatal out un-caught (a 500 makes Stripe retry forever) — but a transient
+            // failure SHOULD 500 so Stripe retries.
             try {
-                $remoteSub = $service->getRemoteSubscription($remoteSubId);
-            } catch (\Stripe\Exception\ApiErrorException $e) {
-                Log::error('Remote-checkout webhook: getRemoteSubscription failed, will retry', ['error' => $e->getMessage()]);
-                return response()->json(['status' => 'remote_checkout_sub_fetch_failed'], 500); // 500 → Stripe retries
+                $outcome = app(\App\Services\Subscription\SubscriptionManagementService::class)
+                    ->checkRemoteCheckoutIntent($intent);
+
+                return response()->json(['status' => "remote_checkout_{$outcome}"], 200);
+            } catch (\Throwable $e) {
+                Log::error('Remote-checkout webhook: completion failed, Stripe will retry', [
+                    'intent' => $intent->uid,
+                    'error'  => $e->getMessage(),
+                ]);
+                return response()->json(['status' => 'remote_checkout_failed'], 500); // 500 → Stripe retries
             }
-
-            // Only the Stripe call is in the narrow catch (non-fatal); the canonical
-            // bag is built after, so a missing identifier fails loud, not silently.
-            $pm = null;
-            try {
-                $pm = $service->getRemotePaymentMethod($remoteSubId);
-            } catch (\Stripe\Exception\ApiErrorException $e) {
-                Log::warning('Remote-checkout webhook: getRemotePaymentMethod failed (non-fatal)', ['error' => $e->getMessage()]);
-            }
-            // Billing details come straight from the event's customer_details (no session
-            // DTO on the webhook path) — same factory the poller's session DTO uses.
-            $billing = !empty($data['customer_details'])
-                ? \App\Cashier\DTO\RemoteBillingDetailsDTO::fromStripeCustomerDetails($data['customer_details'])
-                : null;
-
-            // The captured card ($pm) carries its own autoCharge flag; null if vendor-owned vault.
-            app(\App\Cashier\Contracts\CheckoutHandlerInterface::class)->onSubscriptionCreated(
-                $intent->toDto(),
-                $remoteSub,
-                $pm,
-                $billing,
-            );
-
-            return response()->json(['status' => 'remote_checkout_completed'], 200);
         }
 
         // Every checkout session we create carries a local PaymentIntent tagged with
