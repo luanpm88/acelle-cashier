@@ -35,6 +35,15 @@ class StripePaymentGateway implements IntentGatewayInterface, SupportsAutoCharge
         \Stripe\Stripe::setApiKey($this->secretKey);
         \Stripe\Stripe::setApiVersion("2019-12-03");
 
+        // Auto-retry transient failures (timeout / connection drop / 5xx / 429). The SDK reuses
+        // ONE idempotency key across the retries of a single request, so an off-session charge
+        // whose response was lost (Stripe charged, the app never heard back) is retried
+        // idempotently instead of surfacing a false failure that a later tick would re-charge —
+        // closing the double-charge window. Deliberately NOT a per-intent_uid idempotency key:
+        // the 3DS re-auth flow re-charges the SAME intent and must remain a fresh attempt, which
+        // a fixed per-intent key would block (Stripe would replay the cached requires_action).
+        \Stripe\Stripe::setMaxNetworkRetries(2);
+
         \Carbon\Carbon::setToStringFormat('jS \o\f F');
     }
 

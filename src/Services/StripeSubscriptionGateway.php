@@ -64,6 +64,8 @@ class StripeSubscriptionGateway implements
             $this->active = true;
             \Stripe\Stripe::setApiKey($this->secretKey);
             \Stripe\Stripe::setApiVersion('2023-10-16');
+            // Idempotent auto-retry of transient failures (see StripePaymentGateway ctor note).
+            \Stripe\Stripe::setMaxNetworkRetries(2);
         }
     }
 
