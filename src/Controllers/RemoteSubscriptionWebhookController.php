@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Model\Subscription;
 use App\Model\PaymentGateway;
+use App\Model\Setting;
 use App\Cashier\Services\StripeSubscriptionGateway;
 use App\Cashier\Contracts\ManageRemoteSubscriptionInterface;
 use Illuminate\Support\Facades\Log;
@@ -14,6 +15,36 @@ class RemoteSubscriptionWebhookController extends Controller
 {
     public function stripeSubscription(Request $request)
     {
+        // Dev/test switch: acknowledge every Stripe webhook with 200 and do NOTHING when
+        // develop.disable_stripe_webhook = 'yes'. Lets us test the webhook-independent poll
+        // (checkRemoteCheckoutIntent) in isolation, without the webhook racing to complete
+        // the checkout first. Short-circuits before signature verification / any handling.
+        if (Setting::get('develop.disable_stripe_webhook') === 'yes') {
+            // Surface the dropped event as a WARNING in the affected customer's bell so it's
+            // visible (not a silent log). Resolve the customer via the subscription_uid we
+            // stamp into the session/subscription metadata (buildRemoteCheckoutUrl). Parsing
+            // raw JSON (no signature verify) is fine — this is a no-op dev path.
+            $payload   = json_decode($request->getContent(), true) ?: [];
+            $eventType = $payload['type'] ?? 'unknown';
+            $subUid    = $payload['data']['object']['metadata']['subscription_uid'] ?? null;
+            $subscription = $subUid ? Subscription::where('uid', $subUid)->first() : null;
+
+            if ($subscription && $subscription->customer) {
+                app(\App\Services\Notifications\Notifier::class)->dispatch(
+                    new \App\Notifications\Customer\StripeWebhookSuppressed($subscription, $eventType),
+                    $subscription->customer
+                );
+            } else {
+                // Couldn't attribute the event to a local customer — keep a trace.
+                Log::info('Stripe webhook suppressed (develop.disable_stripe_webhook=yes) but no local subscription resolved', [
+                    'event'           => $eventType,
+                    'subscription_uid' => $subUid,
+                ]);
+            }
+
+            return response()->json(['status' => 'webhook_disabled'], 200);
+        }
+
         $gateway = PaymentGateway::where('type', StripeSubscriptionGateway::TYPE)->active()->first();
 
         if (!$gateway) {
