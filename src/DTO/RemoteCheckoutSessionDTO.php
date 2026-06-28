@@ -7,7 +7,7 @@ use Carbon\Carbon;
 /**
  * Normalized read-back of a hosted checkout session, fetched when Acelle proactively
  * checks whether a remote checkout has completed (the webhook-independent poll).
- * The adapter (StripeSubscriptionGateway::getCheckoutSession) maps the provider's
+ * The adapter (StripeGateway::getCheckoutSession) maps the provider's
  * raw session into this so the host never touches `\Stripe\*`.
  *
  * Status vocabulary mirrors Stripe Checkout Session:
