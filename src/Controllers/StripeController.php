@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use App\Cashier\DTO\PaymentIntent;
 use App\Cashier\DTO\PaymentResult;
 use App\Cashier\DTO\PaymentMethodDTO;
-use App\Cashier\Services\StripePaymentGateway;
+use App\Cashier\Services\StripeGateway;
 use App\Cashier\Contracts\CheckoutHandlerInterface;
 use App\Cashier\Contracts\PaymentGatewayResolverInterface;
 
@@ -33,12 +33,12 @@ class StripeController extends Controller
         return app(CheckoutHandlerInterface::class)->findIntent($uid);
     }
 
-    protected function getService(PaymentIntent $intent): StripePaymentGateway
+    protected function getService(PaymentIntent $intent): StripeGateway
     {
         $service = app(PaymentGatewayResolverInterface::class)->resolve($intent->paymentGatewayId);
 
-        if (!$service instanceof StripePaymentGateway) {
-            throw new \Exception('Gateway mismatch: expected StripePaymentGateway');
+        if (!$service instanceof StripeGateway) {
+            throw new \Exception('Gateway mismatch: expected StripeGateway');
         }
         return $service;
     }

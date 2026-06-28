@@ -7,13 +7,14 @@ use Illuminate\Http\Request;
 use App\Model\Subscription;
 use App\Model\PaymentGateway;
 use App\Model\Setting;
-use App\Cashier\Services\StripeSubscriptionGateway;
+use App\Library\Facades\Billing;
+use App\Cashier\Services\StripeGateway;
 use App\Cashier\Contracts\ManageRemoteSubscriptionInterface;
 use Illuminate\Support\Facades\Log;
 
 class RemoteSubscriptionWebhookController extends Controller
 {
-    public function stripeSubscription(Request $request)
+    public function handle(Request $request)
     {
         // Dev/test switch: acknowledge every Stripe webhook with 200 and do NOTHING when
         // develop.disable_stripe_webhook = 'yes'. Lets us test the webhook-independent poll
@@ -45,14 +46,14 @@ class RemoteSubscriptionWebhookController extends Controller
             return response()->json(['status' => 'webhook_disabled'], 200);
         }
 
-        $gateway = PaymentGateway::where('type', StripeSubscriptionGateway::TYPE)->active()->first();
+        $gateway = PaymentGateway::where('type', StripeGateway::TYPE)->active()->first();
 
         if (!$gateway) {
             Log::warning('Stripe subscription webhook received but no active gateway found');
             return response()->json(['status' => 'no_gateway'], 200);
         }
 
-        $service = $gateway->getService();
+        $service = Billing::resolveService($gateway);
         if (!($service instanceof ManageRemoteSubscriptionInterface)) {
             return response()->json(['status' => 'invalid_service'], 400);
         }
@@ -209,7 +210,7 @@ class RemoteSubscriptionWebhookController extends Controller
     protected function handleSubscriptionUpdated(Subscription $subscription, array $data, PaymentGateway $gateway)
     {
         try {
-            $service = $gateway->getService();
+            $service = Billing::resolveService($gateway);
             $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
 
             if ($subscription->isNew() && ($remoteSub->isActive() || $remoteSub->isTrialing())) {
@@ -253,7 +254,7 @@ class RemoteSubscriptionWebhookController extends Controller
     protected function handleInvoicePaid(Subscription $subscription, array $data, PaymentGateway $gateway)
     {
         try {
-            $service = $gateway->getService();
+            $service = Billing::resolveService($gateway);
             $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
 
             if ($subscription->isNew() && ($remoteSub->isActive() || $remoteSub->isTrialing())) {

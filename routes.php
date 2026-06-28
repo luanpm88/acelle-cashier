@@ -25,7 +25,8 @@ Route::group(['middleware' => ['web', 'not_installed'], 'namespace' => 'App\Cash
     Route::get('/cashier/stripe/{intent_uid}/payment-auth', 'StripeController@paymentAuth');
 });
 
-// Webhooks (no CSRF, no throttle — Stripe sends bursts)
+// Webhooks (no CSRF, no throttle — Stripe sends bursts). ONE Stripe endpoint for the
+// merged gateway (subscription lifecycle + hosted-checkout completion events).
 Route::group(['namespace' => 'App\Cashier\Controllers'], function () {
-    Route::post('/cashier/webhooks/stripe-subscription', 'RemoteSubscriptionWebhookController@stripeSubscription');
+    Route::post('/cashier/webhooks/stripe', 'RemoteSubscriptionWebhookController@handle');
 });

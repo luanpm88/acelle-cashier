@@ -3,51 +3,51 @@
 namespace App\Cashier\Services;
 
 use App\Cashier\Contracts\IntentGatewayInterface;
+use App\Cashier\Contracts\SupportsAutoChargeInterface;
 use App\Cashier\Contracts\SupportRemoteSubscriptionViaRemoteCheckoutPage;
 use App\Cashier\Contracts\SupportsBundledItems;
 use App\Cashier\Contracts\SupportsRemoteOneTimePriceCatalogInterface;
 use App\Cashier\Contracts\ManageRemoteSubscriptionInterface;
 use App\Cashier\Contracts\SupportsRemoteCatalogInterface;
-use App\Cashier\Contracts\SupportsAutoChargeInterface;
+use App\Cashier\DTO\PaymentIntent;
 use App\Cashier\DTO\PaymentResult;
+use App\Cashier\DTO\PaymentMethodDTO;
 use App\Cashier\DTO\BillingOrigin;
 use App\Cashier\DTO\RemoteCheckoutSpec;
 use App\Cashier\DTO\RemoteCheckoutHandle;
 use App\Cashier\DTO\RemoteCheckoutSessionDTO;
-use App\Cashier\DTO\PaymentIntent;
 use App\Cashier\DTO\RemoteInvoiceDTO;
 use App\Cashier\DTO\RemotePlanDTO;
 use App\Cashier\DTO\RemoteOneTimePriceDTO;
 use App\Cashier\DTO\RemoteSubscriptionDTO;
-use App\Cashier\DTO\PaymentMethodDTO;
 use App\Cashier\DTO\RemoteBillingDetailsDTO;
 use Carbon\Carbon;
 
 /**
- * Stripe Subscription gateway (Category B — provider manages billing).
+ * Stripe gateway — ONE driver for the whole Stripe account (one-off + subscription).
  *
- * Creation approach: HOSTED checkout page (SupportRemoteSubscriptionViaRemoteCheckoutPage)
- * — NOT the imperative SupportCreateRemoteSubscription. Implements:
- * - IntentGatewayInterface  → base (but getCheckoutUrl is unused: remote subs go via hosted page)
- * - SupportRemoteSubscriptionViaRemoteCheckoutPage  → the hosted-checkout mechanism: a single
- *       hosted page that charges one-off items up-front AND starts a trialing subscription
- * - SupportsRemoteOneTimePriceCatalogInterface  → Stripe exposes a one_time price catalog
- *       (the add-ons an admin maps into the hosted checkout)
- * - ManageRemoteSubscriptionInterface  → read/sync by-id core (inquiry, cancel, resume, webhook)
- * - SupportsRemoteCatalogInterface  → Stripe has a queryable catalog: plans, list-subs, invoice history
+ * One vendor = one driver: `type` is the vendor (`stripe`), never vendor×mode. Capability is
+ * the set of interfaces this class implements (single source of truth), not a hand-declared flag:
+ * - IntentGatewayInterface                          → on-site one-off checkout (getCheckoutUrl)
+ * - SupportsAutoChargeInterface                     → off-session charge of a saved card
+ * - SupportRemoteSubscriptionViaRemoteCheckoutPage  → hosted Checkout Session (one-off up-front + trialing sub)
+ * - SupportsBundledItems                            → bundle one-offs alongside the sub
+ * - SupportsRemoteOneTimePriceCatalogInterface      → Stripe's one_time price catalog
+ * - ManageRemoteSubscriptionInterface               → read/sync/cancel/resume/webhook
+ * - SupportsRemoteCatalogInterface                  → plans, list-subs, invoice history
  *
- * Pure: no DB writes, no handler callbacks. Controller orchestrates side-effects.
+ * Pure: no DB writes, no handler callbacks. Controllers orchestrate side-effects.
  */
-class StripeSubscriptionGateway implements
+class StripeGateway implements
     IntentGatewayInterface,
+    SupportsAutoChargeInterface,
     SupportRemoteSubscriptionViaRemoteCheckoutPage,
     SupportsBundledItems,
     SupportsRemoteOneTimePriceCatalogInterface,
     ManageRemoteSubscriptionInterface,
-    SupportsRemoteCatalogInterface,
-    SupportsAutoChargeInterface
+    SupportsRemoteCatalogInterface
 {
-    public const TYPE = 'stripe-subscription';
+    public const TYPE = 'stripe';
 
     protected string $publishableKey;
     protected string $secretKey;
@@ -63,10 +63,24 @@ class StripeSubscriptionGateway implements
         if ($publishableKey && $secretKey) {
             $this->active = true;
             \Stripe\Stripe::setApiKey($this->secretKey);
+            // One unified API version for the whole account (one-off + subscription).
             \Stripe\Stripe::setApiVersion('2023-10-16');
-            // Idempotent auto-retry of transient failures (see StripePaymentGateway ctor note).
+            // Idempotent auto-retry of transient failures: the SDK reuses ONE idempotency key
+            // across retries of a single request, so an off-session charge whose response was
+            // lost is retried idempotently (closes the double-charge window). NOT a per-intent
+            // key — the 3DS re-auth flow re-charges the SAME intent and must stay a fresh attempt.
             \Stripe\Stripe::setMaxNetworkRetries(2);
         }
+    }
+
+    public function validate(): void
+    {
+        $this->active = (bool) ($this->publishableKey && $this->secretKey);
+    }
+
+    public function isActive(): bool
+    {
+        return $this->active;
     }
 
     public function getType(): string
@@ -79,31 +93,80 @@ class StripeSubscriptionGateway implements
         return $this->publishableKey;
     }
 
+    public function getSecretKey(): string
+    {
+        return $this->secretKey;
+    }
+
     public function getWebhookSecret(): ?string
     {
         return $this->webhookSecret;
     }
 
-    public function isActive(): bool
-    {
-        return $this->active;
-    }
+    // ── IntentGatewayInterface — on-site one-off checkout ────────────────────────────
 
-    /**
-     * IntentGatewayInterface base method — NOT used by this gateway. Remote
-     * subscriptions are created via the provider's HOSTED checkout page
-     * (buildRemoteCheckoutUrl), never the intent-based on-site flow. Throws if a
-     * caller mistakenly routes a remote-subscription invoice through here.
-     */
     public function getCheckoutUrl(PaymentIntent $intent, string $returnUrl): string
     {
-        throw new \LogicException(
-            'StripeSubscriptionGateway creates subscriptions via the hosted checkout page '
-            . '(buildRemoteCheckoutUrl), not the intent-based getCheckoutUrl.'
-        );
+        return action('\App\Cashier\Controllers\StripeController@checkout', [
+            'intent_uid' => $intent->uid,
+        ]) . '?return_url=' . urlencode($returnUrl);
     }
 
-    // ─── ManageRemoteSubscriptionInterface — read/sync ───
+    // ── SupportsAutoChargeInterface — off-session charge of a saved card (PURE) ───────
+
+    public function autoCharge(PaymentIntent $intent, PaymentMethodDTO $pm): PaymentResult
+    {
+        // Free invoice: skip Stripe. Caller dispatches success.
+        if ($intent->amount <= 0) {
+            return PaymentResult::success('FREE_NO_CHARGE');
+        }
+
+        try {
+            $pi = \Stripe\PaymentIntent::create([
+                'amount'         => $this->convertPrice($intent->amount, $intent->currency),
+                'currency'       => strtolower($intent->currency),
+                'customer'       => $pm->remoteCustomerId,
+                'payment_method' => $pm->remotePaymentMethodId,
+                'off_session'    => true,
+                'confirm'        => true,
+                'description'    => $intent->description,
+                'metadata'       => ['intent_uid' => $intent->uid],
+            ]);
+
+            if ($pi->status === 'succeeded') {
+                return PaymentResult::success($pi->id);
+            }
+
+            if ($pi->status === 'requires_action') {
+                return PaymentResult::requiresAuth(clientSecret: $pi->client_secret, remoteRef: $pi->id);
+            }
+
+            return PaymentResult::failed("Unexpected PaymentIntent status: {$pi->status}", $pi->id);
+        } catch (\Stripe\Exception\CardException $e) {
+            $err      = $e->getError();
+            $remotePi = $err->payment_intent ?? null;
+
+            // Off-session authentication: the saved card needs 3DS, which can't run with the
+            // customer absent. Stripe signals this TWO ways depending on timing — for a fresh
+            // off-session confirm the decline code is 'authentication_required' and the PI
+            // REVERTS to requires_payment_method (NOT requires_action, verified live); for an
+            // already-pending PI the status is requires_action. Either case is NOT a hard
+            // decline — surface requiresAuth with the client secret so the caller can re-prompt
+            // the customer on-session, instead of failing the charge outright.
+            $needsAuth = ($err->code ?? null) === 'authentication_required'
+                || ($remotePi->status ?? null) === 'requires_action';
+
+            if ($needsAuth && $remotePi) {
+                return PaymentResult::requiresAuth(clientSecret: $remotePi->client_secret, remoteRef: $remotePi->id);
+            }
+
+            return PaymentResult::failed($e->getMessage(), $remotePi?->id);
+        } catch (\Throwable $e) {
+            return PaymentResult::failed($e->getMessage());
+        }
+    }
+
+    // ── SupportsRemoteCatalogInterface — recurring price catalog ──────────────────────
 
     public function getRemotePlans(): array
     {
@@ -114,15 +177,12 @@ class StripeSubscriptionGateway implements
             'expand' => ['data.product'],
         ]);
 
-        return array_map(fn($price) => $this->mapPriceToPlanDto($price), $prices->data);
+        return array_map(fn ($price) => $this->mapPriceToPlanDto($price), $prices->data);
     }
 
     public function getRemotePlan(string $remotePlanId): RemotePlanDTO
     {
-        $price = \Stripe\Price::retrieve([
-            'id'     => $remotePlanId,
-            'expand' => ['product'],
-        ]);
+        $price = \Stripe\Price::retrieve(['id' => $remotePlanId, 'expand' => ['product']]);
         return $this->mapPriceToPlanDto($price);
     }
 
@@ -147,16 +207,8 @@ class StripeSubscriptionGateway implements
         );
     }
 
-    // ── SupportsRemoteOneTimePriceCatalogInterface ───────────────────────────────
+    // ── SupportsRemoteOneTimePriceCatalogInterface — one_time price catalog ───────────
 
-    /**
-     * List active Stripe ONE-TIME prices (type=one_time). Mirrors getRemotePlans()
-     * but for non-recurring prices — these are the one-off items an admin can map
-     * into a remote checkout. A separate mapper is required because a one_time price has
-     * `recurring === null` (mapPriceToPlanDto would null-deref it).
-     *
-     * @return RemoteOneTimePriceDTO[]
-     */
     public function getRemoteOneTimePrices(): array
     {
         $prices = \Stripe\Price::all([
@@ -171,10 +223,7 @@ class StripeSubscriptionGateway implements
 
     public function getRemoteOneTimePrice(string $remotePriceId): RemoteOneTimePriceDTO
     {
-        $price = \Stripe\Price::retrieve([
-            'id'     => $remotePriceId,
-            'expand' => ['product'],
-        ]);
+        $price = \Stripe\Price::retrieve(['id' => $remotePriceId, 'expand' => ['product']]);
 
         if ($price->type !== 'one_time' || $price->recurring !== null) {
             throw new \InvalidArgumentException("Price {$remotePriceId} is not a one_time price.");
@@ -201,17 +250,12 @@ class StripeSubscriptionGateway implements
         );
     }
 
-    // ── SupportRemoteSubscriptionViaRemoteCheckoutPage ───────────────────────────────
+    // ── SupportRemoteSubscriptionViaRemoteCheckoutPage — hosted Checkout Session ──────
 
     /**
-     * Build a single Stripe Checkout Session (subscription mode) that charges the
-     * one-off items up-front AND starts the (trialing) subscription — one card
-     * entry. One-time line items are billed on the session's first invoice; the
-     * trial defers only the recurring line. The actual charge happens on Stripe's
-     * hosted page; completion is detected by polling the session (or via webhook).
-     *
-     * Returns a {@see RemoteCheckoutHandle} carrying the `cs_xxx` session id so the
-     * host can poll completion without a webhook.
+     * Build one Stripe Checkout Session (subscription mode) that charges the one-off items
+     * up-front AND starts the (trialing) subscription — one card entry. Returns a handle
+     * carrying the `cs_xxx` session id so the host can poll completion without a webhook.
      */
     public function buildRemoteCheckoutUrl(RemoteCheckoutSpec $spec, string $returnUrl): RemoteCheckoutHandle
     {
@@ -223,12 +267,7 @@ class StripeSubscriptionGateway implements
         $params = [
             'mode'       => 'subscription',
             'line_items' => $lineItems,
-            // Always collect (and store) a card, even while the recurring line is
-            // trialing at $0 — needed to charge the one-off now + auto-charge later.
-            'payment_method_collection' => 'always',
-            // Collect the buyer's full billing address on the hosted page so we can
-            // backfill the local invoice at completion. Without this (default 'auto')
-            // Stripe returns only country in customer_details — street/city/postal null.
+            'payment_method_collection'  => 'always',
             'billing_address_collection' => 'required',
             'success_url' => $this->appendQueryParam($returnUrl, 'session_id', '{CHECKOUT_SESSION_ID}'),
             'cancel_url'  => $spec->cancelUrl ?: $returnUrl,
@@ -249,22 +288,18 @@ class StripeSubscriptionGateway implements
 
         return new RemoteCheckoutHandle(
             url:       $session->url,
-            sessionId: $session->id,          // cs_xxx — the pollable handle (was discarded)
-            expiresAt: $session->expires_at,  // unix ts (~24h)
+            sessionId: $session->id,
+            expiresAt: $session->expires_at,
         );
     }
 
     /**
-     * Read back a Checkout Session by id, expanding the subscription it created.
-     * Used by the host's webhook-independent poll to decide completion. Throws
+     * Read back a Checkout Session by id, expanding the subscription it created. Throws
      * \Stripe\Exception\InvalidRequestException for an unknown/expired-deleted id.
      */
     public function getCheckoutSession(string $sessionId): RemoteCheckoutSessionDTO
     {
-        $s = \Stripe\Checkout\Session::retrieve([
-            'id'     => $sessionId,
-            'expand' => ['subscription'],
-        ]);
+        $s = \Stripe\Checkout\Session::retrieve(['id' => $sessionId, 'expand' => ['subscription']]);
 
         $sub         = $s->subscription;
         $remoteSubId = is_object($sub) ? $sub->id : (is_string($sub) ? $sub : null);
@@ -281,8 +316,8 @@ class StripeSubscriptionGateway implements
 
         return new RemoteCheckoutSessionDTO(
             id:                   $s->id,
-            status:               $s->status,         // open | complete | expired — Stripe's own vocab
-            paymentStatus:        $s->payment_status, // paid | unpaid | no_payment_required
+            status:               $s->status,
+            paymentStatus:        $s->payment_status,
             remoteSubscriptionId: $remoteSubId,
             remoteCustomerId:     $remoteCustomerId,
             currentPeriodEnd:     $periodEnd,
@@ -290,19 +325,17 @@ class StripeSubscriptionGateway implements
         );
     }
 
-    /** Append a query param to a URL without clobbering an existing query string. */
     private function appendQueryParam(string $url, string $key, string $value): string
     {
         $sep = str_contains($url, '?') ? '&' : '?';
         return $url . $sep . $key . '=' . $value;
     }
 
+    // ── ManageRemoteSubscriptionInterface — read/sync ────────────────────────────────
+
     public function getRemoteSubscription(string $remoteSubscriptionId): RemoteSubscriptionDTO
     {
-        $sub = \Stripe\Subscription::retrieve([
-            'id'     => $remoteSubscriptionId,
-            'expand' => ['latest_invoice'],
-        ]);
+        $sub = \Stripe\Subscription::retrieve(['id' => $remoteSubscriptionId, 'expand' => ['latest_invoice']]);
         return $this->mapSubscriptionToDto($sub);
     }
 
@@ -318,8 +351,7 @@ class StripeSubscriptionGateway implements
         }
 
         $page = \Stripe\Subscription::all($params);
-
-        $data = array_map(fn($sub) => $this->mapSubscriptionToDto($sub), $page->data);
+        $data = array_map(fn ($sub) => $this->mapSubscriptionToDto($sub), $page->data);
 
         return [
             'data'        => $data,
@@ -372,12 +404,6 @@ class StripeSubscriptionGateway implements
         }
 
         $pm = \Stripe\PaymentMethod::retrieve($paymentMethodId);
-
-        // Both ids are reusable identifiers: the pm_… (already resolved above) and
-        // the cus_… off the subscription. Carry them so the saved card can be
-        // charged off-session later, not just displayed. $sub->customer is an id
-        // string here (the retrieve at the top is not expanded), but normalise an
-        // expanded object defensively, same as mapSubscriptionToDto().
         $customerId = is_object($sub->customer) ? ($sub->customer->id ?? null) : $sub->customer;
 
         if ($pm->type === 'card' && $pm->card) {
@@ -391,7 +417,7 @@ class StripeSubscriptionGateway implements
                 remoteCustomerId:      $customerId,
                 expMonth:              (int) $pm->card->exp_month,
                 expYear:               (int) $pm->card->exp_year,
-                autoCharge:            true,   // Stripe holds pm_…/cus_… → off-session chargeable
+                autoCharge:            true,
             );
         }
 
@@ -409,44 +435,20 @@ class StripeSubscriptionGateway implements
 
     public function cancelRemoteSubscription(string $remoteSubscriptionId): void
     {
-        \Stripe\Subscription::update($remoteSubscriptionId, [
-            'cancel_at_period_end' => true,
-        ]);
+        \Stripe\Subscription::update($remoteSubscriptionId, ['cancel_at_period_end' => true]);
     }
 
     public function resumeRemoteSubscription(string $remoteSubscriptionId): void
     {
-        \Stripe\Subscription::update($remoteSubscriptionId, [
-            'cancel_at_period_end' => false,
-        ]);
+        \Stripe\Subscription::update($remoteSubscriptionId, ['cancel_at_period_end' => false]);
     }
 
-    // ── SupportsAutoChargeInterface — off-session charge of a saved card ──────────────
-    // Same Stripe account + pm_…/cus_… ids as the on-site gateway, so the charge mechanics
-    // are identical — delegate to a fresh StripePaymentGateway rather than duplicate the
-    // off_session PaymentIntent + SCA handling.
-
-    public function autoCharge(PaymentIntent $intent, PaymentMethodDTO $pm): PaymentResult
+    public function updateRemoteSubscriptionPlan(string $remoteSubscriptionId, string $newRemotePlanId): RemoteSubscriptionDTO
     {
-        return $this->stripeLocal()->autoCharge($intent, $pm);
-    }
-
-    private function stripeLocal(): StripePaymentGateway
-    {
-        return new StripePaymentGateway($this->publishableKey, $this->secretKey);
-    }
-
-    public function updateRemoteSubscriptionPlan(
-        string $remoteSubscriptionId,
-        string $newRemotePlanId
-    ): RemoteSubscriptionDTO {
         $sub = \Stripe\Subscription::retrieve($remoteSubscriptionId);
 
         \Stripe\Subscription::update($remoteSubscriptionId, [
-            'items' => [[
-                'id'    => $sub->items->data[0]->id,
-                'price' => $newRemotePlanId,
-            ]],
+            'items' => [['id' => $sub->items->data[0]->id, 'price' => $newRemotePlanId]],
             'proration_behavior' => 'create_prorations',
         ]);
 
@@ -456,7 +458,6 @@ class StripeSubscriptionGateway implements
     public function parseWebhookPayload(string $payload, array $headers): array
     {
         $sigHeader = $headers['stripe-signature'] ?? ($headers['Stripe-Signature'] ?? '');
-
         $event = \Stripe\Webhook::constructEvent($payload, $sigHeader, $this->webhookSecret);
 
         return [
@@ -467,36 +468,18 @@ class StripeSubscriptionGateway implements
     }
 
     /**
-     * List ALL Stripe Invoices for a subscription, oldest-first, in one call.
-     *
-     * Deliberately pulls the FULL history every time (auto-paginated) and lets
-     * the caller dedup on remote_invoice_id — no chunk/limit, no "newer than X"
-     * cursor. A cursor that only fetches newer-than-X can silently SKIP older
-     * charges the first time we sync a sub the vendor already has history for
-     * (imported / dashboard-created sub): `ending_before=<newest>` returns
-     * nothing and the older charges never materialize. Pulling full + dedup
-     * cannot lose a charge. A pathological history just makes this slow → it
-     * fails LOUDLY (timeout) rather than mis-paginating silently.
-     *
-     * $afterId / $limit are accepted for interface compatibility but ignored.
-     *
-     * @return array{data: RemoteInvoiceDTO[], has_more: bool, next_cursor: ?string}
+     * List ALL Stripe Invoices for a subscription, oldest-first (full history each time;
+     * caller dedups on remote_invoice_id). $afterId/$limit accepted for interface
+     * compatibility but ignored — a newer-than-X cursor can silently skip imported history.
      */
-    public function getRemoteInvoices(
-        string $remoteSubscriptionId,
-        ?string $afterId = null,
-        int $limit = 50,
-    ): array {
+    public function getRemoteInvoices(string $remoteSubscriptionId, ?string $afterId = null, int $limit = 50): array
+    {
         $invoices = \Stripe\Invoice::all([
             'subscription' => $remoteSubscriptionId,
-            'limit'        => 100,   // page size for the auto-paginator (Stripe max)
-            // Inline-expand payment method per invoice — saves N+1 fetches when
-            // the join-table view wants per-row card info.
+            'limit'        => 100,
             'expand'       => ['data.payment_intent.payment_method'],
         ], ['api_key' => $this->secretKey]);
 
-        // Drain every page (autoPagingIterator handles the multi-page fetch),
-        // then sort oldest-first so the sync layer materializes chronologically.
         $all = [];
         foreach ($invoices->autoPagingIterator() as $inv) {
             $all[] = $inv;
@@ -511,24 +494,15 @@ class StripeSubscriptionGateway implements
             }
         }
 
-        return [
-            'data'        => $data,
-            'has_more'    => false,   // full list returned in one logical call
-            'next_cursor' => null,
-        ];
+        return ['data' => $data, 'has_more' => false, 'next_cursor' => null];
     }
 
-    /**
-     * Map Stripe\Invoice → RemoteInvoiceDTO. Returns null for draft invoices
-     * (will materialize on next sync after Stripe finalizes them).
-     */
     private function stripeInvoiceToDto(\Stripe\Invoice $inv): ?RemoteInvoiceDTO
     {
         if ($inv->status === 'draft') {
-            return null;  // not yet finalized; skip
+            return null;
         }
 
-        // Stripe `billing_reason` discriminates initial vs renewal vs upgrade.
         $origin = match ($inv->billing_reason) {
             'subscription_create'    => BillingOrigin::INITIAL,
             'subscription_cycle'     => BillingOrigin::RECURRING,
@@ -549,10 +523,6 @@ class StripeSubscriptionGateway implements
         $line = $inv->lines->data[0] ?? null;
         $period = $line && isset($line->period) ? $line->period : null;
 
-        // Payment method came back inline via expand=data.payment_intent.payment_method.
-        // Three guards: invoice may have no payment_intent (free / draft), the
-        // payment_intent may not be expanded (Stripe omits expansion for some
-        // states), and the payment_method may be null (e.g. SEPA mandates).
         $pmRemoteId = null;
         $pmBrand    = null;
         $pmLast4    = null;
@@ -567,7 +537,7 @@ class StripeSubscriptionGateway implements
                     $pmLast4 = (string) ($card->last4 ?? '');
                 }
             } elseif (is_string($pm)) {
-                $pmRemoteId = $pm;  // not expanded; still useful for reverse-lookup
+                $pmRemoteId = $pm;
             }
         }
 
@@ -590,8 +560,9 @@ class StripeSubscriptionGateway implements
         );
     }
 
-    // ─── Customer + SetupIntent helpers (used by controller / sync flows) ───
+    // ── Customer + card helpers (one canonical convention: metadata['payer_uid'] + search) ──
 
+    /** Find a Stripe Customer by local payer uid (search; no auto-create). */
     public function getStripeCustomer(string $payerUid): ?\Stripe\Customer
     {
         $customers = \Stripe\Customer::search([
@@ -610,14 +581,86 @@ class StripeSubscriptionGateway implements
         return \Stripe\Customer::create($params);
     }
 
-    // getSetupIntentSecret() removed.
-    //
-    // Was used by the legacy 2-popup flow:
-    //   confirmCardSetup(setup_secret)   → 3DS popup #1 (attach card)
-    //   confirmCardPayment(invoice_pi)   → 3DS popup #2 (charge first invoice)
-    //
-    // Replaced by single-popup `default_incomplete` pattern:
-    //   stripe.createPaymentMethod(card) → tokenize, NO 3DS
-    //   confirmCardPayment(invoice_pi)   → 3DS popup #1 (atomic: attach + charge + activate)
+    /** The Stripe Customer for a payer, creating one if none exists yet. */
+    public function resolveStripeCustomer(string $payerUid, string $name = ''): \Stripe\Customer
+    {
+        return $this->getStripeCustomer($payerUid) ?? $this->createStripeCustomer($payerUid, $name);
+    }
 
+    public function hasCard(string $payerUid): bool
+    {
+        return is_object($this->getCardInformation($payerUid));
+    }
+
+    public function getCardInformation(string $payerUid)
+    {
+        $customer = $this->getStripeCustomer($payerUid);
+        if (!$customer) {
+            return null;
+        }
+
+        $cards = \Stripe\PaymentMethod::all(['customer' => $customer->id, 'type' => 'card']);
+        return empty($cards->data) ? null : $cards->data[0];
+    }
+
+    /** SetupIntent client_secret for stripe.confirmCardSetup() in JS. */
+    public function getClientSecret(string $payerUid): string
+    {
+        $customer = $this->resolveStripeCustomer($payerUid);
+
+        $intent = \Stripe\SetupIntent::create([
+            'customer' => $customer->id,
+            'usage'    => 'off_session',
+        ]);
+
+        return $intent->client_secret;
+    }
+
+    public function getPaymentMethod(string $paymentMethodId)
+    {
+        return \Stripe\PaymentMethod::retrieve($paymentMethodId);
+    }
+
+    // ── Pricing helpers (Stripe wants the smallest currency unit; zero-decimal exceptions) ──
+
+    public function currencyRates(): array
+    {
+        return [
+            'CLP' => 1, 'DJF' => 1, 'JPY' => 1, 'KMF' => 1, 'RWF' => 1,
+            'VUV' => 1, 'XAF' => 1, 'XOF' => 1, 'BIF' => 1, 'GNF' => 1,
+            'KRW' => 1, 'MGA' => 1, 'PYG' => 1, 'VND' => 1, 'XPF' => 1,
+        ];
+    }
+
+    public function convertPrice($price, $currency)
+    {
+        $rate = $this->currencyRates()[$currency] ?? 100;
+        return (int) round($price * $rate);
+    }
+
+    public function revertPrice($price, $currency)
+    {
+        $rate = $this->currencyRates()[$currency] ?? 100;
+        return $price / $rate;
+    }
+
+    public function getMinimumChargeAmount($currency): int
+    {
+        return 0;
+    }
+
+    public function supportsAutoBilling(): bool
+    {
+        return true;
+    }
+
+    /** Health check on credentials. */
+    public function test(): void
+    {
+        try {
+            \Stripe\Customer::all(['limit' => 1]);
+        } catch (\Throwable $e) {
+            throw new \Exception($e->getMessage());
+        }
+    }
 }
