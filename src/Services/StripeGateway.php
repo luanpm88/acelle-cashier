@@ -275,11 +275,21 @@ class StripeGateway implements
         // cus_ one-off charges use — Phase A customer convention), creating it if missing.
         $customer = $this->resolveStripeCustomer($intent->payer->uid, $intent->payer->name);
 
+        // PRE-FILL: the payer DTO already carries the buyer's email + billing address (from
+        // the invoice), but a freshly-created customer is name-only — so a FIRST-TIME buyer's
+        // hosted checkout arrives with an empty email/address (returning customers pre-fill
+        // only because Stripe saved their email on a PRIOR checkout). Propagate it now, on the
+        // RESOLVED customer (by id — no second Customer::search, so no duplicate-customer race).
+        $this->prefillCustomerBilling($customer, $intent->payer);
+
         $params = [
             'mode'       => 'subscription',
             'line_items' => $lineItems,
             'payment_method_collection'  => 'always',
             'billing_address_collection' => 'required',
+            // Pre-fill name + address from the (just-synced) customer and persist buyer edits.
+            // (Email pre-fills from customer.email automatically — no customer_update key for it.)
+            'customer_update' => ['name' => 'auto', 'address' => 'auto'],
             'success_url' => $this->appendQueryParam($returnUrl, 'session_id', '{CHECKOUT_SESSION_ID}'),
             'cancel_url'  => $returnUrl,
             'customer'    => $customer->id,
@@ -298,6 +308,44 @@ class StripeGateway implements
             sessionId: $session->id,
             expiresAt: $session->expires_at,
         );
+    }
+
+    /**
+     * Sync the payer's email / name / billing address onto the RESOLVED Stripe customer so
+     * the hosted Checkout form arrives pre-filled (a fresh customer is name-only otherwise).
+     * Only writes fields that differ. Pre-fill is cosmetic, so a Stripe API failure here must
+     * NOT block the sale — it is logged and the checkout proceeds with whatever the customer
+     * already has. A non-Stripe error is NOT swallowed (it propagates).
+     */
+    private function prefillCustomerBilling(\Stripe\Customer $customer, \App\Cashier\DTO\Payer $payer): void
+    {
+        try {
+            $update = [];
+            if ($payer->email !== '' && $customer->email !== $payer->email) {
+                $update['email'] = $payer->email;
+            }
+            $name = $payer->billingName !== '' ? $payer->billingName : $payer->name;
+            if ($name !== '' && $customer->name !== $name) {
+                $update['name'] = $name;
+            }
+            if ($payer->billingCountryCode !== '') {
+                $update['address'] = array_filter([
+                    'line1'   => $payer->billingAddress ?: null,
+                    'country' => $payer->billingCountryCode,
+                ]);
+            }
+            if ($payer->phone !== '') {
+                $update['phone'] = $payer->phone;
+            }
+            if ($update) {
+                \Stripe\Customer::update($customer->id, $update);
+            }
+        } catch (\Stripe\Exception\ApiErrorException $e) {
+            \Illuminate\Support\Facades\Log::warning('StripeGateway: customer pre-fill sync failed (non-fatal, checkout proceeds)', [
+                'customer' => $customer->id,
+                'error'    => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
