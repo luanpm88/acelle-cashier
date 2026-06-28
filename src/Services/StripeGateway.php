@@ -4,7 +4,7 @@ namespace App\Cashier\Services;
 
 use App\Cashier\Contracts\IntentGatewayInterface;
 use App\Cashier\Contracts\SupportsAutoChargeInterface;
-use App\Cashier\Contracts\SupportRemoteSubscriptionViaRemoteCheckoutPage;
+use App\Cashier\Contracts\SupportsRemoteHostedCheckout;
 use App\Cashier\Contracts\SupportsBundledItems;
 use App\Cashier\Contracts\SupportsRemoteOneTimePriceCatalogInterface;
 use App\Cashier\Contracts\ManageRemoteSubscriptionInterface;
@@ -13,7 +13,6 @@ use App\Cashier\DTO\PaymentIntent;
 use App\Cashier\DTO\PaymentResult;
 use App\Cashier\DTO\PaymentMethodDTO;
 use App\Cashier\DTO\BillingOrigin;
-use App\Cashier\DTO\RemoteCheckoutSpec;
 use App\Cashier\DTO\RemoteCheckoutHandle;
 use App\Cashier\DTO\RemoteCheckoutSessionDTO;
 use App\Cashier\DTO\RemoteInvoiceDTO;
@@ -30,7 +29,7 @@ use Carbon\Carbon;
  * the set of interfaces this class implements (single source of truth), not a hand-declared flag:
  * - IntentGatewayInterface                          → on-site one-off checkout (getCheckoutUrl)
  * - SupportsAutoChargeInterface                     → off-session charge of a saved card
- * - SupportRemoteSubscriptionViaRemoteCheckoutPage  → hosted Checkout Session (one-off up-front + trialing sub)
+ * - SupportsRemoteHostedCheckout  → hosted Checkout Session (one-off up-front + trialing sub)
  * - SupportsBundledItems                            → bundle one-offs alongside the sub
  * - SupportsRemoteOneTimePriceCatalogInterface      → Stripe's one_time price catalog
  * - ManageRemoteSubscriptionInterface               → read/sync/cancel/resume/webhook
@@ -41,7 +40,7 @@ use Carbon\Carbon;
 class StripeGateway implements
     IntentGatewayInterface,
     SupportsAutoChargeInterface,
-    SupportRemoteSubscriptionViaRemoteCheckoutPage,
+    SupportsRemoteHostedCheckout,
     SupportsBundledItems,
     SupportsRemoteOneTimePriceCatalogInterface,
     ManageRemoteSubscriptionInterface,
@@ -250,19 +249,31 @@ class StripeGateway implements
         );
     }
 
-    // ── SupportRemoteSubscriptionViaRemoteCheckoutPage — hosted Checkout Session ──────
+    // ── SupportsRemoteHostedCheckout — hosted Checkout Session ──────
 
     /**
      * Build one Stripe Checkout Session (subscription mode) that charges the one-off items
-     * up-front AND starts the (trialing) subscription — one card entry. Returns a handle
-     * carrying the `cs_xxx` session id so the host can poll completion without a webhook.
+     * up-front AND starts the (trialing) subscription — one card entry. Reads everything from
+     * the PaymentIntent: pricing from `$intent->subscription`, the buyer from `$intent->payer`,
+     * and the host routing ids from `$intent->metadata` (echoed into the session metadata for
+     * webhook attribution). Returns a handle carrying the `cs_xxx` session id so the host can
+     * poll completion without a webhook.
      */
-    public function buildRemoteCheckoutUrl(RemoteCheckoutSpec $spec, string $returnUrl): RemoteCheckoutHandle
+    public function buildRemoteCheckoutUrl(PaymentIntent $intent, string $returnUrl): RemoteCheckoutHandle
     {
-        $lineItems = [['price' => $spec->recurringPriceId, 'quantity' => 1]];
-        foreach ($spec->oneTimePriceIds as $oneTimePriceId) {
+        $sub = $intent->subscription;
+        if ($sub === null) {
+            throw new \LogicException("PaymentIntent {$intent->uid} has no subscription spec — cannot build a hosted checkout.");
+        }
+
+        $lineItems = [['price' => $sub->remotePlanId, 'quantity' => 1]];
+        foreach ($sub->oneTimePriceIds as $oneTimePriceId) {
             $lineItems[] = ['price' => $oneTimePriceId, 'quantity' => 1];
         }
+
+        // Attach the subscription to the canonical Stripe customer for this payer (the same
+        // cus_ one-off charges use — Phase A customer convention), creating it if missing.
+        $customer = $this->resolveStripeCustomer($intent->payer->uid, $intent->payer->name);
 
         $params = [
             'mode'       => 'subscription',
@@ -270,19 +281,15 @@ class StripeGateway implements
             'payment_method_collection'  => 'always',
             'billing_address_collection' => 'required',
             'success_url' => $this->appendQueryParam($returnUrl, 'session_id', '{CHECKOUT_SESSION_ID}'),
-            'cancel_url'  => $spec->cancelUrl ?: $returnUrl,
-            'metadata'    => $spec->metadata,
+            'cancel_url'  => $returnUrl,
+            'customer'    => $customer->id,
+            'client_reference_id' => $intent->uid,
+            'metadata'    => $intent->metadata,
             'subscription_data' => array_filter([
-                'trial_period_days' => $spec->trialDays,
-                'metadata'          => $spec->metadata ?: null,
+                'trial_period_days' => $sub->trialDays,
+                'metadata'          => $intent->metadata ?: null,
             ]),
         ];
-
-        if ($spec->customerId) {
-            $params['customer'] = $spec->customerId;
-        } elseif ($spec->customerEmail) {
-            $params['customer_email'] = $spec->customerEmail;
-        }
 
         $session = \Stripe\Checkout\Session::create($params);
 

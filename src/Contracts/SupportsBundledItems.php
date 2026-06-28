@@ -6,7 +6,7 @@ namespace App\Cashier\Contracts;
  * CAPABILITY: the gateway's hosted checkout can charge ONE-OFF items alongside the
  * (single) recurring subscription in ONE interaction — a "bundle".
  *
- * This is ORTHOGONAL to {@see SupportRemoteSubscriptionViaRemoteCheckoutPage}, which is
+ * This is ORTHOGONAL to {@see SupportsRemoteHostedCheckout}, which is
  * only the hosted-checkout MECHANISM (build a URL + poll a session). A gateway can run a
  * hosted checkout for a PURE subscription yet NOT be able to add one-off line items, so
  * "does hosted checkout" must NOT be read as "does bundle". Only a gateway that declares

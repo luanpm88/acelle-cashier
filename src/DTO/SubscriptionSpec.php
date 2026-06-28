@@ -11,7 +11,7 @@ namespace App\Cashier\DTO;
  * raw amounts. It is assembled ONCE host-side from the plan's remote mappings and
  * stamped onto the intent, so every consumer (the gateway's buildRemoteCheckoutUrl,
  * the webhook, the poller) reads everything from `$intent->subscription` and never
- * reaches back to the host Plan model. It supersedes the old separate RemoteCheckoutSpec.
+ * reaches back to the host Plan model. It is the single carrier — there is no separate spec DTO.
  *
  * Two pricing dialects so one shape serves both kinds of gateway — each adapter reads
  * only the fields its provider needs:

@@ -10,7 +10,7 @@ use App\Cashier\DTO\RemoteOneTimePriceDTO;
  * attach as one-off add-ons charged up-front in a hosted subscription checkout.
  *
  * WHY THIS IS A SEPARATE INTERFACE (not part of
- * {@see SupportRemoteSubscriptionViaRemoteCheckoutPage}):
+ * {@see SupportsRemoteHostedCheckout}):
  *
  *   That interface is about the hosted-checkout MECHANISM (build the redirect
  *   URL, poll the session, map the card back). Whether a one-off price CATALOG

@@ -8,7 +8,7 @@ use App\Cashier\DTO\PaymentIntent;
  * Base contract for gateways that consume a PaymentIntent (intent-based flow).
  * Implementing gateways:
  * - StripeGateway (one merged driver: on-site one-off charges via SupportsAutoChargeInterface
- *   + provider-hosted subscriptions via SupportRemoteSubscriptionViaRemoteCheckoutPage)
+ *   + provider-hosted subscriptions via SupportsRemoteHostedCheckout)
  * - OfflinePaymentGateway (manual bank transfer, admin-approved)
  */
 interface IntentGatewayInterface

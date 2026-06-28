@@ -10,7 +10,7 @@ use App\Cashier\DTO\SubscriptionResult;
  * APPROACH to creating a remote subscription: the **APP imperatively creates it**
  * — collect a payment method on-site, then call `createSubscription()` which hits
  * the provider API (e.g. \Stripe\Subscription::create) to create the recurring
- * subscription. Orthogonal to {@see SupportRemoteSubscriptionViaRemoteCheckoutPage}
+ * subscription. Orthogonal to {@see SupportsRemoteHostedCheckout}
  * (hosted-page approach); neither extends the other.
  *
  * REFERENCE ONLY at present — no gateway implements this approach (the codebase
