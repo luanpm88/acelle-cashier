@@ -5,25 +5,18 @@ namespace App\Cashier\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Cashier\DTO\PaymentIntent;
-use App\Cashier\DTO\PaymentResult;
-use App\Cashier\DTO\PaymentMethodDTO;
 use App\Cashier\Services\StripeGateway;
 use App\Cashier\Contracts\CheckoutHandlerInterface;
 use App\Cashier\Contracts\PaymentGatewayResolverInterface;
 
 /**
- * Stripe One-Off Payment Controller
- * ==================================
+ * Stripe controller — Stripe ALWAYS uses its HOSTED Checkout page (no on-site card form). The only
+ * surviving route is the off-session-3DS re-auth landing.
  *
- * Routes:
- *   GET  /cashier/stripe/checkout/{intent_uid}        — render Stripe Elements card form
- *   POST /cashier/stripe/pay/{intent_uid}             — process payment
- *   GET  /cashier/stripe/{intent_uid}/payment-auth    — re-checkout link after auto-charge 3DS
+ *   GET /cashier/stripe/{intent_uid}/payment-auth — re-pay an off-session-declined renewal via a
+ *                                                    fresh hosted Checkout Session.
  *
- * Cashier never imports App\Model\Invoice. All state comes from PaymentIntent DTO via handler.
- *
- * Trust boundary: client supplies only intent_uid (URL) + stripe_payment_method (POST body).
- * remote_reference_id (Stripe pi_xxx) is server-stored in intent — never trust client copy.
+ * Cashier never imports App\Model\Invoice. All state comes from the PaymentIntent DTO via the handler.
  */
 class StripeController extends Controller
 {
@@ -44,83 +37,11 @@ class StripeController extends Controller
     }
 
     /**
-     * GET /cashier/stripe/checkout/{intent_uid}?return_url=...
-     */
-    public function checkout(Request $request, string $intent_uid)
-    {
-        $intent = $this->findIntent($intent_uid);
-        $returnUrl = $request->return_url ?? '/';
-
-        if (!$intent) {
-            return redirect()->away($returnUrl)
-                ->with('alert-error', trans('cashier::messages.stripe.intent_not_found'));
-        }
-
-        // Free invoice — short-circuit (no card form to show)
-        if ($intent->amount <= 0) {
-            return redirect()->away($returnUrl)
-                ->with('alert-success', trans('cashier::messages.already_paid'));
-        }
-
-        $service = $this->getService($intent);
-
-        return view('cashier::stripe.checkout', [
-            'intent'         => $intent,
-            'returnUrl'      => $returnUrl,
-            'clientSecret'   => $service->getClientSecret($intent->payer->uid),
-            'publishableKey' => $service->getPublishableKey(),
-        ]);
-    }
-
-    /**
-     * POST /cashier/stripe/pay/{intent_uid}
-     */
-    public function pay(Request $request, string $intent_uid)
-    {
-        try {
-            $intent = $this->findIntent($intent_uid);
-            if (!$intent) {
-                return response()->json(['error' => trans('cashier::messages.stripe.intent_not_found')], 404);
-            }
-
-            $returnUrl = $request->return_url ?? '/';
-            $service = $this->getService($intent);
-            $handler = app(CheckoutHandlerInterface::class);
-
-            if (empty($request->stripe_payment_method)) {
-                return response()->json(['error' => 'Payment method ID is required'], 422);
-            }
-
-            $stripeCustomer = $service->getStripeCustomer($intent->payer->uid);
-            $pm = $service->getPaymentMethod($request->stripe_payment_method);
-
-            $card = new PaymentMethodDTO(
-                cardType:              ucfirst($pm->card->brand),
-                last4:                 $pm->card->last4,
-                expirationDate:        $pm->card->exp_month . '/' . $pm->card->exp_year,
-                email:                 null,
-                remotePaymentMethodId: $request->stripe_payment_method,
-                remoteCustomerId:      $stripeCustomer->id,
-                expMonth:              (int) $pm->card->exp_month,
-                expYear:               (int) $pm->card->exp_year,
-                autoCharge:            true,
-            );
-
-            $handler->createPaymentMethod($intent, $card);
-
-            $result = $service->autoCharge($intent, $card);
-
-            return $this->dispatchResult($result, $intent, $handler, $returnUrl);
-        } catch (\Throwable $e) {
-            return response()->json(['message' => $e->getMessage()], 400);
-        }
-    }
-
-    /**
      * GET /cashier/stripe/{intent_uid}/payment-auth?return_url=...
      *
-     * Email link sent after off-session autoCharge hit a 3DS challenge. Re-render the
-     * checkout form so the user can re-confirm the card (or use a fresh one).
+     * Email link sent after an off-session autoCharge hit a 3DS challenge. Stripe has no on-site
+     * form anymore, so re-collect payment by redirecting the buyer to a FRESH hosted Checkout
+     * Session for the (renewal) intent.
      */
     public function paymentAuth(Request $request, string $intent_uid)
     {
@@ -133,31 +54,6 @@ class StripeController extends Controller
         }
 
         $service = $this->getService($intent);
-        return redirect()->away($service->getCheckoutUrl($intent, $returnUrl));
-    }
-
-    private function dispatchResult(
-        PaymentResult $result,
-        PaymentIntent $intent,
-        CheckoutHandlerInterface $handler,
-        string $returnUrl
-    ) {
-        switch ($result->status) {
-            case PaymentResult::STATUS_SUCCESS:
-                $handler->onPaymentSuccess($intent, $result->remoteReferenceId);
-                return response()->json(['return_url' => $returnUrl]);
-
-            case PaymentResult::STATUS_REQUIRES_ACTION:
-                $handler->onPaymentRequiresAuth($intent, $result->clientSecret, $result->remoteReferenceId);
-                return response()->json([
-                    'requires_action' => true,
-                    'client_secret'   => $result->clientSecret,
-                ]);
-
-            case PaymentResult::STATUS_FAILED:
-            default:
-                $handler->onPaymentFailed($intent, $result->error ?? 'Charge failed');
-                return response()->json(['error' => $result->error ?? 'Charge failed'], 422);
-        }
+        return redirect()->away($service->getCheckoutUrl($intent, $returnUrl)->url);
     }
 }

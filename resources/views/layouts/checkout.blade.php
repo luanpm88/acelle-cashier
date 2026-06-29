@@ -1,11 +1,13 @@
+<!DOCTYPE html>
 <html lang="en">
     <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{{ trans('cashier::messages.stripe.checkout.page_title') }}</title>
+
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
         <script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
         <link rel="stylesheet" href="{{ \App\Cashier\Cashier::public_url('/vendor/acelle-cashier/css/main.css') }}">
-
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
 
         @include('layouts.core._includes')
         @include('layouts.core._script_vars')
@@ -13,46 +15,44 @@
         <script src="https://js.stripe.com/v3/"></script>
     </head>
 
-    <body class="py-4">
-        <div class="px-5 py-3" style="max-width:1200px;margin:auto;">
-            <div class="row">
-                <!-- Left side: Intent summary -->
-                <div class="col-md-6">
-                    <div class="bg-light shadow-sm rounded px-4 py-4">
-                        <div class="mb-5">
-                            <span>
-                                <span class="badge badge-light bg-dark">{{ trans('cashier::messages.secured_transaction') }}</span>
-                            </span>
-                        </div>
+    <body class="co-body">
+        <div class="co-wrap">
+            <div class="co-shell">
 
-                        <div class="mb-4">
-                            <label class="">{{ trans('cashier::messages.total_amount') }}</label>
-                            <h2>{{ number_format($intent->amount, 2) }} ({{ $intent->currency }})</h2>
-                        </div>
-
-                        <p class="text-muted small mb-0">
-                            {{ $intent->description }}
-                        </p>
+                {{-- LEFT: order summary --}}
+                <aside class="co-summary">
+                    <div class="co-brandrow">
+                        <span class="co-secure">
+                            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.5 7V5a3.5 3.5 0 1 1 7 0v2H12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h.5Zm1.5 0h4V5a2 2 0 1 0-4 0v2Z"/></svg>
+                            {{ trans('cashier::messages.secured_transaction') }}
+                        </span>
                     </div>
-                </div>
 
-                <!-- Right side: Payment form -->
-                <div class="col-md-6">
-                    <div class="px-5">
-                        @yield('content')
+                    <div class="co-amount-label">{{ trans('cashier::messages.total_due') }}</div>
+                    <h1 class="co-amount">{{ number_format($intent->amount, 2) }}<span class="co-ccy">{{ $intent->currency }}</span></h1>
+
+                    @if (!empty($intent->description))
+                        <div class="co-desc">{{ $intent->description }}</div>
+                    @endif
+
+                    <div class="co-summary-foot">
+                        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.5 7V5a3.5 3.5 0 1 1 7 0v2H12a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h.5Zm1.5 0h4V5a2 2 0 1 0-4 0v2Z"/></svg>
+                        {{ trans('cashier::messages.secured_transaction') }}
                     </div>
-                </div>
+                </aside>
+
+                {{-- RIGHT: payment form --}}
+                <main class="co-pay">
+                    @yield('content')
+                </main>
+
             </div>
 
             @if (!empty($returnUrl))
-            <div class="mt-5">
-                <hr>
-                <a href="{{ $returnUrl }}" class="text-dark small text-decoration-underline">
-                    {{ trans('cashier::messages.go_back') }}
-                </a>
-            </div>
+                <div class="co-back">
+                    <a href="{{ $returnUrl }}">&larr; {{ trans('cashier::messages.go_back') }}</a>
+                </div>
             @endif
         </div>
-        <br /><br /><br />
     </body>
 </html>

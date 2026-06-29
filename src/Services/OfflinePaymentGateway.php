@@ -3,6 +3,8 @@
 namespace App\Cashier\Services;
 
 use App\Cashier\Contracts\IntentGatewayInterface;
+use App\Cashier\DTO\CheckoutHandle;
+use App\Cashier\DTO\DirectCheckout;
 use App\Cashier\DTO\PaymentIntent;
 
 /**
@@ -39,13 +41,16 @@ class OfflinePaymentGateway implements IntentGatewayInterface
     }
 
     /**
-     * IntentGatewayInterface — checkout URL with intent_uid.
+     * IntentGatewayInterface — a DirectCheckout to the offline instructions page (no host-tracked
+     * session; the admin-approval flow owns completion).
      */
-    public function getCheckoutUrl(PaymentIntent $intent, string $returnUrl): string
+    public function getCheckoutUrl(PaymentIntent $intent, string $returnUrl, ?string $cancelUrl = null): CheckoutHandle
     {
-        return action('\App\Cashier\Controllers\OfflineController@checkout', [
-            'intent_uid' => $intent->uid,
-        ]) . '?return_url=' . urlencode($returnUrl);
+        return new DirectCheckout(
+            action('\App\Cashier\Controllers\OfflineController@checkout', [
+                'intent_uid' => $intent->uid,
+            ]) . '?return_url=' . urlencode($returnUrl)
+        );
     }
 
     public function getPaymentInstruction(): string

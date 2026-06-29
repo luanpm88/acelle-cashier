@@ -39,16 +39,29 @@ class RemoteCheckoutSessionDTO
         // the host can backfill the local invoice at completion (poll path). The webhook
         // path builds the same DTO straight from the event's customer_details.
         public readonly ?RemoteBillingDetailsDTO $billingDetails = null,
+        // mode:payment sessions (app-handled one-off, no provider subscription): the charge id
+        // (pi_xxx) + the card the host must vault so off-session autoCharge renewals work later.
+        // Null for mode:subscription sessions (those carry remoteSubscriptionId instead).
+        public readonly ?string $paymentIntentId = null,
+        public readonly ?PaymentMethodDTO $paymentMethod = null,
     ) {
         if (!in_array($status, [self::STATUS_OPEN, self::STATUS_COMPLETE, self::STATUS_EXPIRED], true)) {
             throw new \InvalidArgumentException("RemoteCheckoutSessionDTO: unknown session status '{$status}'.");
         }
     }
 
-    /** The only safe completion test — handles the $0 no_payment_required trial. */
+    /**
+     * The only safe completion test. Two shapes complete:
+     *  - mode:subscription → status===complete AND a subscription was created (handles the $0
+     *    no_payment_required trial: Stripe collects the card, charges $0 now).
+     *  - mode:payment (app-handled one-off) → status===complete AND a paid charge (paymentIntentId).
+     */
     public function isComplete(): bool
     {
-        return $this->status === self::STATUS_COMPLETE && $this->remoteSubscriptionId !== null;
+        return $this->status === self::STATUS_COMPLETE && (
+            $this->remoteSubscriptionId !== null
+            || ($this->paymentIntentId !== null && $this->paymentStatus === self::PAYMENT_PAID)
+        );
     }
 
     public function isOpen(): bool

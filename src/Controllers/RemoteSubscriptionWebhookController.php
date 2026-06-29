@@ -23,7 +23,7 @@ class RemoteSubscriptionWebhookController extends Controller
         if (Setting::get('develop.disable_stripe_webhook') === 'yes') {
             // Surface the dropped event as a WARNING in the affected customer's bell so it's
             // visible (not a silent log). Resolve the customer via the subscription_uid we
-            // stamp into the session/subscription metadata (buildRemoteCheckoutUrl). Parsing
+            // stamp into the session/subscription metadata (getCheckoutUrl). Parsing
             // raw JSON (no signature verify) is fine — this is a no-op dev path.
             $payload   = json_decode($request->getContent(), true) ?: [];
             $eventType = $payload['type'] ?? 'unknown';
@@ -195,7 +195,7 @@ class RemoteSubscriptionWebhookController extends Controller
         }
 
         // Every checkout session we create carries a local PaymentIntent tagged with
-        // its cs_xxx (buildRemoteCheckoutUrl → remote_reference_id), so the preferred
+        // its cs_xxx (getCheckoutUrl → remote_reference_id), so the preferred
         // branch above is the ONLY live completion path. Reaching here means the session
         // isn't one of ours (or its intent vanished) — surface it, but don't make Stripe
         // retry forever (a 500 would loop).

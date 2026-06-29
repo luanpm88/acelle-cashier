@@ -18,10 +18,8 @@ Route::group(['middleware' => ['web', 'not_installed'], 'namespace' => 'App\Cash
     Route::post('/cashier/offline/claim/{intent_uid}', 'OfflineController@claim')
         ->middleware('throttle:10,1');
 
-    // Stripe (one-off, intent-based)
-    Route::get('/cashier/stripe/checkout/{intent_uid}', 'StripeController@checkout');
-    Route::post('/cashier/stripe/pay/{intent_uid}', 'StripeController@pay')
-        ->middleware('throttle:10,1');
+    // Stripe always uses the hosted Checkout page (no on-site form). Only the off-session-3DS
+    // re-auth landing remains — it re-pays via a fresh hosted Checkout Session.
     Route::get('/cashier/stripe/{intent_uid}/payment-auth', 'StripeController@paymentAuth');
 });
 

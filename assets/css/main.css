@@ -1,76 +1,222 @@
-body {
-    background: #f9f9f9;
-}
-body:before {
-    height: 100%;
-    width: 50%;
-    position: fixed;
-    content: " ";
-    top: 0;
-    right: 0;
-    background: #fff;
-    -webkit-animation: enter-background-shadow .6s;
-    animation: enter-background-shadow .6s;
-    -webkit-animation-fill-mode: both;
-    animation-fill-mode: both;
-    -webkit-transform-origin: right;
-    -ms-transform-origin: right;
-    transform-origin: right;
-}            
-.mb-10 {
-    margin-bottom: 10px;
-}
-.mb-40 {
-    margin-bottom: 40px;
-}
-.mb-20 {
-    margin-bottom: 20px;
-}
-.mt-40 {
-    margin-top: 40px;
-}
-.pd-60 {
-    padding: 60px;
+/* ============================================================================
+   Cashier checkout — Stripe-Checkout-inspired styling.
+   Self-contained; classes prefixed `.co-` so they never collide with the
+   Bootstrap the layout still loads (only kept for the host Dialog/mask helpers).
+   ============================================================================ */
+
+:root {
+    --co-text:        #1a1f36;
+    --co-muted:       #687385;
+    --co-faint:       #8792a2;
+    --co-accent:      #635bff;
+    --co-accent-dark: #5045e0;
+    --co-danger:      #df1b41;
+    --co-border:      #e3e8ee;
+    --co-hair:        #eef1f6;
+    --co-radius:      16px;
+    --co-shadow:      0 12px 48px rgba(31, 45, 84, .12), 0 2px 6px rgba(31, 45, 84, .06);
 }
 
-ul.dotted-list {
-    list-style: none;
-    padding-left: 0;
+* { box-sizing: border-box; }
+
+.co-body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--co-text);
+    background: linear-gradient(180deg, #f6f9fc 0%, #eef1f7 100%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Ubuntu, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
 }
-.dotted-list > li {
-    line-height: 24px;
-    padding: 12px 0 11px;
-    border-bottom: 1px dotted #e0e0e0;
+
+.co-wrap {
+    max-width: 940px;
+    margin: 0 auto;
+    padding: 52px 20px 72px;
+}
+
+.co-shell {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    background: #fff;
+    border-radius: var(--co-radius);
+    box-shadow: var(--co-shadow);
+    overflow: hidden;
+}
+
+/* ── LEFT: order summary ─────────────────────────────────────────────────── */
+.co-summary {
     display: flex;
+    flex-direction: column;
+    padding: 44px 44px 40px;
+    background: #fbfcfe;
+    border-right: 1px solid var(--co-hair);
 }
-.dotted-list>li>div {
-    padding: 0;
+.co-brandrow {
+    display: flex;
+    align-items: center;
+    margin-bottom: 40px;
+}
+.co-secure {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 11px;
+    border-radius: 999px;
+    background: #eef2f8;
+    color: var(--co-muted);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .01em;
+}
+.co-secure svg { width: 13px; height: 13px; display: block; }
+
+.co-amount-label {
+    margin-bottom: 6px;
+    color: var(--co-muted);
+    font-size: 13px;
+    font-weight: 500;
+}
+.co-amount {
+    margin: 0;
+    font-size: 36px;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -.022em;
+}
+.co-amount .co-ccy {
+    margin-left: 7px;
+    color: var(--co-faint);
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: 0;
+}
+.co-desc {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--co-hair);
+    color: var(--co-muted);
+    font-size: 14px;
+    line-height: 1.6;
+}
+.co-summary-foot {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: auto;
+    padding-top: 32px;
+    color: var(--co-faint);
+    font-size: 12px;
+}
+.co-summary-foot svg { width: 12px; height: 12px; display: block; }
+
+/* ── RIGHT: payment form ─────────────────────────────────────────────────── */
+.co-pay { padding: 44px 44px 40px; }
+.co-pay-logo { display: block; margin-bottom: 26px; line-height: 0; }
+.co-pay-logo svg { height: 30px; width: auto; }
+
+.co-title  { margin: 0 0 6px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+.co-intro  { margin: 0 0 24px; color: var(--co-muted); font-size: 14px; line-height: 1.55; }
+
+.co-field-label {
     display: block;
-    margin-bottom: 1px;
+    margin-bottom: 8px;
+    color: var(--co-text);
+    font-size: 13px;
+    font-weight: 500;
 }
-.topborder>li:first-child {
-    border-top: 1px dotted #e0e0e0;
+
+/* Stripe Elements mount */
+.co-card-input {
+    padding: 14px;
+    background: #fff;
+    border: 1px solid var(--co-border);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(31, 45, 84, .05);
+    transition: border-color .15s ease, box-shadow .15s ease;
 }
-.size1of2 {
-    width: 50%;
-    float: left;
+.co-card-input.StripeElement--focus,
+.co-card-input:focus-within {
+    border-color: var(--co-accent);
+    box-shadow: 0 0 0 3px rgba(99, 91, 255, .16);
 }
-.size1of3 {
-    width: 33.3%;
-    float: left;
+.co-card-input.StripeElement--invalid { border-color: var(--co-danger); }
+
+.co-error {
+    min-height: 18px;
+    margin-top: 8px;
+    color: var(--co-danger);
+    font-size: 13px;
+    line-height: 1.4;
 }
-.size2of3 {
-    width: 66.6%;
-    float: left;
+
+/* Pay button */
+.co-btn {
+    width: 100%;
+    margin-top: 24px;
+    padding: 14px 18px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--co-accent);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(99, 91, 255, .32);
+    transition: background .15s ease, box-shadow .15s ease, transform .05s ease;
 }
-.lastUnit, .lastGroup {
-    float: none;
-    width: auto;
+.co-btn:hover  { background: var(--co-accent-dark); box-shadow: 0 6px 20px rgba(99, 91, 255, .38); }
+.co-btn:active { transform: translateY(1px); }
+.co-btn:disabled { opacity: .6; cursor: default; box-shadow: none; }
+
+/* Legal / powered-by footer */
+.co-legal {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 30px;
+    padding-top: 18px;
+    border-top: 1px solid var(--co-hair);
 }
-.lastUnit, .unit {
-    padding-left: 15px;
-    padding-right: 15px;
+.co-legal a {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--co-faint);
+    font-size: 12px;
+    text-decoration: none;
 }
-.sub-section {
-    margin-bottom: 60px;
+.co-legal a:hover { color: var(--co-muted); }
+.co-legal .co-sep { width: 1px; height: 13px; background: var(--co-border); }
+
+/* Back link under the shell */
+.co-back { margin-top: 24px; text-align: center; }
+.co-back a {
+    color: var(--co-muted);
+    font-size: 13px;
+    text-decoration: none;
+}
+.co-back a:hover { color: var(--co-text); text-decoration: underline; }
+
+/* Offline / generic content that still uses Bootstrap classes inside .co-pay */
+.co-pay h2 { font-size: 20px; font-weight: 600; margin: 0 0 6px; }
+.co-pay .btn-dark {
+    background: var(--co-accent);
+    border: 0;
+    border-radius: 10px;
+    padding: 12px 20px;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(99, 91, 255, .32);
+}
+.co-pay .btn-dark:hover { background: var(--co-accent-dark); }
+
+/* ── Responsive: stack the two panels ────────────────────────────────────── */
+@media (max-width: 720px) {
+    .co-wrap    { padding: 20px 14px 44px; }
+    .co-shell   { grid-template-columns: 1fr; border-radius: 14px; }
+    .co-summary { border-right: 0; border-bottom: 1px solid var(--co-hair); padding: 30px 26px 26px; }
+    .co-summary .co-brandrow { margin-bottom: 26px; }
+    .co-summary-foot { display: none; }
+    .co-pay     { padding: 30px 26px 30px; }
+    .co-amount  { font-size: 30px; }
 }

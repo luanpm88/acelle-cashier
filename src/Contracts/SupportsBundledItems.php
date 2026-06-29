@@ -19,7 +19,7 @@ namespace App\Cashier\Contracts;
  * gates: this marker decides WHETHER one-off products may be added at all; the catalog
  * interface decides only HOW they are entered (remote picker vs manual name + amount).
  *
- * Pure marker — no methods: the bundle is realised inside buildRemoteCheckoutUrl, which
+ * Pure marker — no methods: the bundle is realised inside getCheckoutUrl, which
  * reads the spec's one-off fields. `instanceof` is the whole contract.
  */
 interface SupportsBundledItems

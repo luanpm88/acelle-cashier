@@ -64,6 +64,7 @@
     'stripe.no_card' => 'Fill your card information below and click Pay button.',
     'stripe.current_card' => 'Your current card',
     'stripe.card_list' => 'Your card information',
+    'stripe.card_information' => 'Card information',
     'stripe.use_current_card' => 'Use current card',
     'stripe.change_card' => 'Change card',
     'stripe.add_card' => 'Add card',

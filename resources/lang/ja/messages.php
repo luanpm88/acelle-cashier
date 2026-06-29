@@ -49,6 +49,7 @@
     'stripe.no_card' => '以下にカード情報を入力し、「支払う」ボタンをクリックしてください。',
     'stripe.current_card' => '現在のカード',
     'stripe.card_list' => 'あなたのカード情報',
+    'stripe.card_information' => 'カード情報',
     'stripe.use_current_card' => '現在のカードを使用',
     'stripe.change_card' => 'カードを変更',
     'stripe.add_card' => 'カードを追加',

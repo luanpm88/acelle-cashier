@@ -9,7 +9,7 @@ namespace App\Cashier\DTO;
  * This is the FULL, gateway-neutral description of the (possibly bundled) hosted
  * checkout: the recurring plan, any one-off items billed up-front, the trial, and the
  * raw amounts. It is assembled ONCE host-side from the plan's remote mappings and
- * stamped onto the intent, so every consumer (the gateway's buildRemoteCheckoutUrl,
+ * stamped onto the intent, so every consumer (the gateway's getCheckoutUrl,
  * the webhook, the poller) reads everything from `$intent->subscription` and never
  * reaches back to the host Plan model. It is the single carrier — there is no separate spec DTO.
  *
