@@ -259,7 +259,7 @@ class StripeGateway implements
      * webhook attribution). Returns a handle carrying the `cs_xxx` session id so the host can
      * poll completion without a webhook.
      */
-    public function buildRemoteCheckoutUrl(PaymentIntent $intent, string $returnUrl): RemoteCheckoutHandle
+    public function buildRemoteCheckoutUrl(PaymentIntent $intent, string $returnUrl, ?string $cancelUrl = null): RemoteCheckoutHandle
     {
         $sub = $intent->subscription;
         if ($sub === null) {
@@ -286,12 +286,23 @@ class StripeGateway implements
             'mode'       => 'subscription',
             'line_items' => $lineItems,
             'payment_method_collection'  => 'always',
-            'billing_address_collection' => 'required',
-            // Pre-fill name + address from the (just-synced) customer and persist buyer edits.
-            // (Email pre-fills from customer.email automatically — no customer_update key for it.)
-            'customer_update' => ['name' => 'auto', 'address' => 'auto'],
+            // 'auto' = Checkout collects the billing address ONLY when necessary, and ADAPTS on
+            // its own (no country branching): we synced the buyer's address onto the customer
+            // above, so a buyer who came through our own billing form won't be re-shown the
+            // address fields; a flow with no address on file still gets it collected when Stripe
+            // needs it (tax / AVS). The app owns billing collection; Stripe just defers to it.
+            'billing_address_collection' => 'auto',
+            // customer_update governs whether CHECKOUT entries get SAVED BACK onto the customer:
+            //   name    => 'never' — the CARDHOLDER name (card identity, may be a company/spouse
+            //              card) must NOT overwrite our billing name ("CARD WORLD1" → "CARD").
+            //   address => 'auto'  — pre-fill the country on the card field from customer.address.
+            //              Trade-off (accepted): form is hidden, so only the card's AVS country+ZIP
+            //              syncs back, shrinking the saved customer.address — we prioritise the
+            //              country pre-fill over a full address on the Stripe record (the full
+            //              billing address lives on the host invoice regardless).
+            'customer_update' => ['name' => 'never', 'address' => 'auto'],
             'success_url' => $this->appendQueryParam($returnUrl, 'session_id', '{CHECKOUT_SESSION_ID}'),
-            'cancel_url'  => $returnUrl,
+            'cancel_url'  => $cancelUrl ?? $returnUrl,   // Back/cancel → caller's cancel target (else same as success)
             'customer'    => $customer->id,
             'client_reference_id' => $intent->uid,
             'metadata'    => $intent->metadata,
@@ -311,40 +322,36 @@ class StripeGateway implements
     }
 
     /**
-     * Sync the payer's email / name / billing address onto the RESOLVED Stripe customer so
-     * the hosted Checkout form arrives pre-filled (a fresh customer is name-only otherwise).
-     * Only writes fields that differ. Pre-fill is cosmetic, so a Stripe API failure here must
-     * NOT block the sale — it is logged and the checkout proceeds with whatever the customer
-     * already has. A non-Stripe error is NOT swallowed (it propagates).
+     * Sync the payer's email / name / billing address onto the RESOLVED Stripe customer so the
+     * hosted Checkout form arrives pre-filled (a fresh customer is name-only otherwise). Only
+     * writes fields that differ.
+     *
+     * NO try/catch — fail loud. A failure here is a real bug (malformed params / bad API key),
+     * not a tolerable degrade: a transient Stripe outage would fail Session::create immediately
+     * after this anyway, so swallowing wouldn't save the sale — it would only HIDE the bug and
+     * silently ship a customer with no billing pre-filled. Let it propagate.
      */
     private function prefillCustomerBilling(\Stripe\Customer $customer, \App\Cashier\DTO\Payer $payer): void
     {
-        try {
-            $update = [];
-            if ($payer->email !== '' && $customer->email !== $payer->email) {
-                $update['email'] = $payer->email;
-            }
-            $name = $payer->billingName !== '' ? $payer->billingName : $payer->name;
-            if ($name !== '' && $customer->name !== $name) {
-                $update['name'] = $name;
-            }
-            if ($payer->billingCountryCode !== '') {
-                $update['address'] = array_filter([
-                    'line1'   => $payer->billingAddress ?: null,
-                    'country' => $payer->billingCountryCode,
-                ]);
-            }
-            if ($payer->phone !== '') {
-                $update['phone'] = $payer->phone;
-            }
-            if ($update) {
-                \Stripe\Customer::update($customer->id, $update);
-            }
-        } catch (\Stripe\Exception\ApiErrorException $e) {
-            \Illuminate\Support\Facades\Log::warning('StripeGateway: customer pre-fill sync failed (non-fatal, checkout proceeds)', [
-                'customer' => $customer->id,
-                'error'    => $e->getMessage(),
+        $update = [];
+        if ($payer->email !== '' && $customer->email !== $payer->email) {
+            $update['email'] = $payer->email;
+        }
+        $name = $payer->billingName !== '' ? $payer->billingName : $payer->name;
+        if ($name !== '' && $customer->name !== $name) {
+            $update['name'] = $name;
+        }
+        if ($payer->billingCountryCode !== '') {
+            $update['address'] = array_filter([
+                'line1'   => $payer->billingAddress ?: null,
+                'country' => $payer->billingCountryCode,
             ]);
+        }
+        if ($payer->phone !== '') {
+            $update['phone'] = $payer->phone;
+        }
+        if ($update) {
+            \Stripe\Customer::update($customer->id, $update);
         }
     }
 

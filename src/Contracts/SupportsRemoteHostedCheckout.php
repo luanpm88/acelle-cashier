@@ -48,8 +48,12 @@ interface SupportsRemoteHostedCheckout
      * Returns a {@see RemoteCheckoutHandle} (url + session id + expiry), NOT just a URL: the
      * host persists the session id (onto `payment_intents.remote_reference_id`) so it can
      * later poll completion without a webhook (see {@see getCheckoutSession()}).
+     *
+     * $cancelUrl is where the hosted page's Back/cancel button returns the buyer; null ⇒ use
+     * $returnUrl (same place as success). The two differ when success and cancel belong on
+     * different screens (e.g. success → account dashboard, cancel → back to the checkout form).
      */
-    public function buildRemoteCheckoutUrl(PaymentIntent $intent, string $returnUrl): RemoteCheckoutHandle;
+    public function buildRemoteCheckoutUrl(PaymentIntent $intent, string $returnUrl, ?string $cancelUrl = null): RemoteCheckoutHandle;
 
     /**
      * Read back a hosted checkout session by its provider-side id — the webhook-INDEPENDENT
