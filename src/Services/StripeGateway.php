@@ -64,7 +64,13 @@ class StripeGateway implements
             $this->active = true;
             \Stripe\Stripe::setApiKey($this->secretKey);
             // One unified API version for the whole account (one-off + subscription).
-            \Stripe\Stripe::setApiVersion('2023-10-16');
+            // Pinned to 2026-06-24.dahlia (was 2023-10-16, ~3 release trains behind). dahlia
+            // relocated subscription current_period_* to the ITEM level and moved
+            // invoice.subscription / invoice.payment_intent under invoice.parent / invoice.payments
+            // — the mapping methods below read the new paths. SDK stays on stripe-php v7.128
+            // (StripeObject's dynamic field access reads the relocated fields; setApiVersion only
+            // sets the Stripe-Version header — verified live against dahlia).
+            \Stripe\Stripe::setApiVersion('2026-06-24.dahlia');
             // Idempotent auto-retry of transient failures: the SDK reuses ONE idempotency key
             // across retries of a single request, so an off-session charge whose response was
             // lost is retried idempotently (closes the double-charge window). NOT a per-intent
@@ -149,6 +155,12 @@ class StripeGateway implements
                 'trial_period_days' => $sub->trialDays,
                 'metadata'          => $intent->metadata ?: null,
             ]);
+            // Explicitly select Stripe's flexible billing engine (dahlia's default since clover
+            // 2025-09-30): item-level billing periods + more precise proration/credits. Not yet in
+            // production, so there is no classic fleet to preserve — adopt the modern engine
+            // outright. Declared explicitly (not left to the default) so a future Stripe default
+            // change can't flip it. current_period is item-level here — subscriptionPeriod() reads it.
+            $params['subscription_data']['billing_mode'] = ['type' => 'flexible'];
         } else {
             // App-handled one-off: charge the invoice amount now AND vault the card
             // (setup_future_usage) so the local subscription's off-session autoCharge renewals reuse it.
@@ -370,9 +382,8 @@ class StripeGateway implements
 
         $sub         = $s->subscription;
         $remoteSubId = is_object($sub) ? $sub->id : (is_string($sub) ? $sub : null);
-        $periodEnd   = (is_object($sub) && isset($sub->current_period_end))
-            ? Carbon::createFromTimestamp($sub->current_period_end)
-            : null;
+        // dahlia: the billing period is item-level now (see subscriptionPeriod()).
+        $periodEnd   = is_object($sub) ? $this->subscriptionPeriod($sub)['end'] : null;
 
         // mode:payment one-off — pull the charge id + the card to vault for off-session renewals.
         $paymentIntentId = null;
@@ -445,8 +456,32 @@ class StripeGateway implements
         ];
     }
 
+    /**
+     * Subscription billing period — dahlia relocated it to the ITEM level (2025-03-31.basil
+     * removed subscription-level current_period_start/end). A single-price subscription carries
+     * it on items.data[0]; a mixed-interval subscription's whole-sub window is [max(start),
+     * min(end)] across items, per Stripe's own rule. Returns ['start'=>?Carbon, 'end'=>?Carbon]
+     * (null when no item carries a period, e.g. an incomplete subscription — DTO fields nullable).
+     */
+    private function subscriptionPeriod(\Stripe\Subscription $sub): array
+    {
+        $startTs = null;
+        $endTs   = null;
+        foreach (($sub->items->data ?? []) as $item) {
+            $s = $item->current_period_start ?? null;
+            $e = $item->current_period_end ?? null;
+            if ($s !== null) { $startTs = $startTs === null ? $s : max($startTs, $s); }
+            if ($e !== null) { $endTs   = $endTs === null ? $e : min($endTs, $e); }
+        }
+        return [
+            'start' => $startTs !== null ? Carbon::createFromTimestamp($startTs) : null,
+            'end'   => $endTs !== null ? Carbon::createFromTimestamp($endTs) : null,
+        ];
+    }
+
     private function mapSubscriptionToDto(\Stripe\Subscription $sub): RemoteSubscriptionDTO
     {
+        $period = $this->subscriptionPeriod($sub);
         $latestAmount = null;
         $latestStatus = null;
         if ($sub->latest_invoice && is_object($sub->latest_invoice)) {
@@ -459,8 +494,8 @@ class StripeGateway implements
             status:              $sub->status,
             remotePlanId:        $sub->items->data[0]->price->id ?? '',
             remoteCustomerId:    is_string($sub->customer) ? $sub->customer : ($sub->customer->id ?? null),
-            currentPeriodEnd:    Carbon::createFromTimestamp($sub->current_period_end),
-            currentPeriodStart:  Carbon::createFromTimestamp($sub->current_period_start),
+            currentPeriodEnd:    $period['end'],
+            currentPeriodStart:  $period['start'],
             canceledAt:          $sub->canceled_at ? Carbon::createFromTimestamp($sub->canceled_at) : null,
             latestInvoiceAmount: $latestAmount,
             latestInvoiceStatus: $latestStatus,
@@ -559,10 +594,14 @@ class StripeGateway implements
      */
     public function getRemoteInvoices(string $remoteSubscriptionId, ?string $afterId = null, int $limit = 50): array
     {
+        // The `subscription` LIST FILTER survives on dahlia (only the invoice.subscription FIELD
+        // moved to invoice.parent). Dropped the old `data.payment_intent.payment_method` expand:
+        // invoice.payment_intent is gone, and payments→payment_intent→payment_method exceeds
+        // Stripe's 4-level expand limit on a LIST — so per-invoice card fields degrade to null
+        // (see stripeInvoiceToDto). Subscription id comes off invoice.parent (default-returned).
         $invoices = \Stripe\Invoice::all([
             'subscription' => $remoteSubscriptionId,
             'limit'        => 100,
-            'expand'       => ['data.payment_intent.payment_method'],
         ], ['api_key' => $this->secretKey]);
 
         $all = [];
@@ -608,27 +647,46 @@ class StripeGateway implements
         $line = $inv->lines->data[0] ?? null;
         $period = $line && isset($line->period) ? $line->period : null;
 
+        // dahlia: invoice.payment_intent was removed; the paying charge is now under
+        // invoice.payments[].payment (payment.type === 'payment_intent'). The card PM is not
+        // reachable within Stripe's 4-level expand limit on a LIST, so per-invoice card fields
+        // degrade to null in history sync (the CURRENT card is served by getRemotePaymentMethod);
+        // we still surface the card when a caller expanded payments.data.payment.payment_intent
+        // into an object on a single retrieve.
         $pmRemoteId = null;
         $pmBrand    = null;
         $pmLast4    = null;
-        $pi = $inv->payment_intent ?? null;
-        if (is_object($pi)) {
-            $pm = $pi->payment_method ?? null;
-            if (is_object($pm)) {
-                $pmRemoteId = $pm->id ?? null;
-                $card = $pm->card ?? null;
-                if (is_object($card)) {
-                    $pmBrand = ucfirst((string) ($card->brand ?? ''));
-                    $pmLast4 = (string) ($card->last4 ?? '');
-                }
-            } elseif (is_string($pm)) {
-                $pmRemoteId = $pm;
+        foreach (($inv->payments->data ?? []) as $payment) {
+            $charge = $payment->payment ?? null;
+            if (!is_object($charge) || ($charge->type ?? null) !== 'payment_intent') {
+                continue;
             }
+            $pi = $charge->payment_intent ?? null;
+            if (is_object($pi)) {
+                $pm = $pi->payment_method ?? null;
+                if (is_object($pm)) {
+                    $pmRemoteId = $pm->id ?? null;
+                    $card = $pm->card ?? null;
+                    if (is_object($card)) {
+                        $pmBrand = ucfirst((string) ($card->brand ?? ''));
+                        $pmLast4 = (string) ($card->last4 ?? '');
+                    }
+                } elseif (is_string($pm)) {
+                    $pmRemoteId = $pm;
+                }
+            }
+            break; // the default payment_intent payment
         }
+
+        // dahlia: invoice.subscription removed → invoice.parent.subscription_details.subscription
+        // (parent + its ids are returned by default; parent.type is the discriminator).
+        $remoteSubId = ($inv->parent && ($inv->parent->type ?? null) === 'subscription_details')
+            ? ($inv->parent->subscription_details->subscription ?? null)
+            : null;
 
         return new RemoteInvoiceDTO(
             id:                   (string) $inv->id,
-            remoteSubscriptionId: (string) $inv->subscription,
+            remoteSubscriptionId: (string) $remoteSubId,
             origin:               $origin,
             status:               $status,
             amount:               ((int) ($inv->amount_paid ?? 0)) / 100.0,
