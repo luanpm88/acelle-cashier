@@ -84,7 +84,10 @@ class RemoteSubscriptionWebhookController extends Controller
             return $this->handleRemoteCheckoutCompleted($data, $gateway);
         }
 
-        $remoteSubId = $data['id'] ?? null;
+        // data.object is a DIFFERENT resource per event family, so data.id is the
+        // subscription id ONLY for customer.subscription.* — for invoice.* it's the
+        // invoice id (in_…). Resolve per-event so the by-id lookup below can match.
+        $remoteSubId = $this->resolveRemoteSubscriptionId($event, $data);
 
         if (!$remoteSubId) {
             Log::warning("Webhook event {$event} has no subscription ID");
@@ -122,6 +125,59 @@ class RemoteSubscriptionWebhookController extends Controller
         }
 
         return response()->json(['status' => 'processed'], 200);
+    }
+
+    /**
+     * Resolve the REMOTE (Stripe) subscription id for a webhook event so the by-id
+     * lookup in handleWebhookEvent() can find the local Subscription.
+     *
+     * `data.object` is a different resource per event family, so `data.id` is the
+     * subscription id ONLY for customer.subscription.* :
+     *
+     *   - customer.subscription.*  → data.object IS the Subscription → id = "sub_…" = data.id.
+     *   - invoice.*                → data.object is the Invoice       → data.id = "in_…" (the
+     *     INVOICE id, NOT the subscription). Under the pinned API version "2026-06-24.dahlia"
+     *     the invoice→subscription field moved off the top-level `invoice.subscription` onto
+     *     `invoice.parent.subscription_details.subscription`, discriminated by
+     *     `invoice.parent.type === 'subscription_details'` — the SAME extraction as the
+     *     object-form StripeGateway::stripeInvoiceToDto(). We read the dahlia path first, then
+     *     fall back to the legacy pre-basil top-level `invoice.subscription` for any older payload.
+     *
+     * Returns null (never a wrong id) for a one-off / manual / quote invoice that has no
+     * subscription, so the caller logs no_sub_id / unknown_subscription and 200s instead of
+     * mis-matching another row (this is the prod bug: "invoice.paid for unknown remote
+     * subscription: in_…"). Webhook payloads carry a plain "sub_…" STRING (Stripe never expands
+     * sub-objects in webhooks); we also tolerate an expanded object (array carrying 'id').
+     */
+    private function resolveRemoteSubscriptionId(string $event, array $data): ?string
+    {
+        // customer.subscription.created / .updated / .deleted / … → data.object IS the Subscription.
+        if (str_starts_with($event, 'customer.subscription.')) {
+            return $data['id'] ?? null;
+        }
+
+        // invoice.paid / invoice.payment_failed / any invoice.* → data.object is the Invoice.
+        if (str_starts_with($event, 'invoice.')) {
+            // dahlia: invoice.subscription removed → invoice.parent.subscription_details.subscription
+            // (parent.type is the discriminator; only 'subscription_details' carries a subscription).
+            $ref = (($data['parent']['type'] ?? null) === 'subscription_details')
+                ? ($data['parent']['subscription_details']['subscription'] ?? null)
+                : null;
+
+            // Legacy (pre-basil) fallback: top-level invoice.subscription.
+            $ref = $ref ?? ($data['subscription'] ?? null);
+
+            // Webhooks send a plain "sub_…" string; tolerate an expanded object (array with 'id').
+            if (is_array($ref)) {
+                $ref = $ref['id'] ?? null;
+            }
+
+            return (is_string($ref) && $ref !== '') ? $ref : null;
+        }
+
+        // Any other event (checkout.session.completed is already routed above): no subscription
+        // id on data.id → null lets the caller log no_sub_id and 200 rather than mis-look-up.
+        return null;
     }
 
     /**
