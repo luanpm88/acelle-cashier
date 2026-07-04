@@ -103,25 +103,38 @@ class RemoteSubscriptionWebhookController extends Controller
 
         Log::info("Processing webhook event {$event} for subscription {$subscription->uid} (remote: {$remoteSubId})");
 
-        switch ($event) {
-            case 'customer.subscription.updated':
-                $this->handleSubscriptionUpdated($subscription, $data, $gateway);
-                break;
+        try {
+            switch ($event) {
+                case 'customer.subscription.updated':
+                    $this->handleSubscriptionUpdated($subscription, $data, $gateway);
+                    break;
 
-            case 'customer.subscription.deleted':
-                $this->handleSubscriptionDeleted($subscription, $data);
-                break;
+                case 'customer.subscription.deleted':
+                    $this->handleSubscriptionDeleted($subscription, $data);
+                    break;
 
-            case 'invoice.paid':
-                $this->handleInvoicePaid($subscription, $data, $gateway);
-                break;
+                case 'invoice.paid':
+                    $this->handleInvoicePaid($subscription, $data, $gateway);
+                    break;
 
-            case 'invoice.payment_failed':
-                $this->handlePaymentFailed($subscription, $data);
-                break;
+                case 'invoice.payment_failed':
+                    $this->handlePaymentFailed($subscription, $data);
+                    break;
 
-            default:
-                Log::info("Unhandled webhook event: {$event}");
+                default:
+                    Log::info("Unhandled webhook event: {$event}");
+            }
+        } catch (\Throwable $e) {
+            // A handler failed (e.g. a transient Stripe API error inside
+            // getRemoteSubscription). Return 500 so Stripe RETRIES the delivery rather
+            // than acknowledging 200 and losing the event — a lost customer.subscription.deleted
+            // leaves the sub active after cancellation; a lost invoice.paid never advances the
+            // period. Mirrors handleRemoteCheckoutCompleted's 500-on-failure. The handlers are
+            // idempotent (isNew/isActive guards), so a retried delivery is safe.
+            Log::error("Webhook handler failed for {$event} (subscription {$subscription->uid}); returning 500 for Stripe retry", [
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json(['status' => 'handler_failed'], 500);
         }
 
         return response()->json(['status' => 'processed'], 200);
@@ -265,76 +278,71 @@ class RemoteSubscriptionWebhookController extends Controller
 
     protected function handleSubscriptionUpdated(Subscription $subscription, array $data, PaymentGateway $gateway)
     {
-        try {
-            $service = Billing::resolveService($gateway);
-            $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
+        // No local try/catch: a failure (e.g. getRemoteSubscription) propagates to
+        // handleWebhookEvent's boundary catch → 500 → Stripe retries. Do NOT re-add a
+        // swallow-and-return here — that acks 200 and loses the sync.
+        $service = Billing::resolveService($gateway);
+        $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
 
-            if ($subscription->isNew() && ($remoteSub->isActive() || $remoteSub->isTrialing())) {
-                $subscription->activateFromRemote($gateway);
-            }
-
-            if ($remoteSub->currentPeriodEnd && $subscription->isActive()) {
-                $subscription->current_period_ends_at = $remoteSub->currentPeriodEnd;
-            }
-
-            $meta = $subscription->getRemoteMetadataArray();
-            $meta['remote_status'] = $remoteSub->status;
-            if ($remoteSub->remotePlanId) {
-                $meta['remote_plan_id'] = $remoteSub->remotePlanId;
-            }
-            if ($remoteSub->currentPeriodEnd) {
-                $meta['remote_period_end'] = $remoteSub->currentPeriodEnd->toDateTimeString();
-            }
-            $subscription->remote_metadata = $meta;
-            $subscription->last_synced_at = now();
-            $subscription->save();
-
-            Log::info("Subscription {$subscription->uid} updated from webhook. Remote status: {$remoteSub->status}");
-        } catch (\Exception $e) {
-            Log::error("Error handling subscription updated webhook for {$subscription->uid}: " . $e->getMessage());
+        if ($subscription->isNew() && ($remoteSub->isActive() || $remoteSub->isTrialing())) {
+            $subscription->activateFromRemote($gateway);
         }
+
+        if ($remoteSub->currentPeriodEnd && $subscription->isActive()) {
+            $subscription->current_period_ends_at = $remoteSub->currentPeriodEnd;
+        }
+
+        $meta = $subscription->getRemoteMetadataArray();
+        $meta['remote_status'] = $remoteSub->status;
+        if ($remoteSub->remotePlanId) {
+            $meta['remote_plan_id'] = $remoteSub->remotePlanId;
+        }
+        if ($remoteSub->currentPeriodEnd) {
+            $meta['remote_period_end'] = $remoteSub->currentPeriodEnd->toDateTimeString();
+        }
+        $subscription->remote_metadata = $meta;
+        $subscription->last_synced_at = now();
+        $subscription->save();
+
+        Log::info("Subscription {$subscription->uid} updated from webhook. Remote status: {$remoteSub->status}");
     }
 
     protected function handleSubscriptionDeleted(Subscription $subscription, array $data)
     {
-        try {
-            if ($subscription->isActive()) {
-                $subscription->cancelNow();
-                Log::info("Subscription {$subscription->uid} cancelled via webhook (remote subscription deleted)");
-            }
-        } catch (\Exception $e) {
-            Log::error("Error handling subscription deleted webhook for {$subscription->uid}: " . $e->getMessage());
+        // No local try/catch: failure propagates to the boundary catch → 500 → Stripe retries.
+        // A swallowed error here would leave the sub ACTIVE after Stripe cancelled it.
+        if ($subscription->isActive()) {
+            $subscription->cancelNow();
+            Log::info("Subscription {$subscription->uid} cancelled via webhook (remote subscription deleted)");
         }
     }
 
     protected function handleInvoicePaid(Subscription $subscription, array $data, PaymentGateway $gateway)
     {
-        try {
-            $service = Billing::resolveService($gateway);
-            $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
+        // No local try/catch: failure propagates to the boundary catch → 500 → Stripe retries
+        // (a swallowed error would drop a renewal and never advance current_period_ends_at).
+        $service = Billing::resolveService($gateway);
+        $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
 
-            if ($subscription->isNew() && ($remoteSub->isActive() || $remoteSub->isTrialing())) {
-                $subscription->activateFromRemote($gateway);
-            }
-
-            if ($remoteSub->currentPeriodEnd && $subscription->isActive()) {
-                $subscription->current_period_ends_at = $remoteSub->currentPeriodEnd;
-            }
-
-            $meta = $subscription->getRemoteMetadataArray();
-            $meta['remote_status'] = $remoteSub->status;
-            if ($remoteSub->latestInvoiceAmount !== null) {
-                $meta['latest_invoice_amount'] = $remoteSub->latestInvoiceAmount;
-                $meta['latest_invoice_status'] = $remoteSub->latestInvoiceStatus;
-            }
-            $subscription->remote_metadata = $meta;
-            $subscription->last_synced_at = now();
-            $subscription->save();
-
-            Log::info("Invoice paid webhook processed for subscription {$subscription->uid}");
-        } catch (\Exception $e) {
-            Log::error("Error handling invoice paid webhook for {$subscription->uid}: " . $e->getMessage());
+        if ($subscription->isNew() && ($remoteSub->isActive() || $remoteSub->isTrialing())) {
+            $subscription->activateFromRemote($gateway);
         }
+
+        if ($remoteSub->currentPeriodEnd && $subscription->isActive()) {
+            $subscription->current_period_ends_at = $remoteSub->currentPeriodEnd;
+        }
+
+        $meta = $subscription->getRemoteMetadataArray();
+        $meta['remote_status'] = $remoteSub->status;
+        if ($remoteSub->latestInvoiceAmount !== null) {
+            $meta['latest_invoice_amount'] = $remoteSub->latestInvoiceAmount;
+            $meta['latest_invoice_status'] = $remoteSub->latestInvoiceStatus;
+        }
+        $subscription->remote_metadata = $meta;
+        $subscription->last_synced_at = now();
+        $subscription->save();
+
+        Log::info("Invoice paid webhook processed for subscription {$subscription->uid}");
     }
 
     protected function handlePaymentFailed(Subscription $subscription, array $data)
