@@ -578,6 +578,14 @@ class StripeGateway implements
     public function parseWebhookPayload(string $payload, array $headers): array
     {
         $sigHeader = $headers['stripe-signature'] ?? ($headers['Stripe-Signature'] ?? '');
+        // Laravel/Symfony's $request->headers->all() returns each header as a LIST of
+        // values ($sigHeader === ['t=…,v1=…']); Stripe's constructEvent()/WebhookSignature
+        // needs the single header STRING, else explode() throws a TypeError — a \Error,
+        // not \Exception, so it escapes the webhook controller's catch and 500s instead
+        // of returning a clean 400 invalid_signature.
+        if (is_array($sigHeader)) {
+            $sigHeader = $sigHeader[0] ?? '';
+        }
         $event = \Stripe\Webhook::constructEvent($payload, $sigHeader, $this->webhookSecret);
 
         return [
