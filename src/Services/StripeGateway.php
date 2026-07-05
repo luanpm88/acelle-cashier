@@ -135,7 +135,10 @@ class StripeGateway implements
             // our billing name. address => auto: pre-fill the country on the card field.
             'customer_update'            => ['name' => 'never', 'address' => 'auto'],
             'billing_address_collection' => 'auto',
-            'success_url'                => $this->appendQueryParam($returnUrl, 'session_id', '{CHECKOUT_SESSION_ID}'),
+            // The app owns its return URL (it already carries the invoice handle it needs on
+            // return). We do NOT inject Stripe's {CHECKOUT_SESSION_ID}: the app reconciles the
+            // browser return by its own invoice reference, never by a gateway session id.
+            'success_url'                => $returnUrl,
             'cancel_url'                 => $cancelUrl ?? $returnUrl,
             'client_reference_id'        => $intent->uid,
             'metadata'                   => $intent->metadata,
@@ -419,12 +422,6 @@ class StripeGateway implements
             paymentIntentId:      $paymentIntentId,
             paymentMethod:        $paymentMethod,
         );
-    }
-
-    private function appendQueryParam(string $url, string $key, string $value): string
-    {
-        $sep = str_contains($url, '?') ? '&' : '?';
-        return $url . $sep . $key . '=' . $value;
     }
 
     // ── ManageRemoteSubscriptionInterface — read/sync ────────────────────────────────
