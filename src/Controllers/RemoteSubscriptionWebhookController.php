@@ -46,25 +46,62 @@ class RemoteSubscriptionWebhookController extends Controller
             return response()->json(['status' => 'webhook_disabled'], 200);
         }
 
-        $gateway = PaymentGateway::where('type', StripeGateway::TYPE)->active()->first();
+        // Resolve WHICH Stripe gateway this event belongs to. There is ONE global webhook URL
+        // (routes.php) but there can be MULTIPLE active `type=stripe` gateways — two Stripe
+        // accounts, test+live, or a per-customer gateway alongside the global one
+        // (payment_gateways.type has NO unique constraint; the 2026-07-04 collapse migration
+        // explicitly leaves two 'stripe' rows coexisting). Each row has its OWN webhook signing
+        // secret, so we can't grab "the first" — that either verifies the wrong account's
+        // signature (400 → Stripe retries forever → event lost) or calls the wrong Stripe API
+        // key downstream. We find the gateway whose secret actually verifies THIS signature; that
+        // verified gateway IS the account that signed the event, so every downstream
+        // getRemoteSubscription() then uses the correct API key too.
+        $gateways = PaymentGateway::where('type', StripeGateway::TYPE)->active()->get();
 
-        if (!$gateway) {
-            Log::warning('Stripe subscription webhook received but no active gateway found');
+        if ($gateways->isEmpty()) {
+            Log::warning('Stripe subscription webhook received but no active gateway configured');
             return response()->json(['status' => 'no_gateway'], 200);
         }
 
-        $service = Billing::resolveService($gateway);
-        if (!($service instanceof ManageRemoteSubscriptionInterface)) {
-            return response()->json(['status' => 'invalid_service'], 400);
+        // HINT (untrusted): getCheckoutUrl() stamps gateway_uid into the checkout session +
+        // subscription metadata, so most events carry it on data.object.metadata. Read it WITHOUT
+        // trusting it — it only orders which secret we try FIRST, so the common single-account
+        // case verifies in one attempt. A spoofed or absent hint simply falls through to trying
+        // the remaining gateways; trust comes SOLELY from the signature verify below. Absent on
+        // invoice.* (an invoice does not inherit its subscription's metadata) → hint is null there.
+        $raw     = $request->getContent();
+        $hintUid = json_decode($raw, true)['data']['object']['metadata']['gateway_uid'] ?? null;
+        [$hinted, $rest] = $gateways->partition(fn ($g) => $g->uid === $hintUid);
+
+        $gateway = null;
+        $parsed  = null;
+
+        foreach ($hinted->concat($rest) as $candidate) {
+            $service = Billing::resolveService($candidate);
+            if (!($service instanceof ManageRemoteSubscriptionInterface)) {
+                continue;
+            }
+
+            try {
+                $parsed  = $service->parseWebhookPayload($raw, $request->headers->all());
+                $gateway = $candidate; // secret matched → this is the account that signed the event
+                break;
+            } catch (\Stripe\Exception\SignatureVerificationException $e) {
+                // Wrong secret for THIS gateway (or event outside Stripe's replay tolerance).
+                // Try the next active gateway — do NOT swallow: if none verifies we 400 below.
+                continue;
+            } catch (\UnexpectedValueException $e) {
+                // Malformed JSON body: every gateway would fail identically, so stop now.
+                Log::error('Stripe subscription webhook: malformed payload: ' . $e->getMessage());
+                return response()->json(['error' => trans('cashier::messages.webhook.invalid_signature')], 400);
+            }
         }
 
-        try {
-            $parsed = $service->parseWebhookPayload(
-                $request->getContent(),
-                $request->headers->all()
-            );
-        } catch (\Exception $e) {
-            Log::error('Stripe subscription webhook signature verification failed: ' . $e->getMessage());
+        if (!$gateway) {
+            // No active Stripe gateway's secret verified this signature: a spoofed event, a stale
+            // delivery, or an account we don't have configured. 400 → Stripe retries then gives up
+            // (correct — we never process an unauthenticated event).
+            Log::error('Stripe subscription webhook: signature did not verify against any active Stripe gateway');
             return response()->json(['error' => trans('cashier::messages.webhook.invalid_signature')], 400);
         }
 
