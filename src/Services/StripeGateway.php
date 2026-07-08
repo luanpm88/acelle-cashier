@@ -9,6 +9,8 @@ use App\Cashier\Contracts\SupportsBundledItems;
 use App\Cashier\Contracts\SupportsRemoteOneTimePriceCatalogInterface;
 use App\Cashier\Contracts\ManageRemoteSubscriptionInterface;
 use App\Cashier\Contracts\SupportsRemoteCatalogInterface;
+use App\Cashier\Contracts\SupportsDiscounts;
+use App\Cashier\DTO\DiscountSpec;
 use App\Cashier\DTO\PaymentIntent;
 use App\Cashier\DTO\PaymentResult;
 use App\Cashier\DTO\PaymentMethodDTO;
@@ -35,6 +37,7 @@ use Carbon\Carbon;
  * - SupportsRemoteOneTimePriceCatalogInterface      → Stripe's one_time price catalog
  * - ManageRemoteSubscriptionInterface               → read/sync/cancel/resume/webhook
  * - SupportsRemoteCatalogInterface                  → plans, list-subs, invoice history
+ * - SupportsDiscounts                               → apply a DiscountSpec (→ a Stripe Coupon)
  *
  * Pure: no DB writes, no handler callbacks. Controllers orchestrate side-effects.
  */
@@ -45,7 +48,8 @@ class StripeGateway implements
     SupportsBundledItems,
     SupportsRemoteOneTimePriceCatalogInterface,
     ManageRemoteSubscriptionInterface,
-    SupportsRemoteCatalogInterface
+    SupportsRemoteCatalogInterface,
+    SupportsDiscounts
 {
     public const TYPE = 'stripe';
 
@@ -179,6 +183,14 @@ class StripeGateway implements
             $params['payment_intent_data'] = ['setup_future_usage' => 'off_session'];
         }
 
+        // SupportsDiscounts — realise the gateway-NEUTRAL DiscountSpec into Stripe's own
+        // mechanism (a Coupon on the session). `duration:once` means only the FIRST charge is
+        // discounted; in the trial bundle the recurring is $0 today (trial-deferred), so the cut
+        // lands on the up-front license line. Works for both mode:subscription and mode:payment.
+        if ($intent->discount !== null) {
+            $params['discounts'] = [['coupon' => $this->ensureStripeCoupon($intent->discount)]];
+        }
+
         $session = \Stripe\Checkout\Session::create($params);
 
         return new PollableCheckout(
@@ -188,18 +200,95 @@ class StripeGateway implements
         );
     }
 
+    /**
+     * Map a neutral {@see DiscountSpec} to a reusable Stripe Coupon, returning its id. Keeps ALL
+     * Stripe-specifics (the Coupon object, ids, `duration`) inside this driver — the app/DTO never
+     * name a `co_…`. The id is DETERMINISTIC per (type,value,currency) so every app code of the same
+     * value reuses ONE Coupon (never one-per-code): retrieve it, and create it once on 404. Idempotent
+     * against a create/create race (Stripe returns the existing resource → treat as success).
+     */
+    private function ensureStripeCoupon(DiscountSpec $discount): string
+    {
+        $id = $this->couponId($discount);
+
+        try {
+            \Stripe\Coupon::retrieve($id);
+
+            return $id;
+        } catch (\Stripe\Exception\InvalidRequestException $e) {
+            // Only "does not exist" is a create-it signal; anything else is a real error → rethrow.
+            if ($e->getStripeCode() !== 'resource_missing') {
+                throw $e;
+            }
+        }
+
+        $params = ['id' => $id, 'duration' => 'once'];   // once = the up-front charge only (not recurring)
+        if ($discount->type === DiscountSpec::TYPE_FIXED) {
+            $params['amount_off'] = $this->convertPrice($discount->value, $discount->currency);
+            $params['currency']   = strtolower((string) $discount->currency);
+        } else {
+            $params['percent_off'] = $discount->value;
+        }
+
+        try {
+            \Stripe\Coupon::create($params);
+        } catch (\Stripe\Exception\InvalidRequestException $e) {
+            // ONLY a create/create race is OK to ignore: a concurrent request already created this
+            // id, so Stripe returns `resource_already_exists` and the coupon we wanted now exists.
+            // ANY other failure (bad params, auth, rate-limit, …) is real → rethrow it UNCHANGED so
+            // its true cause surfaces — never mask it behind a follow-up retrieve (retrieve THROWS
+            // on missing, it never returns null, so that check was dead code that hid the real error).
+            if ($e->getStripeCode() !== 'resource_already_exists') {
+                throw $e;
+            }
+        }
+
+        return $id;
+    }
+
+    /**
+     * Deterministic, Stripe-legal coupon id for a discount value (alphanumeric + underscore; '.'
+     * → '_' so 12.5% stays a valid id). `match` throws on an unknown type — no fall-through.
+     */
+    private function couponId(DiscountSpec $discount): string
+    {
+        $value = rtrim(rtrim(number_format($discount->value, 2, '.', ''), '0'), '.');
+        $value = str_replace('.', '_', $value);
+
+        return match ($discount->type) {
+            DiscountSpec::TYPE_PERCENT => "disc_pct_{$value}",
+            DiscountSpec::TYPE_FIXED   => 'disc_fix_' . strtolower((string) $discount->currency) . "_{$value}",
+            default                    => throw new \InvalidArgumentException("Unknown discount type: {$discount->type}"),
+        };
+    }
+
     // ── SupportsAutoChargeInterface — off-session charge of a saved card (PURE) ───────
 
     public function autoCharge(PaymentIntent $intent, PaymentMethodDTO $pm): PaymentResult
     {
-        // Free invoice: skip Stripe. Caller dispatches success.
-        if ($intent->amount <= 0) {
+        // Remote-subscription intent → create the PROVIDER subscription off-session with the saved
+        // card (same recurring mechanism as the mode:subscription hosted lane, but no redirect).
+        // Returns STATUS_SUBSCRIPTION_CREATED carrying the RemoteSubscriptionDTO so the host links it
+        // via onSubscriptionCreated. A one-off intent falls through to the amount charge below.
+        if ($intent->subscription !== null) {
+            return $this->autoChargeSubscription($intent, $pm);
+        }
+
+        // An off-session PaymentIntent can't attach a Stripe Coupon (that's a Checkout Session
+        // feature — see getCheckoutUrl above), so a carried discount is realized by charging the
+        // NET amount directly (the DTO subtracts the app-resolved coupon_amount = the recorded
+        // invoice.discount_amount; no discount → full amount).
+        $chargeAmount = $intent->netAmountAfterDiscount();
+
+        // Free invoice OR a discount that zeroes it out: skip Stripe (it rejects a $0 off-session
+        // charge). Caller dispatches success; the redemption still commits from the stamped metadata.
+        if ($chargeAmount <= 0) {
             return PaymentResult::success('FREE_NO_CHARGE');
         }
 
         try {
             $pi = \Stripe\PaymentIntent::create([
-                'amount'         => $this->convertPrice($intent->amount, $intent->currency),
+                'amount'         => $this->convertPrice($chargeAmount, $intent->currency),
                 'currency'       => strtolower($intent->currency),
                 'customer'       => $pm->remoteCustomerId,
                 'payment_method' => $pm->remotePaymentMethodId,
@@ -239,6 +328,86 @@ class StripeGateway implements
             return PaymentResult::failed($e->getMessage(), $remotePi?->id);
         } catch (\Throwable $e) {
             return PaymentResult::failed($e->getMessage());
+        }
+    }
+
+    /**
+     * Off-session sibling of the mode:subscription hosted lane (getCheckoutUrl): create the provider
+     * subscription with the SAVED card, no redirect. Same shape — recurring plan in `items`, bundled
+     * one-offs in `add_invoice_items`, trial, and the discount as a Stripe Coupon (duration:once, NOT
+     * a net subtraction — a subscription's cut must land on the up-front line, per COUPON.md).
+     *
+     * Off-session outcome is read from the SUBSCRIPTION status — the pinned API (dahlia 2026-06-24)
+     * removed `invoice.payment_intent`, so we never touch it:
+     *  - active / trialing → SUBSCRIPTION_CREATED (host links via onSubscriptionCreated).
+     *  - anything else (incomplete/past_due/…) → the first charge did NOT settle off-session (a decline,
+     *    or a card that needs SCA which can't run with the customer absent). Cancel the dangling sub and
+     *    report failure — the customer completes via the hosted checkout lane instead (never leave a
+     *    half-created subscription, never a silent overcharge).
+     */
+    private function autoChargeSubscription(PaymentIntent $intent, PaymentMethodDTO $pm): PaymentResult
+    {
+        $spec = $intent->subscription;
+
+        try {
+            $params = [
+                'customer'               => $pm->remoteCustomerId,
+                'items'                  => [['price' => $spec->remotePlanId, 'quantity' => 1]],
+                'default_payment_method' => $pm->remotePaymentMethodId,
+                'off_session'            => true,           // attempt the first invoice now, customer absent
+                'expand'                 => ['latest_invoice'],
+                'metadata'               => $intent->metadata ?: ['intent_uid' => $intent->uid],
+                // Match the hosted lane: modern flexible billing engine (item-level periods).
+                'billing_mode'           => ['type' => 'flexible'],
+            ];
+            if (! empty($spec->oneTimePriceIds)) {
+                $params['add_invoice_items'] = array_map(
+                    fn ($priceId) => ['price' => $priceId],
+                    $spec->oneTimePriceIds
+                );
+            }
+            if ($spec->trialDays !== null) {
+                $params['trial_period_days'] = $spec->trialDays;
+            }
+            // SupportsDiscounts — a subscription realises the discount as a Stripe Coupon (duration:once),
+            // exactly like getCheckoutUrl. NOT netAmountAfterDiscount (that is the one-off amount path).
+            if ($intent->discount !== null) {
+                $params['discounts'] = [['coupon' => $this->ensureStripeCoupon($intent->discount)]];
+            }
+
+            $sub = \Stripe\Subscription::create($params);
+
+            // Active/trialing → the first invoice settled off-session (or is trial-deferred). Live.
+            if (in_array($sub->status, ['active', 'trialing'], true)) {
+                return PaymentResult::subscriptionCreated($this->mapSubscriptionToDto($sub));
+            }
+
+            // First charge did not settle off-session (decline / SCA-required). Don't leave a
+            // half-created incomplete subscription behind.
+            $this->cancelSubscriptionQuietly($sub->id);
+            $liStatus = ($sub->latest_invoice && is_object($sub->latest_invoice)) ? $sub->latest_invoice->status : 'unknown';
+            return PaymentResult::failed(
+                "Off-session subscription first charge did not settle (subscription: {$sub->status}, invoice: {$liStatus}) — complete via checkout.",
+                $sub->id
+            );
+        } catch (\Stripe\Exception\CardException $e) {
+            // Off-session decline (incl. authentication_required). No subscription to clean up — Stripe
+            // rejects the create before the sub exists on a hard card error.
+            return PaymentResult::failed($e->getMessage());
+        } catch (\Throwable $e) {
+            return PaymentResult::failed($e->getMessage());
+        }
+    }
+
+    /** Best-effort IMMEDIATE cancel of a just-created incomplete subscription (cleanup on a failed
+     *  first charge). Instance ->cancel() (not the removed static Subscription::cancel) so it works on
+     *  the pinned SDK; distinct from cancelRemoteSubscription() which schedules cancel_at_period_end. */
+    private function cancelSubscriptionQuietly(string $subscriptionId): void
+    {
+        try {
+            \Stripe\Subscription::retrieve($subscriptionId)->cancel();
+        } catch (\Throwable $e) {
+            // Cleanup only — Stripe auto-expires an incomplete subscription; nothing to surface.
         }
     }
 
@@ -421,6 +590,12 @@ class StripeGateway implements
             billingDetails:       $billing,
             paymentIntentId:      $paymentIntentId,
             paymentMethod:        $paymentMethod,
+            // Exact settled amounts (cents) — the authoritative discount + charge for the invoice
+            // record, so it never relies on a locally rounded coupon_amount. total_details is present
+            // once the session completes; absent on an open session → null (caller falls back).
+            amountSubtotal:       $s->amount_subtotal,
+            amountDiscount:       $s->total_details?->amount_discount,
+            amountTotal:          $s->amount_total,
         );
     }
 

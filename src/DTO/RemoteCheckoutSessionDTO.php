@@ -44,6 +44,12 @@ class RemoteCheckoutSessionDTO
         // Null for mode:subscription sessions (those carry remoteSubscriptionId instead).
         public readonly ?string $paymentIntentId = null,
         public readonly ?PaymentMethodDTO $paymentMethod = null,
+        // The ACTUAL settled amounts the provider computed (smallest currency unit — cents / VND),
+        // read at completion so the invoice records the EXACT discount + charge, never a locally
+        // rounded estimate. Null when the provider doesn't expose them / the session isn't complete.
+        public readonly ?int $amountSubtotal = null,   // gross, before discount
+        public readonly ?int $amountDiscount = null,   // the discount actually applied
+        public readonly ?int $amountTotal    = null,   // net actually charged
     ) {
         if (!in_array($status, [self::STATUS_OPEN, self::STATUS_COMPLETE, self::STATUS_EXPIRED], true)) {
             throw new \InvalidArgumentException("RemoteCheckoutSessionDTO: unknown session status '{$status}'.");
