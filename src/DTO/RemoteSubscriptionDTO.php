@@ -38,6 +38,7 @@ class RemoteSubscriptionDTO
         public readonly ?Carbon $canceledAt,
         public readonly ?float $latestInvoiceAmount,
         public readonly ?string $latestInvoiceStatus,
+        public readonly ?string $latestInvoiceId = null,   // in_xxx — sub's latest invoice, for by-id materialize
         public readonly array $metadata = [],
     ) {
         if (!in_array($status, self::VALID_STATUSES, true)) {

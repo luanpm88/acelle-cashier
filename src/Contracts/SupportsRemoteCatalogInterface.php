@@ -94,4 +94,11 @@ interface SupportsRemoteCatalogInterface
         ?string $afterId = null,
         int $limit = 50,
     ): array;
+
+    /**
+     * Fetch ONE invoice by its remote id — immediately consistent (a direct retrieve), unlike the
+     * list above whose index lags behind creation. Used for read-after-write flows such as
+     * materializing a just-created invoice synchronously. Null if it can't map to an invoice DTO.
+     */
+    public function getRemoteInvoice(string $invoiceId): ?RemoteInvoiceDTO;
 }

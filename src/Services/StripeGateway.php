@@ -656,9 +656,15 @@ class StripeGateway implements
         $period = $this->subscriptionPeriod($sub);
         $latestAmount = null;
         $latestStatus = null;
-        if ($sub->latest_invoice && is_object($sub->latest_invoice)) {
-            $latestAmount = $sub->latest_invoice->amount_paid / 100;
-            $latestStatus = $sub->latest_invoice->status;
+        $latestId     = null;
+        if ($sub->latest_invoice) {
+            if (is_object($sub->latest_invoice)) {
+                $latestAmount = $sub->latest_invoice->amount_paid / 100;
+                $latestStatus = $sub->latest_invoice->status;
+                $latestId     = $sub->latest_invoice->id;
+            } else {
+                $latestId = $sub->latest_invoice; // unexpanded → the invoice id string
+            }
         }
 
         return new RemoteSubscriptionDTO(
@@ -671,6 +677,7 @@ class StripeGateway implements
             canceledAt:          $sub->canceled_at ? Carbon::createFromTimestamp($sub->canceled_at) : null,
             latestInvoiceAmount: $latestAmount,
             latestInvoiceStatus: $latestStatus,
+            latestInvoiceId:     $latestId,
             metadata:            ['stripe_subscription' => $sub->toArray()],
         );
     }
@@ -809,6 +816,19 @@ class StripeGateway implements
         }
 
         return ['data' => $data, 'has_more' => false, 'next_cursor' => null];
+    }
+
+    /**
+     * Fetch ONE invoice by id. A direct retrieve reads Stripe's primary store — it is immediately
+     * consistent, unlike the LIST endpoint (getRemoteInvoices) whose index lags a few seconds behind
+     * creation. Used to materialize a just-created invoice synchronously (e.g. an upgrade's
+     * charge-immediately proration). Returns null if the payload can't map to an invoice DTO.
+     */
+    public function getRemoteInvoice(string $invoiceId): ?RemoteInvoiceDTO
+    {
+        $inv = \Stripe\Invoice::retrieve($invoiceId, ['api_key' => $this->secretKey]);
+
+        return $this->stripeInvoiceToDto($inv);
     }
 
     private function stripeInvoiceToDto(\Stripe\Invoice $inv): ?RemoteInvoiceDTO
