@@ -47,9 +47,18 @@ interface SupportsRemoteCatalogInterface
 
     public function getRemotePlan(string $remotePlanId): RemotePlanDTO;
 
+    /**
+     * Swap an existing subscription to a new plan/price.
+     *
+     * @param  bool  $chargeImmediately  false (default): defer the price-difference proration to the
+     *   next invoice (provider-native, no charge now). true: charge the difference NOW — the driver
+     *   invoices the proration immediately and, if the sub is trialing, ends the trial so the charge
+     *   actually lands (a trial bills $0). Used by the "upgrade charges now" flow.
+     */
     public function updateRemoteSubscriptionPlan(
         string $remoteSubscriptionId,
-        string $newRemotePlanId
+        string $newRemotePlanId,
+        bool $chargeImmediately = false
     ): RemoteSubscriptionDTO;
 
     // ── Subscription listing ──────────────────────────────────────────────

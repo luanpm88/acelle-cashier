@@ -735,14 +735,24 @@ class StripeGateway implements
         \Stripe\Subscription::update($remoteSubscriptionId, ['cancel_at_period_end' => false]);
     }
 
-    public function updateRemoteSubscriptionPlan(string $remoteSubscriptionId, string $newRemotePlanId): RemoteSubscriptionDTO
+    public function updateRemoteSubscriptionPlan(string $remoteSubscriptionId, string $newRemotePlanId, bool $chargeImmediately = false): RemoteSubscriptionDTO
     {
         $sub = \Stripe\Subscription::retrieve($remoteSubscriptionId);
 
-        \Stripe\Subscription::update($remoteSubscriptionId, [
-            'items' => [['id' => $sub->items->data[0]->id, 'price' => $newRemotePlanId]],
-            'proration_behavior' => 'create_prorations',
-        ]);
+        $params = [
+            'items'              => [['id' => $sub->items->data[0]->id, 'price' => $newRemotePlanId]],
+            // Default: defer the price-difference proration to the next invoice (no charge now).
+            // Charge-immediately: `always_invoice` creates + attempts the proration invoice right now.
+            'proration_behavior' => $chargeImmediately ? 'always_invoice' : 'create_prorations',
+        ];
+
+        // Charge-immediately on a TRIALING sub: end the trial now, else the invoice collects nothing
+        // (a trial bills $0). Only when trialing — `trial_end:'now'` on a non-trial sub is rejected by Stripe.
+        if ($chargeImmediately && $sub->status === 'trialing') {
+            $params['trial_end'] = 'now';
+        }
+
+        \Stripe\Subscription::update($remoteSubscriptionId, $params);
 
         return $this->getRemoteSubscription($remoteSubscriptionId);
     }
