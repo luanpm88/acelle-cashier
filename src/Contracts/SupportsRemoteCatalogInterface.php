@@ -5,6 +5,7 @@ namespace App\Cashier\Contracts;
 use App\Cashier\DTO\RemotePlanDTO;
 use App\Cashier\DTO\RemoteSubscriptionDTO;
 use App\Cashier\DTO\RemoteInvoiceDTO;
+use App\Cashier\DTO\RemotePlanChangePreviewDTO;
 
 /**
  * Capability: the vendor is backed by a queryable remote CATALOG — plans,
@@ -58,8 +59,21 @@ interface SupportsRemoteCatalogInterface
     public function updateRemoteSubscriptionPlan(
         string $remoteSubscriptionId,
         string $newRemotePlanId,
-        bool $chargeImmediately = false
+        bool $chargeImmediately = false,
+        ?int $prorationDate = null
     ): RemoteSubscriptionDTO;
+
+    /**
+     * Preview what switching a subscription to a new plan WILL cost, WITHOUT creating an invoice or
+     * charging anything (read-only upcoming-invoice inquiry). Returns the net proration + the pinned
+     * proration date; pass that date to updateRemoteSubscriptionPlan() so the real charge matches the
+     * quote to the cent.
+     */
+    public function previewPlanChange(
+        string $remoteSubscriptionId,
+        string $newRemotePlanId,
+        ?int $prorationDate = null
+    ): RemotePlanChangePreviewDTO;
 
     // ── Subscription listing ──────────────────────────────────────────────
 

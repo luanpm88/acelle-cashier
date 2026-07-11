@@ -801,13 +801,12 @@ class StripeGateway implements
         ]);
         $data = $response->json;
 
-        // Minor units → major units by the SAME per-currency rate convertPrice() uses forward, so
-        // zero-decimal currencies (VND, JPY, KRW, …) are NOT wrongly divided by 100.
+        // Minor units → major units via the canonical converter (handles zero/two/three-decimal
+        // currencies) — the SAME helper getRemoteInvoice() uses, never a hardcoded /100.
         $currency = strtoupper($data['currency'] ?? 'usd');
-        $rate = $this->currencyRates()[$currency] ?? 100;
 
         return new RemotePlanChangePreviewDTO(
-            amount: ((int) ($data['total'] ?? 0)) / $rate,
+            amount: (float) $this->revertPrice((int) ($data['total'] ?? 0), $currency),
             currency: $currency,
             prorationDate: $prorationDate,
         );
