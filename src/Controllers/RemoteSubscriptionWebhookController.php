@@ -322,7 +322,7 @@ class RemoteSubscriptionWebhookController extends Controller
         $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
 
         if ($subscription->isNew() && ($remoteSub->isActive() || $remoteSub->isTrialing())) {
-            $subscription->activateFromRemote($gateway);
+            app(\App\Services\Subscription\SubscriptionManagementService::class)->activateFromRemote($subscription, $gateway);
         }
 
         if ($remoteSub->currentPeriodEnd && $subscription->isActive()) {
@@ -349,7 +349,7 @@ class RemoteSubscriptionWebhookController extends Controller
         // No local try/catch: failure propagates to the boundary catch → 500 → Stripe retries.
         // A swallowed error here would leave the sub ACTIVE after Stripe cancelled it.
         if ($subscription->isActive()) {
-            $subscription->cancelNow();
+            app(\App\Services\Subscription\SubscriptionManagementService::class)->cancelNow($subscription);
             Log::info("Subscription {$subscription->uid} cancelled via webhook (remote subscription deleted)");
         }
     }
@@ -362,7 +362,7 @@ class RemoteSubscriptionWebhookController extends Controller
         $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
 
         if ($subscription->isNew() && ($remoteSub->isActive() || $remoteSub->isTrialing())) {
-            $subscription->activateFromRemote($gateway);
+            app(\App\Services\Subscription\SubscriptionManagementService::class)->activateFromRemote($subscription, $gateway);
         }
 
         if ($remoteSub->currentPeriodEnd && $subscription->isActive()) {
