@@ -19,6 +19,7 @@ use App\Cashier\DTO\CheckoutHandle;
 use App\Cashier\DTO\PollableCheckout;
 use App\Cashier\DTO\RemoteCheckoutSessionDTO;
 use App\Cashier\DTO\RemoteInvoiceDTO;
+use App\Cashier\DTO\RemotePlanChangePreviewDTO;
 use App\Cashier\DTO\RemotePlanDTO;
 use App\Cashier\DTO\RemoteOneTimePriceDTO;
 use App\Cashier\DTO\RemoteSubscriptionDTO;
@@ -439,7 +440,9 @@ class StripeGateway implements
         return new RemotePlanDTO(
             id:            $price->id,
             name:          is_object($product) ? $product->name : $price->id,
-            price:         $price->unit_amount / 100,
+            // revertPrice, not /100 — zero/three-decimal currencies (VND, JPY, KWD…) have
+            // a different minor-unit rate (previewPlanChange already did this correctly).
+            price:         $this->revertPrice($price->unit_amount, strtoupper($price->currency)),
             currency:      strtoupper($price->currency),
             intervalCount: $price->recurring->interval_count,
             intervalUnit:  $price->recurring->interval,
@@ -484,7 +487,7 @@ class StripeGateway implements
         return new RemoteOneTimePriceDTO(
             id:        $price->id,
             name:      is_object($product) ? $product->name : $price->id,
-            price:     $price->unit_amount / 100,
+            price:     $this->revertPrice($price->unit_amount, strtoupper($price->currency)),
             currency:  strtoupper($price->currency),
             status:    $price->active ? 'active' : 'inactive',
             productId: is_object($product) ? $product->id : (string) $price->product,
@@ -659,7 +662,10 @@ class StripeGateway implements
         $latestId     = null;
         if ($sub->latest_invoice) {
             if (is_object($sub->latest_invoice)) {
-                $latestAmount = $sub->latest_invoice->amount_paid / 100;
+                $latestAmount = $this->revertPrice(
+                    $sub->latest_invoice->amount_paid,
+                    strtoupper((string) $sub->latest_invoice->currency)
+                );
                 $latestStatus = $sub->latest_invoice->status;
                 $latestId     = $sub->latest_invoice->id;
             } else {
@@ -742,7 +748,7 @@ class StripeGateway implements
         \Stripe\Subscription::update($remoteSubscriptionId, ['cancel_at_period_end' => false]);
     }
 
-    public function updateRemoteSubscriptionPlan(string $remoteSubscriptionId, string $newRemotePlanId, bool $chargeImmediately = false): RemoteSubscriptionDTO
+    public function updateRemoteSubscriptionPlan(string $remoteSubscriptionId, string $newRemotePlanId, bool $chargeImmediately = false, ?int $prorationDate = null): RemoteSubscriptionDTO
     {
         $sub = \Stripe\Subscription::retrieve($remoteSubscriptionId);
 
@@ -753,6 +759,12 @@ class StripeGateway implements
             'proration_behavior' => $chargeImmediately ? 'always_invoice' : 'create_prorations',
         ];
 
+        // Pin the proration to the SAME instant a preview used, so the charge matches the quoted
+        // amount to the cent (proration is per-second — the seconds between quote and charge drift it).
+        if ($prorationDate !== null) {
+            $params['proration_date'] = $prorationDate;
+        }
+
         // Charge-immediately on a TRIALING sub: end the trial now, else the invoice collects nothing
         // (a trial bills $0). Only when trialing — `trial_end:'now'` on a non-trial sub is rejected by Stripe.
         if ($chargeImmediately && $sub->status === 'trialing') {
@@ -762,6 +774,43 @@ class StripeGateway implements
         \Stripe\Subscription::update($remoteSubscriptionId, $params);
 
         return $this->getRemoteSubscription($remoteSubscriptionId);
+    }
+
+    public function previewPlanChange(string $remoteSubscriptionId, string $newRemotePlanId, ?int $prorationDate = null): RemotePlanChangePreviewDTO
+    {
+        // Default the pinned instant to now; the caller re-uses this exact value when it charges.
+        $prorationDate = $prorationDate ?? time();
+
+        $sub = \Stripe\Subscription::retrieve($remoteSubscriptionId);
+
+        // Preview WITHOUT creating an invoice or charging. The account runs the dahlia API version,
+        // where /invoices/upcoming is removed in favour of /invoices/create_preview; stripe-php v7 has
+        // no helper for it, so issue the raw request — it inherits the globally-set dahlia Stripe-Version
+        // (this class's constructor). `always_invoice` mirrors the immediate-charge path, so the returned
+        // `total` equals what updateRemoteSubscriptionPlan(chargeImmediately: true) will bill — provided
+        // the SAME proration_date is passed back to it (proration is per-second).
+        $requestor = new \Stripe\ApiRequestor(\Stripe\Stripe::getApiKey());
+        [$response] = $requestor->request('post', '/v1/invoices/create_preview', [
+            'customer'             => $sub->customer,
+            'subscription'         => $remoteSubscriptionId,
+            'subscription_details' => [
+                'items'              => [['id' => $sub->items->data[0]->id, 'price' => $newRemotePlanId]],
+                'proration_behavior' => 'always_invoice',
+                'proration_date'     => $prorationDate,
+            ],
+        ]);
+        $data = $response->json;
+
+        // Minor units → major units by the SAME per-currency rate convertPrice() uses forward, so
+        // zero-decimal currencies (VND, JPY, KRW, …) are NOT wrongly divided by 100.
+        $currency = strtoupper($data['currency'] ?? 'usd');
+        $rate = $this->currencyRates()[$currency] ?? 100;
+
+        return new RemotePlanChangePreviewDTO(
+            amount: ((int) ($data['total'] ?? 0)) / $rate,
+            currency: $currency,
+            prorationDate: $prorationDate,
+        );
     }
 
     public function parseWebhookPayload(string $payload, array $headers): array
@@ -899,7 +948,7 @@ class StripeGateway implements
             remoteSubscriptionId: (string) $remoteSubId,
             origin:               $origin,
             status:               $status,
-            amount:               ((int) ($inv->amount_paid ?? 0)) / 100.0,
+            amount:               (float) $this->revertPrice((int) ($inv->amount_paid ?? 0), strtoupper((string) $inv->currency)),
             currency:             strtoupper((string) $inv->currency),
             periodStart:          $period ? Carbon::createFromTimestamp($period->start) : null,
             periodEnd:            $period ? Carbon::createFromTimestamp($period->end)   : null,
@@ -976,19 +1025,40 @@ class StripeGateway implements
 
     // ── Pricing helpers (Stripe wants the smallest currency unit; zero-decimal exceptions) ──
 
+    /**
+     * Minor-units-per-major-unit by currency, mirroring Stripe's OWN spec (not ISO 4217 —
+     * Stripe deviates: e.g. UGX/ISK are ISO-zero-decimal but Stripe wants them as two-decimal
+     * with a trailing 00, so they correctly default to 100 here). Hardcoded ON PURPOSE:
+     * Stripe exposes NO API for this spec (stripe-java#874 asked and was declined) — the doc
+     * is the source of truth and every integration pins it.
+     * Verified against https://docs.stripe.com/currencies on 2026-07-11. Default (absent) = 100.
+     */
     public function currencyRates(): array
     {
         return [
-            'CLP' => 1, 'DJF' => 1, 'JPY' => 1, 'KMF' => 1, 'RWF' => 1,
-            'VUV' => 1, 'XAF' => 1, 'XOF' => 1, 'BIF' => 1, 'GNF' => 1,
-            'KRW' => 1, 'MGA' => 1, 'PYG' => 1, 'VND' => 1, 'XPF' => 1,
+            // Zero-decimal (charge amount == major units).
+            'BIF' => 1, 'CLP' => 1, 'DJF' => 1, 'GNF' => 1, 'JPY' => 1,
+            'KMF' => 1, 'KRW' => 1, 'MGA' => 1, 'PYG' => 1, 'RWF' => 1,
+            'VND' => 1, 'VUV' => 1, 'XAF' => 1, 'XOF' => 1, 'XPF' => 1,
+            // Three-decimal (amount in thousandths; Stripe additionally requires the last
+            // digit to be 0 — convertPrice() rounds to the nearest ten to satisfy it).
+            'BHD' => 1000, 'IQD' => 1000, 'JOD' => 1000, 'KWD' => 1000,
+            'LYD' => 1000, 'OMR' => 1000, 'TND' => 1000,
         ];
     }
 
     public function convertPrice($price, $currency)
     {
         $rate = $this->currencyRates()[$currency] ?? 100;
-        return (int) round($price * $rate);
+        $amount = (int) round($price * $rate);
+
+        // Three-decimal currencies settle to two decimals: Stripe rejects a minor-unit
+        // amount whose last digit isn't 0 (e.g. KWD 5.124 → 5124 invalid, must be 5120).
+        if ($rate === 1000) {
+            $amount = (int) (round($amount / 10) * 10);
+        }
+
+        return $amount;
     }
 
     public function revertPrice($price, $currency)
