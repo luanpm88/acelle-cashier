@@ -783,21 +783,32 @@ class StripeGateway implements
 
         $sub = \Stripe\Subscription::retrieve($remoteSubscriptionId);
 
+        $subscriptionDetails = [
+            'items'              => [['id' => $sub->items->data[0]->id, 'price' => $newRemotePlanId]],
+            'proration_behavior' => 'always_invoice',
+            'proration_date'     => $prorationDate,
+        ];
+
+        // Mirror updateRemoteSubscriptionPlan's charge path EXACTLY: on a TRIALING sub the immediate
+        // charge ends the trial now (trial_end:'now'), which bills the FULL new-plan amount. The preview
+        // MUST end the trial too — otherwise it quotes $0 (a trial bills nothing) while the real charge
+        // bills the full amount, so the confirm screen would promise "0" and then charge the customer.
+        // Only when trialing — Stripe rejects trial_end on a non-trial subscription.
+        if ($sub->status === 'trialing') {
+            $subscriptionDetails['trial_end'] = 'now';
+        }
+
         // Preview WITHOUT creating an invoice or charging. The account runs the dahlia API version,
         // where /invoices/upcoming is removed in favour of /invoices/create_preview; stripe-php v7 has
         // no helper for it, so issue the raw request — it inherits the globally-set dahlia Stripe-Version
-        // (this class's constructor). `always_invoice` mirrors the immediate-charge path, so the returned
-        // `total` equals what updateRemoteSubscriptionPlan(chargeImmediately: true) will bill — provided
+        // (this class's constructor). `always_invoice` + the trial_end mirror above make the returned
+        // `total` equal what updateRemoteSubscriptionPlan(chargeImmediately: true) will bill — provided
         // the SAME proration_date is passed back to it (proration is per-second).
         $requestor = new \Stripe\ApiRequestor(\Stripe\Stripe::getApiKey());
         [$response] = $requestor->request('post', '/v1/invoices/create_preview', [
             'customer'             => $sub->customer,
             'subscription'         => $remoteSubscriptionId,
-            'subscription_details' => [
-                'items'              => [['id' => $sub->items->data[0]->id, 'price' => $newRemotePlanId]],
-                'proration_behavior' => 'always_invoice',
-                'proration_date'     => $prorationDate,
-            ],
+            'subscription_details' => $subscriptionDetails,
         ]);
         $data = $response->json;
 
