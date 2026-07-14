@@ -47,6 +47,8 @@
         <p class="text-danger" style="color: red">* Above is sample payment information, you can change it in your payment gateway setting page</p>
     ',
     'offline.amount_due' => 'Amount due',
+    'offline.original_amount' => 'Original',
+    'offline.discount' => 'Discount',
     'offline.claim_received' => 'Your payment claim has been received. An administrator will review and approve it shortly.',
     'offline.intent_not_found' => 'Payment intent not found.',
 

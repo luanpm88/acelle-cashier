@@ -3,6 +3,7 @@
 namespace App\Cashier\Services;
 
 use App\Cashier\Contracts\IntentGatewayInterface;
+use App\Cashier\Contracts\SupportsDiscounts;
 use App\Cashier\DTO\CheckoutHandle;
 use App\Cashier\DTO\DirectCheckout;
 use App\Cashier\DTO\PaymentIntent;
@@ -14,10 +15,22 @@ use App\Cashier\DTO\PaymentIntent;
  * Status flow: pending → succeeded (after admin approval)
  *           or pending → cancelled (after admin rejection)
  *
- * Implements only IntentGatewayInterface — no auto-charge, no remote subscription.
+ * Implements IntentGatewayInterface — no auto-charge, no remote subscription.
+ *
+ * ALSO implements SupportsDiscounts (a pure marker): unlike a card gateway that
+ * realizes a coupon inside its own checkout, offline "realizes" a discount PURELY
+ * LOCALLY — there is no external charge to reduce. The host stamps the coupon refs
+ * (coupon_id / coupon_customer_id / coupon_amount + the DiscountSpec) onto the pending
+ * intent's metadata at hand-off; those survive claim → admin-approval untouched, and
+ * FulfillmentService::completeInvoice reads coupon_amount off the succeeded intent to
+ * record invoices.discount_amount + the net amount_paid. The offline instructions page
+ * shows the NET (amount − coupon_amount) so the buyer transfers the discounted sum. The
+ * DiscountSpec itself is never consumed here (offline never charges) — the net is the
+ * app's already-resolved coupon_amount. Without this marker BillingManager refuses to
+ * pass the discount and offline would silently sell at full price.
  * Pure: no DB writes; controller orchestrates side-effects.
  */
-class OfflinePaymentGateway implements IntentGatewayInterface
+class OfflinePaymentGateway implements IntentGatewayInterface, SupportsDiscounts
 {
     public const TYPE = 'offline';
 
