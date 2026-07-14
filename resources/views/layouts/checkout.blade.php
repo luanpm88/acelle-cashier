@@ -28,8 +28,11 @@
                         </span>
                     </div>
 
+                    {{-- NET after any coupon (= amount − coupon_amount), so this headline matches the
+                         instructions' "amount due" and what fulfilment records. netAmountAfterDiscount()
+                         returns the full amount when there is no discount, so non-coupon pages are unchanged. --}}
                     <div class="co-amount-label">{{ trans('cashier::messages.total_due') }}</div>
-                    <h1 class="co-amount">{{ number_format($intent->amount, 2) }}<span class="co-ccy">{{ $intent->currency }}</span></h1>
+                    <h1 class="co-amount">{{ number_format($intent->netAmountAfterDiscount(), 2) }}<span class="co-ccy">{{ $intent->currency }}</span></h1>
 
                     @if (!empty($intent->description))
                         <div class="co-desc">{{ $intent->description }}</div>
