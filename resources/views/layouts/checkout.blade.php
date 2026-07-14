@@ -34,8 +34,12 @@
                     <div class="co-amount-label">{{ trans('cashier::messages.total_due') }}</div>
                     <h1 class="co-amount">{{ number_format($intent->netAmountAfterDiscount(), 2) }}<span class="co-ccy">{{ $intent->currency }}</span></h1>
 
+                    {{-- Rendered as HTML (like the invoice views invoices/show + bill.blade) — the
+                         description carries intentional <strong> around the plan name/date; escaping it
+                         here showed the literal tags. Source values (plan name, formatted date) are
+                         app-generated, not buyer input. --}}
                     @if (!empty($intent->description))
-                        <div class="co-desc">{{ $intent->description }}</div>
+                        <div class="co-desc">{!! $intent->description !!}</div>
                     @endif
 
                     <div class="co-summary-foot">
