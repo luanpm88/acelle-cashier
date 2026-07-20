@@ -771,6 +771,19 @@ class StripeGateway implements
             $params['trial_end'] = 'now';
         }
 
+        // Charge-immediately collects the proration NOW, so GATE the switch on payment with Stripe's
+        // recommended "pending updates" (https://docs.stripe.com/billing/subscriptions/pending-updates):
+        // `pending_if_incomplete` applies the plan change ONLY if the invoice is paid immediately; if the
+        // payment needs SCA/3DS or can't collect, Stripe HOLDS the change as a `pending_update` and leaves
+        // the sub on the OLD plan (so no paid-tier entitlement is granted without payment — the fix for the
+        // prior `allow_incomplete` bug that switched + went past_due). The caller inspects the returned sub:
+        // current plan == target ⇒ applied (paid); still the old plan ⇒ pending (redirect the buyer to the
+        // open invoice's hosted page to pay + authenticate). NOTE: pending_if_incomplete only supports a
+        // subset of update params — items + proration_behavior + trial_end are all allowed.
+        if ($chargeImmediately) {
+            $params['payment_behavior'] = 'pending_if_incomplete';
+        }
+
         \Stripe\Subscription::update($remoteSubscriptionId, $params);
 
         return $this->getRemoteSubscription($remoteSubscriptionId);

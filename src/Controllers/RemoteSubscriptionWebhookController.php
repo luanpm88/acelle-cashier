@@ -375,6 +375,39 @@ class RemoteSubscriptionWebhookController extends Controller
             $meta['latest_invoice_amount'] = $remoteSub->latestInvoiceAmount;
             $meta['latest_invoice_status'] = $remoteSub->latestInvoiceStatus;
         }
+
+        // ── APP-INITIATED pending plan change now PAID → flip local plan_id to the recorded target. ──
+        // When the buyer pays a held (pending_if_incomplete) upgrade on Stripe's hosted invoice page,
+        // Stripe applies the pending_update: the sub's CURRENT remote plan becomes the target. The local
+        // flip was deliberately deferred to HERE — initiateRemotePlanChange only RECORDED the intended
+        // target (pending_change_plan_id) and never flipped, so entitlement is granted only on payment.
+        // This is NOT a silent remote heal (which the sync guard rightly refuses): we flip ONLY to the
+        // plan the APP itself recorded, and ONLY once Stripe confirms the switch actually applied.
+        // Idempotent: the plan_id != target guard skips a re-delivered webhook; the marker is cleared.
+        $pendingPlanId = $meta['pending_change_plan_id'] ?? null;
+        if ($pendingPlanId) {
+            $targetPlan         = \App\Model\Plan::find((int) $pendingPlanId);
+            $targetRemotePlanId = $targetPlan?->remoteSubscriptionItem()?->remote_plan_id;
+            if ($targetPlan && $targetRemotePlanId
+                && $remoteSub->remotePlanId === $targetRemotePlanId
+                && (int) $subscription->plan_id !== (int) $targetPlan->id
+            ) {
+                $oldPlan = $subscription->plan;
+                // $endsAt = null: a remote sub's period is gateway truth, already stamped on $subscription
+                // above (current_period_ends_at from $remoteSub->currentPeriodEnd) — applyPlanChangeState
+                // only needs to write plan_id here. (Passing the DTO's Carbon\Carbon would also fail the
+                // ?Illuminate\Support\Carbon type hint.)
+                app(\App\Services\Subscription\SubscriptionManagementService::class)
+                    ->applyPlanChangeState($subscription, $targetPlan, null);
+                app(\App\Services\Plans\Lifecycle\SubscriptionLifecycle::class)->onChangePlan($subscription);
+                unset($meta['pending_change_plan_id']);
+                Log::info("Pending plan change applied via webhook: sub {$subscription->uid} → plan #{$targetPlan->id}");
+                \Illuminate\Support\Facades\DB::afterCommit(function () use ($subscription, $oldPlan, $targetPlan) {
+                    \App\Library\Facades\Hook::fire('plan_changed', [$subscription->customer, $oldPlan, $targetPlan]);
+                });
+            }
+        }
+
         $subscription->remote_metadata = $meta;
         $subscription->last_synced_at = now();
         $subscription->save();
