@@ -376,41 +376,66 @@ class RemoteSubscriptionWebhookController extends Controller
             $meta['latest_invoice_status'] = $remoteSub->latestInvoiceStatus;
         }
 
-        // ── APP-INITIATED pending plan change now PAID → flip local plan_id to the recorded target. ──
-        // When the buyer pays a held (pending_if_incomplete) upgrade on Stripe's hosted invoice page,
-        // Stripe applies the pending_update: the sub's CURRENT remote plan becomes the target. The local
-        // flip was deliberately deferred to HERE — initiateRemotePlanChange only RECORDED the intended
-        // target (pending_change_plan_id) and never flipped, so entitlement is granted only on payment.
-        // This is NOT a silent remote heal (which the sync guard rightly refuses): we flip ONLY to the
-        // plan the APP itself recorded, and ONLY once Stripe confirms the switch actually applied.
-        // Idempotent: the plan_id != target guard skips a re-delivered webhook; the marker is cleared.
-        $pendingPlanId = $meta['pending_change_plan_id'] ?? null;
-        if ($pendingPlanId) {
-            $targetPlan         = \App\Model\Plan::find((int) $pendingPlanId);
-            $targetRemotePlanId = $targetPlan?->remoteSubscriptionItem()?->remote_plan_id;
-            if ($targetPlan && $targetRemotePlanId
-                && $remoteSub->remotePlanId === $targetRemotePlanId
-                && (int) $subscription->plan_id !== (int) $targetPlan->id
-            ) {
-                $oldPlan = $subscription->plan;
-                // $endsAt = null: a remote sub's period is gateway truth, already stamped on $subscription
-                // above (current_period_ends_at from $remoteSub->currentPeriodEnd) — applyPlanChangeState
-                // only needs to write plan_id here. (Passing the DTO's Carbon\Carbon would also fail the
-                // ?Illuminate\Support\Carbon type hint.)
-                app(\App\Services\Subscription\SubscriptionManagementService::class)
-                    ->applyPlanChangeState($subscription, $targetPlan, null);
-                app(\App\Services\Plans\Lifecycle\SubscriptionLifecycle::class)->onChangePlan($subscription);
-                unset($meta['pending_change_plan_id']);
-                Log::info("Pending plan change applied via webhook: sub {$subscription->uid} → plan #{$targetPlan->id}");
-                \Illuminate\Support\Facades\DB::afterCommit(function () use ($subscription, $oldPlan, $targetPlan) {
-                    \App\Library\Facades\Hook::fire('plan_changed', [$subscription->customer, $oldPlan, $targetPlan]);
-                });
-            }
-        }
-
         $subscription->remote_metadata = $meta;
         $subscription->last_synced_at = now();
         $subscription->save();
+
+        // ── APP-INITIATED pending plan change now PAID → flip local plan_id to the recorded target. ──
+        // initiateRemotePlanChange only RECORDED the target (pending_change_plan_id) when the gateway
+        // held the change, so entitlement is granted only on payment — this is where that lands. The
+        // rule lives in ONE place (shared with the sync backstop, which covers a lost delivery or an
+        // install with no webhook endpoint); see applyPendingPlanChangeIfConfirmed. Runs AFTER the
+        // metadata save above so clearing the marker cannot be overwritten by this method's own $meta.
+        $planFlipped = app(\App\Services\Subscription\SubscriptionManagementService::class)
+            ->applyPendingPlanChangeIfConfirmed($subscription, $remoteSub);
+
+        // ── Settle the LOCAL MIRROR of this provider invoice, if one exists. ──────────────
+        // A pending plan change materializes an unpaid mirror at request time
+        // (SubscriptionManagementService::initiateRemotePlanChange) so the held charge is visible in
+        // billing history. Nothing else settles it: the sync's dedupe skips rows that already carry
+        // this remote_invoice_id, so without this the mirror would sit NEW forever after the buyer
+        // paid — money in, invoice stuck (the exact failure mode the doctrine forbids).
+        // The isNew() pre-check is what makes a RE-DELIVERED webhook a no-op — completeInvoice itself
+        // REFUSES a non-NEW invoice by throwing (it locks + re-checks), so a rare concurrent double
+        // delivery 500s and Stripe retries, and the retry then sees `paid` and skips. Either way the
+        // invoice is never fulfilled twice. Fulfilment runs SubscriptionChangePlanHandler, which skips
+        // the plan flip for a remote sub (this webhook owns it) and reconciles credits (onChangePlan).
+        $remoteInvoiceId = is_string($data['id'] ?? null) ? $data['id'] : null;
+        $settledMirror   = false;
+        if ($remoteInvoiceId) {
+            $local = \App\Model\Invoice::where('payment_gateway_id', $gateway->id)
+                ->where('remote_invoice_id', $remoteInvoiceId)
+                ->first();
+            if ($local && $local->isNew()) {
+                // Prefer the intent seam when the request-time attempt left one open: it marks the
+                // intent SUCCEEDED and releases the invoice lock as part of settling. Falling straight
+                // to completeInvoice would settle the invoice but leave that intent PENDING forever —
+                // a paid invoice still advertising an in-flight charge.
+                $pending   = $local->getPendingPaymentIntent();
+                $intentDto = $pending ? app(\App\Cashier\Contracts\CheckoutHandlerInterface::class)->findIntent($pending->uid) : null;
+
+                if ($intentDto) {
+                    app(\App\Cashier\Contracts\CheckoutHandlerInterface::class)->onPaymentSuccess($intentDto, $remoteInvoiceId);
+                } else {
+                    app(\App\Library\OrderFulfillment\FulfillmentService::class)->completeInvoice($local);
+                }
+                $settledMirror = true;
+                Log::info("Local mirror invoice settled from invoice.paid: {$local->uid} (remote {$remoteInvoiceId})");
+            } elseif ($local) {
+                // Already settled by a sibling path (a prior delivery, the poller, or the browser
+                // return). A replay is expected for an at-least-once webhook — make the no-op an
+                // explicit, traceable signal, not a silent skip.
+                Log::info("invoice.paid replay: local mirror {$local->uid} already {$local->status}, no-op (remote {$remoteInvoiceId})");
+            }
+        }
+
+        // Credits reconcile: fulfilment already did it via onChangePlan when a mirror settled — call it
+        // here ONLY for the mirror-less path (legacy subs, vendor-first signups, materialize hiccup).
+        // resetForCycle is a set-operation so a double call would be harmless, but keeping it single
+        // keeps "who owns this side effect" answerable.
+        if ($planFlipped && ! $settledMirror) {
+            app(\App\Services\Plans\Lifecycle\SubscriptionLifecycle::class)->onChangePlan($subscription);
+        }
 
         Log::info("Invoice paid webhook processed for subscription {$subscription->uid}");
     }

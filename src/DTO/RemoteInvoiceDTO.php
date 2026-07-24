@@ -25,11 +25,14 @@ class RemoteInvoiceDTO
         public readonly string $remoteSubscriptionId,
         public readonly BillingOrigin $origin,
         public readonly string $status,              // 'paid' | 'failed' | 'past_due' | 'refunded' | 'open'
-        public readonly float $amount,               // major units (49.00, not 4900)
+        public readonly float $amount,               // NET charged (amount_paid), major units (49.00, not 4900)
         public readonly string $currency,            // 'USD' (uppercased ISO-4217)
         public readonly ?Carbon $periodStart,
         public readonly ?Carbon $periodEnd,
         public readonly Carbon $billedAt,
+        // Vendor-side discount applied to THIS invoice (e.g. a Stripe coupon), major units. 0 = none.
+        // `amount` above is the NET charged; `amount + discountAmount` = the pre-discount (gross) subtotal.
+        public readonly float $discountAmount = 0.0,
         public readonly ?string $failureReason = null,
         public readonly ?string $hostedInvoiceUrl = null,
         // Per-charge payment method snapshot from the vendor side. Vendor is

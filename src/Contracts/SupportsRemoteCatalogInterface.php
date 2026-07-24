@@ -6,6 +6,8 @@ use App\Cashier\DTO\RemotePlanDTO;
 use App\Cashier\DTO\RemoteSubscriptionDTO;
 use App\Cashier\DTO\RemoteInvoiceDTO;
 use App\Cashier\DTO\RemotePlanChangePreviewDTO;
+use App\Cashier\DTO\DiscountSpec;
+use App\Cashier\DTO\RemotePaymentFailureDTO;
 
 /**
  * Capability: the vendor is backed by a queryable remote CATALOG — plans,
@@ -55,24 +57,30 @@ interface SupportsRemoteCatalogInterface
      *   next invoice (provider-native, no charge now). true: charge the difference NOW — the driver
      *   invoices the proration immediately and, if the sub is trialing, ends the trial so the charge
      *   actually lands (a trial bills $0). Used by the "upgrade charges now" flow.
+     * @param  DiscountSpec|null  $discount  optional PERCENT-ONLY coupon folded into the proration (a
+     *   fixed amount_off can't discount a proration line — drivers MUST reject it). Applied in the SAME
+     *   call as the item change so it reduces the immediate proration; pass the same spec to
+     *   previewPlanChange() so the quote matches.
      */
     public function updateRemoteSubscriptionPlan(
         string $remoteSubscriptionId,
         string $newRemotePlanId,
         bool $chargeImmediately = false,
-        ?int $prorationDate = null
+        ?int $prorationDate = null,
+        ?DiscountSpec $discount = null
     ): RemoteSubscriptionDTO;
 
     /**
      * Preview what switching a subscription to a new plan WILL cost, WITHOUT creating an invoice or
      * charging anything (read-only upcoming-invoice inquiry). Returns the net proration + the pinned
      * proration date; pass that date to updateRemoteSubscriptionPlan() so the real charge matches the
-     * quote to the cent.
+     * quote to the cent. Pass the same PERCENT-ONLY $discount to preview the coupon-reduced proration.
      */
     public function previewPlanChange(
         string $remoteSubscriptionId,
         string $newRemotePlanId,
-        ?int $prorationDate = null
+        ?int $prorationDate = null,
+        ?DiscountSpec $discount = null
     ): RemotePlanChangePreviewDTO;
 
     // ── Subscription listing ──────────────────────────────────────────────
@@ -115,4 +123,41 @@ interface SupportsRemoteCatalogInterface
      * materializing a just-created invoice synchronously. Null if it can't map to an invoice DTO.
      */
     public function getRemoteInvoice(string $invoiceId): ?RemoteInvoiceDTO;
+
+    /**
+     * Why the last payment attempt on this invoice did not collect — so the app can route recovery
+     * (authenticate the same card vs replace it) instead of guessing. Null when the invoice has no
+     * failed attempt to explain (never attempted, or already paid).
+     *
+     * @see \App\Cashier\DTO\RemotePaymentFailureDTO
+     */
+    public function getRemoteInvoiceFailure(string $invoiceId): ?RemotePaymentFailureDTO;
+
+    /**
+     * Abandon a held ("pending") plan change and the invoice raised for it, so a fresh attempt can
+     * be quoted from scratch. Required because a held change expires on the vendor's clock while
+     * its invoice keeps its ORIGINAL amount: after that window, paying the old invoice takes the
+     * buyer's money without applying the change. Callers that cannot pay promptly must discard,
+     * not retry. Idempotent — already-void/absent is success.
+     */
+    public function discardPendingPlanChange(string $remoteSubscriptionId, string $invoiceId): void;
+
+    /**
+     * Hosted page where a customer replaces their stored card, returning to $returnUrl when done.
+     * The returned handle's url is single-use; $returnUrl receives the vendor's session reference
+     * so the caller can resolve WHICH card was stored (see resolveStoredPaymentMethod).
+     */
+    public function getCardUpdateUrl(string $remoteCustomerId, string $returnUrl, string $cancelUrl): string;
+
+    /**
+     * The card stored by a completed {@see getCardUpdateUrl} session — its vendor id, ready to be
+     * made the subscription's default. Null when the session did not complete.
+     */
+    public function resolveStoredPaymentMethod(string $sessionReference): ?string;
+
+    /**
+     * Make a stored card the one this subscription charges from now on. Called after a card
+     * replacement so the NEXT attempt uses the new card rather than the refused one.
+     */
+    public function setRemoteSubscriptionPaymentMethod(string $remoteSubscriptionId, string $remotePaymentMethodId): void;
 }

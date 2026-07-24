@@ -19,6 +19,7 @@ use App\Cashier\DTO\CheckoutHandle;
 use App\Cashier\DTO\PollableCheckout;
 use App\Cashier\DTO\RemoteCheckoutSessionDTO;
 use App\Cashier\DTO\RemoteInvoiceDTO;
+use App\Cashier\DTO\RemotePaymentFailureDTO;
 use App\Cashier\DTO\RemotePlanChangePreviewDTO;
 use App\Cashier\DTO\RemotePlanDTO;
 use App\Cashier\DTO\RemoteOneTimePriceDTO;
@@ -748,7 +749,7 @@ class StripeGateway implements
         \Stripe\Subscription::update($remoteSubscriptionId, ['cancel_at_period_end' => false]);
     }
 
-    public function updateRemoteSubscriptionPlan(string $remoteSubscriptionId, string $newRemotePlanId, bool $chargeImmediately = false, ?int $prorationDate = null): RemoteSubscriptionDTO
+    public function updateRemoteSubscriptionPlan(string $remoteSubscriptionId, string $newRemotePlanId, bool $chargeImmediately = false, ?int $prorationDate = null, ?DiscountSpec $discount = null): RemoteSubscriptionDTO
     {
         $sub = \Stripe\Subscription::retrieve($remoteSubscriptionId);
 
@@ -779,9 +780,19 @@ class StripeGateway implements
         // prior `allow_incomplete` bug that switched + went past_due). The caller inspects the returned sub:
         // current plan == target ⇒ applied (paid); still the old plan ⇒ pending (redirect the buyer to the
         // open invoice's hosted page to pay + authenticate). NOTE: pending_if_incomplete only supports a
-        // subset of update params — items + proration_behavior + trial_end are all allowed.
+        // subset of update params — items + proration_behavior + proration_date + trial_end + discounts are all allowed (pending-updates-reference).
         if ($chargeImmediately) {
             $params['payment_behavior'] = 'pending_if_incomplete';
+        }
+
+        // Percent-only coupon on the upgrade proration: folded INTO the proration amount, not shown as a
+        // separate line — proration line items are discountable=false, so only a PERCENT discount (which
+        // scales the price basis in the same call) reduces the charge. planChangeDiscountParam rejects a
+        // fixed amount_off loudly rather than let it silently discount $0. `discounts` is on the
+        // pending_if_incomplete supported-attributes list, so it applies whether the switch lands now or
+        // is held pending.
+        if ($discountParam = $this->planChangeDiscountParam($discount)) {
+            $params['discounts'] = $discountParam;
         }
 
         \Stripe\Subscription::update($remoteSubscriptionId, $params);
@@ -789,7 +800,7 @@ class StripeGateway implements
         return $this->getRemoteSubscription($remoteSubscriptionId);
     }
 
-    public function previewPlanChange(string $remoteSubscriptionId, string $newRemotePlanId, ?int $prorationDate = null): RemotePlanChangePreviewDTO
+    public function previewPlanChange(string $remoteSubscriptionId, string $newRemotePlanId, ?int $prorationDate = null, ?DiscountSpec $discount = null): RemotePlanChangePreviewDTO
     {
         // Default the pinned instant to now; the caller re-uses this exact value when it charges.
         $prorationDate = $prorationDate ?? time();
@@ -817,12 +828,20 @@ class StripeGateway implements
         // (this class's constructor). `always_invoice` + the trial_end mirror above make the returned
         // `total` equal what updateRemoteSubscriptionPlan(chargeImmediately: true) will bill — provided
         // the SAME proration_date is passed back to it (proration is per-second).
-        $requestor = new \Stripe\ApiRequestor(\Stripe\Stripe::getApiKey());
-        [$response] = $requestor->request('post', '/v1/invoices/create_preview', [
+        $previewParams = [
             'customer'             => $sub->customer,
             'subscription'         => $remoteSubscriptionId,
             'subscription_details' => $subscriptionDetails,
-        ]);
+        ];
+        // Simulate the coupon EXACTLY as the real charge applies it. On create_preview discounts go at the
+        // TOP LEVEL (`discounts[]`) — there is NO `subscription_details[discounts]`; per Stripe this "works
+        // for both coupons applied to an invoice and coupons applied to a subscription", so the previewed
+        // proration reflects the same percent reduction Subscription::update(discounts:[...]) will bill.
+        if ($discountParam = $this->planChangeDiscountParam($discount)) {
+            $previewParams['discounts'] = $discountParam;
+        }
+        $requestor = new \Stripe\ApiRequestor(\Stripe\Stripe::getApiKey());
+        [$response] = $requestor->request('post', '/v1/invoices/create_preview', $previewParams);
         $data = $response->json;
 
         // Minor units → major units via the canonical converter (handles zero/two/three-decimal
@@ -834,6 +853,33 @@ class StripeGateway implements
             currency: $currency,
             prorationDate: $prorationDate,
         );
+    }
+
+    /**
+     * Realise a plan-change coupon into Stripe's `discounts` param shape, shared by the preview
+     * (create_preview) and the charge (Subscription::update) so both agree. Returns [] when there is no
+     * discount.
+     *
+     * PERCENT-ONLY, enforced here (the single chokepoint both paths pass through): a fixed amount_off
+     * cannot reduce a proration line item — proration items are `discountable=false`, and Stripe only
+     * lowers a proration when a PERCENT discount changes the price basis in the SAME call. A fixed coupon
+     * would be "consumed for $0 off", so reject it loudly rather than promise a discount the charge won't
+     * honour (a silent UI-says-discount / charge-full-price bug).
+     *
+     * @return array<int, array{coupon: string}>
+     */
+    private function planChangeDiscountParam(?DiscountSpec $discount): array
+    {
+        if ($discount === null) {
+            return [];
+        }
+        if ($discount->type !== DiscountSpec::TYPE_PERCENT) {
+            throw new \InvalidArgumentException(
+                "Plan-change discount supports percent_off only ({$discount->type} given) — a fixed amount_off can't reduce a proration line item."
+            );
+        }
+
+        return [['coupon' => $this->ensureStripeCoupon($discount)]];
     }
 
     public function parseWebhookPayload(string $payload, array $headers): array
@@ -903,9 +949,135 @@ class StripeGateway implements
         return $this->stripeInvoiceToDto($inv);
     }
 
+    /**
+     * Read the PaymentIntent behind this invoice and classify why it did not collect.
+     *
+     * The invoice object itself is nearly useless for this: `last_finalization_error` only covers
+     * finalization (tax id, missing address), and is null for the common case of a card decline —
+     * verified live. The decline lives on the PaymentIntent (`last_payment_error`), which under
+     * dahlia hangs off `payments[].payment.payment_intent` rather than the removed
+     * `invoice.payment_intent`, so it must be expanded explicitly.
+     */
+    public function getRemoteInvoiceFailure(string $invoiceId): ?RemotePaymentFailureDTO
+    {
+        $inv = \Stripe\Invoice::retrieve([
+            'id'     => $invoiceId,
+            'expand' => ['payments.data.payment.payment_intent'],
+        ], ['api_key' => $this->secretKey]);
+
+        $pi = null;
+        foreach (($inv->payments->data ?? []) as $payment) {
+            $charge = $payment->payment ?? null;
+            if (is_object($charge) && ($charge->type ?? null) === 'payment_intent' && is_object($charge->payment_intent ?? null)) {
+                $pi = $charge->payment_intent;
+            }
+        }
+
+        if (! $pi) {
+            return null;   // never attempted (or already collected) — nothing to explain
+        }
+
+        $status = (string) ($pi->status ?? '');
+        $err    = $pi->last_payment_error ?? null;
+        $decline = is_object($err) ? ($err->decline_code ?? $err->code ?? null) : null;
+
+        // Classify on the PaymentIntent's own STATUS, not on a hand-kept list of decline codes:
+        // `requires_payment_method` is Stripe stating, in its own words, "this payment method did
+        // not work — supply a different one", and it covers every decline reason (expired, generic
+        // decline, insufficient funds, wrong number) without us tracking Stripe's code vocabulary.
+        // A code list rots: verified live, an ordinary decline arrives as code=card_declined +
+        // decline_code=generic_decline, so a list keyed on decline_code alone silently misses it.
+        // The codes below stay for the human message and audit, never for the routing decision.
+        $permanent = $status === 'requires_payment_method' && is_object($err);
+
+        return new RemotePaymentFailureDTO(
+            status:         $status ?: null,
+            requiresAction: $status === 'requires_action',
+            needsNewPaymentMethod:  $permanent,
+            declineCode:    $decline ? (string) $decline : null,
+            message:        is_object($err) ? ($err->message ?? null) : null,
+        );
+    }
+
+    /**
+     * Void the invoice raised for a held plan change; Stripe drops the subscription's
+     * `pending_update` with it, leaving the subscription exactly as it was before the attempt.
+     * Idempotent: an invoice already void/paid/absent is left alone rather than treated as an error,
+     * because callers reach here precisely when they are unsure what state the vendor is in.
+     */
+    public function discardPendingPlanChange(string $remoteSubscriptionId, string $invoiceId): void
+    {
+        try {
+            $inv = \Stripe\Invoice::retrieve($invoiceId, ['api_key' => $this->secretKey]);
+            if (($inv->status ?? null) === 'open') {
+                $inv->voidInvoice();
+            }
+        } catch (\Stripe\Exception\InvalidRequestException $e) {
+            // Gone already (deleted/never existed) — the end state we wanted. Anything else is a
+            // real fault and must surface.
+            if (($e->getHttpStatus() ?? 0) !== 404) {
+                throw $e;
+            }
+        }
+    }
+
+    /**
+     * Card replacement as a Checkout Session in `mode:setup` — the same product (and the same
+     * hosted-page-with-a-return-url contract) as every other payment surface here, so the app keeps
+     * control of where the buyer lands. Deliberately NOT the Billing Portal: that would need its own
+     * dashboard configuration and drops the buyer into an account-management UI.
+     */
+    public function getCardUpdateUrl(string $remoteCustomerId, string $returnUrl, string $cancelUrl): string
+    {
+        $session = \Stripe\Checkout\Session::create([
+            'mode'                => 'setup',
+            'customer'            => $remoteCustomerId,
+            'payment_method_types' => ['card'],
+            // The app resolves WHICH card was stored from this reference (resolveStoredPaymentMethod).
+            'success_url'         => $returnUrl.(str_contains($returnUrl, '?') ? '&' : '?').'session_id={CHECKOUT_SESSION_ID}',
+            'cancel_url'          => $cancelUrl,
+        ], ['api_key' => $this->secretKey]);
+
+        return $session->url;
+    }
+
+    public function setRemoteSubscriptionPaymentMethod(string $remoteSubscriptionId, string $remotePaymentMethodId): void
+    {
+        // Set it on the SUBSCRIPTION, not only the customer: the subscription's own
+        // default_payment_method wins over the customer default when Stripe charges it, so writing
+        // just the customer default would leave the refused card still attached to this sub.
+        \Stripe\Subscription::update(
+            $remoteSubscriptionId,
+            ['default_payment_method' => $remotePaymentMethodId],
+            ['api_key' => $this->secretKey]
+        );
+    }
+
+    public function resolveStoredPaymentMethod(string $sessionReference): ?string
+    {
+        $session = \Stripe\Checkout\Session::retrieve([
+            'id'     => $sessionReference,
+            'expand' => ['setup_intent'],
+        ], ['api_key' => $this->secretKey]);
+
+        $setupIntent = $session->setup_intent ?? null;
+        if (! is_object($setupIntent) || ($setupIntent->status ?? null) !== 'succeeded') {
+            return null;
+        }
+
+        $pm = $setupIntent->payment_method ?? null;
+
+        return is_object($pm) ? ($pm->id ?? null) : (is_string($pm) ? $pm : null);
+    }
+
     private function stripeInvoiceToDto(\Stripe\Invoice $inv): ?RemoteInvoiceDTO
     {
-        if ($inv->status === 'draft') {
+        // A draft was never issued, and a VOID one has been cancelled — neither is a bill anybody
+        // owes. Mapping them would have the app mirror them as local UNPAID invoices (amount_paid is
+        // 0 on both), i.e. phantom rows offering the customer a "Pay now" for a document that no
+        // longer exists. Voids became reachable once discardPendingPlanChange started cancelling
+        // held plan changes; before that Stripe never produced one here.
+        if (in_array($inv->status, ['draft', 'void'], true)) {
             return null;
         }
 
@@ -966,6 +1138,15 @@ class StripeGateway implements
             ? ($inv->parent->subscription_details->subscription ?? null)
             : null;
 
+        // Vendor discount actually applied to THIS invoice — sum of Stripe's total_discount_amounts
+        // (returned by default; each element's `amount` is the discount in MINOR units). `amount` below is
+        // the NET (amount_paid); this is the cut, so the sync layer can show "gross → net" without
+        // inferring the discount from a plan sticker price (which fails for partial prorations).
+        $discountCents = 0;
+        foreach (($inv->total_discount_amounts ?? []) as $d) {
+            $discountCents += (int) ($d->amount ?? 0);
+        }
+
         return new RemoteInvoiceDTO(
             id:                   (string) $inv->id,
             remoteSubscriptionId: (string) $remoteSubId,
@@ -973,6 +1154,7 @@ class StripeGateway implements
             status:               $status,
             amount:               (float) $this->revertPrice((int) ($inv->amount_paid ?? 0), strtoupper((string) $inv->currency)),
             currency:             strtoupper((string) $inv->currency),
+            discountAmount:       (float) $this->revertPrice($discountCents, strtoupper((string) $inv->currency)),
             periodStart:          $period ? Carbon::createFromTimestamp($period->start) : null,
             periodEnd:            $period ? Carbon::createFromTimestamp($period->end)   : null,
             billedAt:             Carbon::createFromTimestamp($inv->created),
