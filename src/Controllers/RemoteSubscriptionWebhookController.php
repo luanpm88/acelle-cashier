@@ -290,6 +290,26 @@ class RemoteSubscriptionWebhookController extends Controller
                 $outcome = app(\App\Services\Subscription\SubscriptionManagementService::class)
                     ->checkRemoteCheckoutIntent($intent);
 
+                // ENFORCEMENT (reconciliation invariant): a session that captured money / created a
+                // provider subscription but did NOT settle its local invoice is an ORPHAN capture —
+                // surface it durably (admin notification), never the previous silent skip. Benign
+                // cases are excluded by the discriminator: an unpaid/abandoned session ($paid false and
+                // no subscription), or the invoice already settled by another convergent path
+                // (isComplete — a genuine webhook-vs-poll race).
+                $paid = ($data['payment_status'] ?? null) === 'paid';
+                if ($outcome !== 'completed' && ($paid || $remoteSubId) && !$intent->invoice->isComplete()) {
+                    Log::error('Orphan gateway capture: completed session did not settle its local invoice', [
+                        'session'       => $sessionId,
+                        'remote_sub_id' => $remoteSubId,
+                        'intent'        => $intent->uid,
+                        'invoice'       => $intent->invoice->uid,
+                        'outcome'       => $outcome,
+                    ]);
+                    app(\App\Services\Notifications\Notifier::class)->shareWithAdmins(
+                        new \App\Notifications\Admin\OrphanGatewayCapture($intent->invoice, $sessionId, $remoteSubId)
+                    );
+                }
+
                 return response()->json(['status' => "remote_checkout_{$outcome}"], 200);
             } catch (\Throwable $e) {
                 Log::error('Remote-checkout webhook: completion failed, Stripe will retry', [
@@ -305,7 +325,26 @@ class RemoteSubscriptionWebhookController extends Controller
         // branch above is the ONLY live completion path. Reaching here means the session
         // isn't one of ours (or its intent vanished) — surface it, but don't make Stripe
         // retry forever (a 500 would loop).
-        Log::warning('Remote-checkout webhook: no local PaymentIntent for completed session', [
+        // ENFORCEMENT: reaching here for a session WE created (past the plan_id guard above) means its
+        // local intent vanished — overwritten by a later hand-off that minted a fresh session (H3) — yet
+        // the session still completed. If it captured money / created a subscription, that charge + sub
+        // now have NO local record: an orphan. Surface it durably instead of the previous silent 200.
+        // A genuinely unpaid / not-ours session (no money, no sub) stays a benign warning.
+        $paid = ($data['payment_status'] ?? null) === 'paid';
+        if ($paid || $remoteSubId) {
+            Log::error('Orphan gateway capture: completed session with NO local intent', [
+                'session'        => $sessionId,
+                'remote_sub_id'  => $remoteSubId,
+                'payment_status' => $data['payment_status'] ?? null,
+            ]);
+            app(\App\Services\Notifications\Notifier::class)->shareWithAdmins(
+                new \App\Notifications\Admin\OrphanGatewayCapture(null, $sessionId, $remoteSubId)
+            );
+
+            return response()->json(['status' => 'orphan_gateway_capture'], 200);
+        }
+
+        Log::warning('Remote-checkout webhook: no local PaymentIntent for completed session (unpaid/not ours)', [
             'session'       => $sessionId,
             'remote_sub_id' => $remoteSubId,
         ]);
