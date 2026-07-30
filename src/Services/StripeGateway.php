@@ -9,6 +9,7 @@ use App\Cashier\Contracts\SupportsBundledItems;
 use App\Cashier\Contracts\SupportsRemoteOneTimePriceCatalogInterface;
 use App\Cashier\Contracts\ManageRemoteSubscriptionInterface;
 use App\Cashier\Contracts\SupportsRemoteCatalogInterface;
+use App\Cashier\Contracts\SupportsRemotePlanChange;
 use App\Cashier\Contracts\SupportsDiscounts;
 use App\Cashier\DTO\DiscountSpec;
 use App\Cashier\DTO\PaymentIntent;
@@ -39,6 +40,7 @@ use Carbon\Carbon;
  * - SupportsRemoteOneTimePriceCatalogInterface      → Stripe's one_time price catalog
  * - ManageRemoteSubscriptionInterface               → read/sync/cancel/resume/webhook
  * - SupportsRemoteCatalogInterface                  → plans, list-subs, invoice history
+ * - SupportsRemotePlanChange                        → switch a live sub's plan + bill the proration NOW
  * - SupportsDiscounts                               → apply a DiscountSpec (→ a Stripe Coupon)
  *
  * Pure: no DB writes, no handler callbacks. Controllers orchestrate side-effects.
@@ -51,6 +53,7 @@ class StripeGateway implements
     SupportsRemoteOneTimePriceCatalogInterface,
     ManageRemoteSubscriptionInterface,
     SupportsRemoteCatalogInterface,
+    SupportsRemotePlanChange,
     SupportsDiscounts
 {
     public const TYPE = 'stripe';
