@@ -140,9 +140,14 @@ class StripeGateway implements
 
         $params = [
             'customer'                   => $customer->id,
-            // name => never: a cardholder name (possibly a company/spouse card) must not overwrite
-            // our billing name. address => auto: pre-fill the country on the card field.
-            'customer_update'            => ['name' => 'never', 'address' => 'auto'],
+            // never / never: what Checkout collects on the card form is the CARDHOLDER identity —
+            // a single name field (possibly a company or a spouse's card) and, under
+            // billing_address_collection:'auto', only the postal code + country AVS needs. Neither
+            // is the buyer's billing identity, which we already collected on our own form and
+            // pushed up via prefillCustomerBilling(). `address` used to be 'auto', which let
+            // Checkout overwrite that with the AVS fragment — the same asymmetry that let
+            // "500 Market St, San Francisco" become "94105, US". Both are 'never' now.
+            'customer_update'            => ['name' => 'never', 'address' => 'never'],
             'billing_address_collection' => 'auto',
             // The app owns its return URL (it already carries the invoice handle it needs on
             // return). We do NOT inject Stripe's {CHECKOUT_SESSION_ID}: the app reconciles the
