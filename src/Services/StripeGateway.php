@@ -149,6 +149,23 @@ class StripeGateway implements
             // "500 Market St, San Francisco" become "94105, US". Both are 'never' now.
             'customer_update'            => ['name' => 'never', 'address' => 'never'],
             'billing_address_collection' => 'auto',
+            // Offer the customer's ALREADY-SAVED cards on the hosted page, so a buyer we are
+            // sending here (a 3DS challenge, a re-pay) confirms the card they already have instead
+            // of retyping it.
+            //
+            // Without this the list is empty in practice. Checkout's default filter is
+            // ['always'], but a card saved by `payment_intent_data[setup_future_usage]` — which is
+            // exactly how this integration vaults them — is stored with allow_redisplay 'limited'
+            // (Stripe: "prevents them from being prefilled for returning purchases"), and a card
+            // attached by any other route defaults to 'unspecified'. Both are excluded, so the
+            // buyer was always shown a blank card form.
+            //
+            // Verified live against this account (API version 2017-04-06): the parameter is
+            // accepted and echoed back on the session, so it is not gated by the pinned version.
+            // Prefill also requires `customer` (set above) and billing_details on the card.
+            'saved_payment_method_options' => [
+                'allow_redisplay_filters' => ['always', 'limited', 'unspecified'],
+            ],
             // The app owns its return URL (it already carries the invoice handle it needs on
             // return). We do NOT inject Stripe's {CHECKOUT_SESSION_ID}: the app reconciles the
             // browser return by its own invoice reference, never by a gateway session id.
