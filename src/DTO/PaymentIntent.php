@@ -22,7 +22,33 @@ class PaymentIntent
         public readonly array $metadata = [],
         public readonly ?string $remoteReferenceId = null, // gateway-side ID (pi_xxx, sub_xxx)
         public readonly ?DiscountSpec $discount = null,    // null = full price; applied by a SupportsDiscounts gateway
+        // FALSE = the buyer explicitly asked for a different card, so the hosted page must not
+        // offer the ones already on file. Carried on the DTO rather than as a getCheckoutUrl()
+        // parameter because that method is an INTERFACE method with 12 implementers — widening it
+        // would break every other gateway plugin. Gateways that do not understand it ignore it.
+        public readonly bool $offerSavedCards = true,
     ) {}
+
+    /**
+     * Same intent, with the saved-card offer decided.
+     *
+     * A `with`-er rather than a constructor argument at every call site: the DTO is built from the
+     * persisted model (toDto()), and this flag is a property of the REQUEST — which button the buyer
+     * pressed — not of the stored row. Nothing about the intent's identity changes, so a clone is
+     * the honest shape.
+     */
+    public function withSavedCardOffer(bool $offer): self
+    {
+        if ($offer === $this->offerSavedCards) {
+            return $this;
+        }
+
+        return new self(
+            $this->uid, $this->amount, $this->currency, $this->description, $this->paymentGatewayId,
+            $this->payer, $this->subscription, $this->metadata, $this->remoteReferenceId,
+            $this->discount, $offer,
+        );
+    }
 
     public function isSubscription(): bool
     {

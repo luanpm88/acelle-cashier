@@ -287,8 +287,8 @@ class RemoteSubscriptionWebhookController extends Controller
             // throw a fatal out un-caught (a 500 makes Stripe retry forever) — but a transient
             // failure SHOULD 500 so Stripe retries.
             try {
-                $outcome = app(\App\Services\Subscription\SubscriptionManagementService::class)
-                    ->checkRemoteCheckoutIntent($intent);
+                $outcome = app(\App\Cashier\Contracts\CheckoutHandlerInterface::class)
+                    ->reconcileHostedCheckout($intent->uid);
 
                 // ENFORCEMENT (reconciliation invariant): a session that captured money / created a
                 // provider subscription but did NOT settle its local invoice is an ORPHAN capture —
@@ -361,7 +361,7 @@ class RemoteSubscriptionWebhookController extends Controller
         $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
 
         if ($subscription->isNew() && ($remoteSub->isActive() || $remoteSub->isTrialing())) {
-            app(\App\Services\Subscription\SubscriptionManagementService::class)->activateFromRemote($subscription, $gateway);
+            app(\App\Cashier\Contracts\CheckoutHandlerInterface::class)->onRemoteSubscriptionActivated($subscription->uid, $gateway->uid);
         }
 
         if ($remoteSub->currentPeriodEnd && $subscription->isActive()) {
@@ -380,6 +380,35 @@ class RemoteSubscriptionWebhookController extends Controller
         $subscription->last_synced_at = now();
         $subscription->save();
 
+        // ── Complete an app-initiated plan change that has now been paid for. ──────────────
+        // initiateRemotePlanChange only RECORDS the target in remote_metadata
+        // ['pending_change_plan_id'] and deliberately leaves plan_id alone (no paid tier before
+        // payment). One of the observers has to finish it once the buyer pays.
+        //
+        // Why here and not only in invoice.paid: with payment_behavior=pending_if_incomplete Stripe
+        // swaps the subscription item only AFTER the proration invoice is paid, and the event order
+        // measured against a live test account is
+        //     invoice.paid -> invoice.payment_succeeded -> customer.subscription.updated
+        // so by the time handleInvoicePaid re-reads the subscription the item is still frequently
+        // the OLD price; its flip attempt then misses and returns false silently. This event is the
+        // first one that carries the new item, which makes it the place the comparison can succeed.
+        //
+        // Idempotent and cheap: no marker (every ordinary renewal) or a marker already satisfied
+        // returns false and touches nothing. $remoteSub is the live read from the top of this
+        // method, not the webhook payload, so it reflects Stripe now rather than at send time.
+        // The credits reconcile MUST ride with the flip, not be left to the invoice.paid handler.
+        // That handler only calls onChangePlan when IT performed the flip and no mirror settled
+        // ($planFlipped && ! $settledMirror), so a 3-D Secure upgrade — where invoice.paid settles
+        // the mirror but is too early to flip, and the flip lands HERE moments later — reconciled
+        // the buyer's allowance against the OLD plan and never revisited it. They were billed for
+        // the new plan and kept the old plan's sending credits for the rest of the cycle, with the
+        // poller disabled and nothing else scheduled to notice.
+        //
+        // resetForCycle is a set-operation (see the note in handleInvoicePaid), so the worst case of
+        // both observers calling it is a repeated write of the same value, never a double grant.
+        app(\App\Cashier\Contracts\CheckoutHandlerInterface::class)
+            ->onRemotePlanChangeConfirmed($subscription->uid, $remoteSub);
+
         Log::info("Subscription {$subscription->uid} updated from webhook. Remote status: {$remoteSub->status}");
     }
 
@@ -388,7 +417,7 @@ class RemoteSubscriptionWebhookController extends Controller
         // No local try/catch: failure propagates to the boundary catch → 500 → Stripe retries.
         // A swallowed error here would leave the sub ACTIVE after Stripe cancelled it.
         if ($subscription->isActive()) {
-            app(\App\Services\Subscription\SubscriptionManagementService::class)->cancelNow($subscription);
+            app(\App\Cashier\Contracts\CheckoutHandlerInterface::class)->onRemoteSubscriptionCancelled($subscription->uid);
             Log::info("Subscription {$subscription->uid} cancelled via webhook (remote subscription deleted)");
         }
     }
@@ -401,7 +430,7 @@ class RemoteSubscriptionWebhookController extends Controller
         $remoteSub = $service->getRemoteSubscription($subscription->remote_subscription_id);
 
         if ($subscription->isNew() && ($remoteSub->isActive() || $remoteSub->isTrialing())) {
-            app(\App\Services\Subscription\SubscriptionManagementService::class)->activateFromRemote($subscription, $gateway);
+            app(\App\Cashier\Contracts\CheckoutHandlerInterface::class)->onRemoteSubscriptionActivated($subscription->uid, $gateway->uid);
         }
 
         if ($remoteSub->currentPeriodEnd && $subscription->isActive()) {
@@ -425,8 +454,8 @@ class RemoteSubscriptionWebhookController extends Controller
         // rule lives in ONE place (shared with the sync backstop, which covers a lost delivery or an
         // install with no webhook endpoint); see applyPendingPlanChangeIfConfirmed. Runs AFTER the
         // metadata save above so clearing the marker cannot be overwritten by this method's own $meta.
-        $planFlipped = app(\App\Services\Subscription\SubscriptionManagementService::class)
-            ->applyPendingPlanChangeIfConfirmed($subscription, $remoteSub);
+        $planFlipped = app(\App\Cashier\Contracts\CheckoutHandlerInterface::class)
+            ->onRemotePlanChangeConfirmed($subscription->uid, $remoteSub);
 
         // ── Settle the LOCAL MIRROR of this provider invoice, if one exists. ──────────────
         // A pending plan change materializes an unpaid mirror at request time
@@ -472,8 +501,21 @@ class RemoteSubscriptionWebhookController extends Controller
         // here ONLY for the mirror-less path (legacy subs, vendor-first signups, materialize hiccup).
         // resetForCycle is a set-operation so a double call would be harmless, but keeping it single
         // keeps "who owns this side effect" answerable.
-        if ($planFlipped && ! $settledMirror) {
-            app(\App\Services\Plans\Lifecycle\SubscriptionLifecycle::class)->onChangePlan($subscription);
+        // Credits are reconciled by onRemotePlanChangeConfirmed itself — the flip and the reconcile
+        // are one unit behind the seam now, so there is nothing left for this handler to do here.
+
+        // Money for a plan change is in, but the plan has not moved yet. Expected in the common
+        // case — customer.subscription.updated lands moments later and flips it there — so this is
+        // a WARNING, not an error. It exists because the failure it precedes is otherwise invisible:
+        // if no flip ever follows this line, the buyer paid and stayed on the old plan. Grep for it
+        // before believing an upgrade completed.
+        if ($settledMirror && ! $planFlipped
+            && ($subscription->fresh()->getRemoteMetadataArray()['pending_change_plan_id'] ?? null)) {
+            Log::warning('invoice.paid settled a plan-change invoice but the plan is not flipped yet', [
+                'subscription_uid' => $subscription->uid,
+                'remote_invoice'   => $remoteInvoiceId,
+                'remote_plan_id'   => $remoteSub->remotePlanId,
+            ]);
         }
 
         Log::info("Invoice paid webhook processed for subscription {$subscription->uid}");

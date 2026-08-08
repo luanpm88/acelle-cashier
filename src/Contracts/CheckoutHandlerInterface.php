@@ -75,5 +75,46 @@ interface CheckoutHandlerInterface
      * claimed_at timestamp. Intent stays at status=pending. Admin approves
      * via separate admin UI flow (SubscriptionManagementService::approvePendingInvoice).
      */
+    /**
+     * An app-initiated plan change the provider was HOLDING has now been paid for — apply it.
+     *
+     * The gateway driver must not reach into the app's own services to do this. It knows one fact
+     * ("the provider now reports this subscription on plan X") and hands it over; what that means
+     * for entitlement, credits and the audit trail is the app's business, decided in one place.
+     *
+     * Implementations MUST treat the plan flip and its credit reconciliation as a single unit.
+     * They were separate once, in two different webhook handlers, and a 3-D Secure upgrade could
+     * land the flip in one and the reconcile in the other — the buyer was billed for the new plan
+     * and kept the old plan's allowance for the rest of the cycle.
+     *
+     * MUST be idempotent: every observer (each webhook delivery, the poller, an on-session
+     * confirmation) calls this, and only one of them can be first.
+     *
+     * @param  string  $subscriptionUid  the app's own subscription handle — no host model crosses
+     *                                   this boundary, so the driver stays free of app types.
+     * @return bool  true only when THIS call performed the flip; false when there was nothing
+     *               pending, the provider has not applied it yet, or someone else got there first.
+     */
+    public function onRemotePlanChangeConfirmed(string $subscriptionUid, RemoteSubscriptionDTO $remoteSubscription): bool;
+
+    /**
+     * The provider reports this subscription live (active/trialing) while the app still has it NEW.
+     *
+     * @param  string  $subscriptionUid  the app's own subscription handle
+     * @param  string  $gatewayUid       the gateway that reported it
+     */
+    public function onRemoteSubscriptionActivated(string $subscriptionUid, string $gatewayUid): void;
+
+    /** The provider cancelled this subscription — bring the app's copy into line. */
+    public function onRemoteSubscriptionCancelled(string $subscriptionUid): void;
+
+    /**
+     * Reconcile a hosted-checkout session the app is tracking, and report what it settled.
+     *
+     * @param  string  $intentUid  the app's own payment-intent handle
+     * @return string  the app's own outcome word; 'completed' means the invoice is settled
+     */
+    public function reconcileHostedCheckout(string $intentUid): string;
+
     public function onOfflineClaimReceived(PaymentIntent $intent): void;
 }

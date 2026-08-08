@@ -9,6 +9,7 @@ use App\Cashier\Contracts\SupportsBundledItems;
 use App\Cashier\Contracts\SupportsRemoteOneTimePriceCatalogInterface;
 use App\Cashier\Contracts\ManageRemoteSubscriptionInterface;
 use App\Cashier\Contracts\SupportsRemoteCatalogInterface;
+use App\Cashier\Contracts\SupportsOnSessionAuthentication;
 use App\Cashier\Contracts\SupportsRemotePlanChange;
 use App\Cashier\Contracts\SupportsDiscounts;
 use App\Cashier\DTO\DiscountSpec;
@@ -54,6 +55,7 @@ class StripeGateway implements
     ManageRemoteSubscriptionInterface,
     SupportsRemoteCatalogInterface,
     SupportsRemotePlanChange,
+    SupportsOnSessionAuthentication,
     SupportsDiscounts
 {
     public const TYPE = 'stripe';
@@ -163,9 +165,7 @@ class StripeGateway implements
             // Verified live against this account (API version 2017-04-06): the parameter is
             // accepted and echoed back on the session, so it is not gated by the pinned version.
             // Prefill also requires `customer` (set above) and billing_details on the card.
-            'saved_payment_method_options' => [
-                'allow_redisplay_filters' => ['always', 'limited', 'unspecified'],
-            ],
+
             // The app owns its return URL (it already carries the invoice handle it needs on
             // return). We do NOT inject Stripe's {CHECKOUT_SESSION_ID}: the app reconciles the
             // browser return by its own invoice reference, never by a gateway session id.
@@ -216,6 +216,21 @@ class StripeGateway implements
         // lands on the up-front license line. Works for both mode:subscription and mode:payment.
         if ($intent->discount !== null) {
             $params['discounts'] = [['coupon' => $this->ensureStripeCoupon($intent->discount)]];
+        }
+
+        // Offer the buyer's already-saved cards on the hosted page — but ONLY when they have not
+        // just asked for a different one. Without the filter the list is empty in practice: a card
+        // vaulted by payment_intent_data[setup_future_usage] carries allow_redisplay 'limited', and
+        // Checkout's default filter is ['always'], so every saved card is excluded and the buyer
+        // gets a blank form even on a re-pay. Verified live against this account: the parameter is
+        // accepted and echoed back on the pinned API version.
+        //
+        // The `false` case is not merely "skip an option": a buyer who clicked "use a different
+        // card" and is then shown their old card back has been contradicted by the product.
+        if ($intent->offerSavedCards) {
+            $params['saved_payment_method_options'] = [
+                'allow_redisplay_filters' => ['always', 'limited', 'unspecified'],
+            ];
         }
 
         $session = \Stripe\Checkout\Session::create($params);
@@ -409,10 +424,41 @@ class StripeGateway implements
                 return PaymentResult::subscriptionCreated($this->mapSubscriptionToDto($sub));
             }
 
-            // First charge did not settle off-session (decline / SCA-required). Don't leave a
-            // half-created incomplete subscription behind.
-            $this->cancelSubscriptionQuietly($sub->id);
+            // First charge did not settle off-session. TWO different things land here and they must
+            // not be told to the buyer as one: a real decline, and a card whose issuer wants 3-D
+            // Secure — which cannot run with the customer absent and is not a failure at all.
+            //
+            // Both leave `subscription: incomplete, invoice: open`, so the subscription status
+            // cannot separate them; only the PaymentIntent can (requires_payment_method vs
+            // requires_action). getRemoteInvoiceFailure() already computes exactly that
+            // discrimination — its $requiresAction flag had no reader until now, which is why every
+            // 3-D Secure card on this lane reached the buyer as "your saved card could not be
+            // charged" and the caller's NEEDS_AUTHENTICATION branch was dead code.
+            $liId = ($sub->latest_invoice && is_object($sub->latest_invoice))
+                ? $sub->latest_invoice->id
+                : (is_string($sub->latest_invoice) ? $sub->latest_invoice : null);
             $liStatus = ($sub->latest_invoice && is_object($sub->latest_invoice)) ? $sub->latest_invoice->status : 'unknown';
+
+            $needsAuth = false;
+            $secret    = null;
+            if ($liId !== null) {
+                $failure = $this->getRemoteInvoiceFailure($liId);
+                if ($failure && $failure->requiresAction) {
+                    // Read the credential BEFORE the cleanup below voids the invoice.
+                    $needsAuth = true;
+                    $secret    = $this->getInvoiceConfirmationSecret($liId);
+                }
+            }
+
+            // Cleaned up either way: this half-created incomplete subscription must not linger, and
+            // the recovery path (the gateway's hosted checkout) creates the subscription properly
+            // rather than resuming this one.
+            $this->cancelSubscriptionQuietly($sub->id);
+
+            if ($needsAuth && $secret !== null) {
+                return PaymentResult::requiresAuth($secret, $sub->id);
+            }
+
             return PaymentResult::failed(
                 "Off-session subscription first charge did not settle (subscription: {$sub->status}, invoice: {$liStatus}) — complete via checkout.",
                 $sub->id
@@ -972,6 +1018,28 @@ class StripeGateway implements
         $inv = \Stripe\Invoice::retrieve($invoiceId, ['api_key' => $this->secretKey]);
 
         return $this->stripeInvoiceToDto($inv);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * `confirmation_secret` is NOT returned by default — it has to be asked for by name, which is
+     * why a plain retrieve() shows no sign of it (verified against a live account: absent without
+     * the expand, present with it, on an `open` invoice holding a 3-D Secure challenge).
+     *
+     * A secret comes back for a PAID invoice as well — verified, so do not read non-null as "this
+     * needs authenticating". Null means Stripe has no credential for the invoice at all. A
+     * retrieve() that throws is NOT caught: an unknown id or a revoked key is a broken caller, not
+     * a "no secret" case, and must surface.
+     */
+    public function getInvoiceConfirmationSecret(string $remoteInvoiceId): ?string
+    {
+        $inv = \Stripe\Invoice::retrieve(
+            ['id' => $remoteInvoiceId, 'expand' => ['confirmation_secret']],
+            ['api_key' => $this->secretKey]
+        );
+
+        return $inv->confirmation_secret->client_secret ?? null;
     }
 
     /**
