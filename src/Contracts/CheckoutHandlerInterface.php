@@ -116,5 +116,25 @@ interface CheckoutHandlerInterface
      */
     public function reconcileHostedCheckout(string $intentUid): string;
 
+    /**
+     * The provider could not collect on this subscription's invoice.
+     *
+     * The driver reports the event and stops: it does not decide what a failed collection MEANS —
+     * whether entitlement is cut, whether the buyer is emailed, how it is surfaced for review. That
+     * is the app's policy, and it must have exactly one home, because both observers reach it (the
+     * invoice.payment_failed webhook, and the manual sync noticing the subscription went past_due).
+     * Two implementations of "what a failed renewal means" is how they drift apart.
+     *
+     * MUST be idempotent: a provider retries collection several times, each retry raising the event
+     * again, and an admin may sync in between.
+     *
+     * @param  string       $subscriptionUid  the app's own subscription handle
+     * @param  string|null  $remoteInvoiceId  the provider's invoice, when the event names one — the
+     *                                        app uses it to ask the gateway WHY it failed rather
+     *                                        than having the driver guess
+     * @param  string|null  $reason           the provider's own message, when it gave one
+     */
+    public function onRemotePaymentFailed(string $subscriptionUid, ?string $remoteInvoiceId = null, ?string $reason = null): void;
+
     public function onOfflineClaimReceived(PaymentIntent $intent): void;
 }

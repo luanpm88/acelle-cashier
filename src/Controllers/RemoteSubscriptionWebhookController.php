@@ -523,6 +523,16 @@ class RemoteSubscriptionWebhookController extends Controller
 
     protected function handlePaymentFailed(Subscription $subscription, array $data)
     {
-        Log::warning("Payment failed for subscription {$subscription->uid} (remote: {$subscription->remote_subscription_id})");
+        // Was a bare Log::warning — a failed renewal left no trace anywhere an admin looks, so a
+        // buyer whose card expired kept full access with nobody informed until the provider gave up
+        // days later. Hand it to the app, which owns what a failed collection means; the same seam
+        // the manual sync uses, so both produce the same reconcile row.
+        app(\App\Cashier\Contracts\CheckoutHandlerInterface::class)->onRemotePaymentFailed(
+            $subscription->uid,
+            is_string($data['id'] ?? null) ? $data['id'] : null,
+            is_string($data['last_finalization_error']['message'] ?? null)
+                ? $data['last_finalization_error']['message']
+                : null,
+        );
     }
 }
