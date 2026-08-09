@@ -136,5 +136,20 @@ interface CheckoutHandlerInterface
      */
     public function onRemotePaymentFailed(string $subscriptionUid, ?string $remoteInvoiceId = null, ?string $reason = null): void;
 
+    /**
+     * The provider collected on this subscription's invoice.
+     *
+     * The counterpart of onRemotePaymentFailed, and required for the same reason: the app has state
+     * that only a successful collection resolves — a "could not collect" mark to retire, an invoice
+     * to record, a cycle to reset. Left to the driver, each observer would resolve a different
+     * subset of it.
+     *
+     * MUST be idempotent: webhooks are at-least-once, and a sync may report the same collection.
+     *
+     * @param  string       $subscriptionUid  the app's own subscription handle
+     * @param  string|null  $remoteInvoiceId  the provider's invoice, when the event names one
+     */
+    public function onRemotePaymentSucceeded(string $subscriptionUid, ?string $remoteInvoiceId = null): void;
+
     public function onOfflineClaimReceived(PaymentIntent $intent): void;
 }

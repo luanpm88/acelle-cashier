@@ -1246,11 +1246,18 @@ class StripeGateway implements
             origin:               $origin,
             status:               $status,
             amount:               (float) $this->revertPrice((int) ($inv->amount_paid ?? 0), strtoupper((string) $inv->currency)),
+            amountDue:            (float) $this->revertPrice((int) ($inv->amount_remaining ?? $inv->amount_due ?? 0), strtoupper((string) $inv->currency)),
             currency:             strtoupper((string) $inv->currency),
             discountAmount:       (float) $this->revertPrice($discountCents, strtoupper((string) $inv->currency)),
             periodStart:          $period ? Carbon::createFromTimestamp($period->start) : null,
             periodEnd:            $period ? Carbon::createFromTimestamp($period->end)   : null,
             billedAt:             Carbon::createFromTimestamp($inv->created),
+            // Stripe does not have a "failed" invoice status: a declined invoice stays `open` and
+            // records the attempt. So the fact is attempt_count > 0 while still unpaid, plus
+            // `uncollectible` (Stripe finished retrying and wrote it off). `draft` and `void` never
+            // reach here — they are filtered at the top of this method.
+            collectionFailed:     $inv->status === 'uncollectible'
+                                      || (((int) ($inv->attempt_count ?? 0)) > 0 && $inv->status !== 'paid'),
             failureReason:        $inv->last_finalization_error->message ?? null,
             hostedInvoiceUrl:     $inv->hosted_invoice_url ?? $inv->invoice_pdf,
             paymentMethodRemoteId: $pmRemoteId,

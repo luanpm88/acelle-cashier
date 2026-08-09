@@ -26,10 +26,25 @@ class RemoteInvoiceDTO
         public readonly BillingOrigin $origin,
         public readonly string $status,              // 'paid' | 'failed' | 'past_due' | 'refunded' | 'open'
         public readonly float $amount,               // NET charged (amount_paid), major units (49.00, not 4900)
+        // What the provider is STILL trying to collect on this invoice (amount_remaining), major
+        // units. 0 once it is paid. NOT derivable from $amount: an unpaid invoice has amount_paid
+        // = 0, so anything built from $amount alone represents a renewal the customer owes as
+        // costing nothing — a $0 local mirror, a "pay $0" button.
+        public readonly float $amountDue,
         public readonly string $currency,            // 'USD' (uppercased ISO-4217)
         public readonly ?Carbon $periodStart,
         public readonly ?Carbon $periodEnd,
         public readonly Carbon $billedAt,
+        // The provider ATTEMPTED to collect this invoice and did not get the money.
+        //
+        // Deliberately a fact the DRIVER states, not something inferred from $status here. Vendors
+        // do not agree on where that fact lives: Stripe never writes a "failed" invoice status at
+        // all — a declined invoice sits at `open` and the only evidence is attempt_count — so a
+        // status-based guess reads false for every failure Stripe has. Only the driver knows its
+        // vendor's bookkeeping; this field is where it says so.
+        //
+        // Distinct from "not paid": an invoice finalized seconds ago is unpaid with nothing failed.
+        public readonly bool $collectionFailed,
         // Vendor-side discount applied to THIS invoice (e.g. a Stripe coupon), major units. 0 = none.
         // `amount` above is the NET charged; `amount + discountAmount` = the pre-discount (gross) subtotal.
         public readonly float $discountAmount = 0.0,
@@ -54,9 +69,17 @@ class RemoteInvoiceDTO
         return $this->status === 'paid';
     }
 
+    /**
+     * The provider tried to collect and failed — see $collectionFailed.
+     *
+     * This used to test `status in ['failed','past_due']`, which no Stripe invoice can ever carry
+     * (its statuses are draft/open/paid/void/uncollectible), so it answered NO to every declined
+     * renewal. Nothing downstream noticed, because the only caller uses it to pick a log label:
+     * a failed collection was recorded as an ordinary "renew order".
+     */
     public function isFailed(): bool
     {
-        return in_array($this->status, ['failed', 'past_due'], true);
+        return $this->collectionFailed;
     }
 
     public function isRefund(): bool

@@ -469,6 +469,15 @@ class RemoteSubscriptionWebhookController extends Controller
         // invoice is never fulfilled twice. Fulfilment runs SubscriptionChangePlanHandler, which skips
         // the plan flip for a remote sub (this webhook owns it) and reconciles credits (onChangePlan).
         $remoteInvoiceId = is_string($data['id'] ?? null) ? $data['id'] : null;
+
+        // Hand the collection to the app BEFORE the mirror lookup below. The app owns what a
+        // successful collection resolves — retiring a "could not collect" mark, and mirroring an
+        // invoice nobody has recorded yet (a provider-billed renewal is the one billing event this
+        // app does not start, so there is no local row waiting for it). If it does mirror one, it
+        // settles it too, and the block below then sees a paid invoice and logs a replay no-op.
+        app(\App\Cashier\Contracts\CheckoutHandlerInterface::class)
+            ->onRemotePaymentSucceeded($subscription->uid, $remoteInvoiceId);
+
         $settledMirror   = false;
         if ($remoteInvoiceId) {
             $local = \App\Model\Invoice::where('payment_gateway_id', $gateway->id)
