@@ -35,4 +35,28 @@ class Cashier
             return url($path);
         }
     }
+
+    /**
+     * Checkout stylesheet, inlined into the page.
+     *
+     * It is NOT linked from public/vendor/acelle-cashier: that directory only
+     * exists after `vendor:publish --tag=public`, is gitignored by the host app
+     * (so no patch ever ships it) and no upgrade step re-publishes it. Installs
+     * therefore served a 404 for the stylesheet and rendered the checkout raw —
+     * the "giant padlock, one column" page customers reported. Reading it from
+     * the package makes the checkout correct on every install with no publish
+     * step. Missing file = broken package, so let it throw rather than serve an
+     * unstyled page again.
+     */
+    public static function checkout_css()
+    {
+        $path = __DIR__.'/../assets/css/main.css';
+
+        $css = file_get_contents($path);
+        if ($css === false) {
+            throw new \RuntimeException("Cashier checkout stylesheet is unreadable: {$path}");
+        }
+
+        return $css;
+    }
 }
