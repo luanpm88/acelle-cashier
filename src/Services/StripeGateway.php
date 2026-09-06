@@ -1012,10 +1012,19 @@ class StripeGateway implements
      * consistent, unlike the LIST endpoint (getRemoteInvoices) whose index lags a few seconds behind
      * creation. Used to materialize a just-created invoice synchronously (e.g. an upgrade's
      * charge-immediately proration). Returns null if the payload can't map to an invoice DTO.
+     *
+     * Expands the PaymentIntent because a RETRIEVE can afford what the LIST cannot (the 4-level
+     * expand limit only bites on lists). Without it the mapper sees `payment_intent` as a bare id
+     * string and degrades the card fields AND the decline reason to null — which is how a declined
+     * renewal reached the admin bell with no Reason at all (prod, 2026-08-29). This is the path
+     * materializeOneRemoteInvoice() uses, i.e. the one every payment-failed webhook runs through.
      */
     public function getRemoteInvoice(string $invoiceId): ?RemoteInvoiceDTO
     {
-        $inv = \Stripe\Invoice::retrieve($invoiceId, ['api_key' => $this->secretKey]);
+        $inv = \Stripe\Invoice::retrieve([
+            'id'     => $invoiceId,
+            'expand' => ['payments.data.payment.payment_intent'],
+        ], ['api_key' => $this->secretKey]);
 
         return $this->stripeInvoiceToDto($inv);
     }
@@ -1203,6 +1212,7 @@ class StripeGateway implements
         $pmRemoteId = null;
         $pmBrand    = null;
         $pmLast4    = null;
+        $declineMsg = null;
         foreach (($inv->payments->data ?? []) as $payment) {
             $charge = $payment->payment ?? null;
             if (!is_object($charge) || ($charge->type ?? null) !== 'payment_intent') {
@@ -1210,6 +1220,16 @@ class StripeGateway implements
             }
             $pi = $charge->payment_intent ?? null;
             if (is_object($pi)) {
+                // Why the charge did not go through. Same reachability rule as the card fields
+                // above: present on a single retrieve that expanded the PaymentIntent, null on the
+                // LIST sync (5 levels exceeds Stripe's expand limit). getRemoteInvoiceFailure()
+                // remains the classifier for callers that need requiresAction /
+                // needsNewPaymentMethod; this is the human sentence for the audit trail.
+                $err = $pi->last_payment_error ?? null;
+                if (is_object($err)) {
+                    $declineMsg = $err->message ?? null;
+                }
+
                 $pm = $pi->payment_method ?? null;
                 if (is_object($pm)) {
                     $pmRemoteId = $pm->id ?? null;
@@ -1258,7 +1278,11 @@ class StripeGateway implements
             // reach here — they are filtered at the top of this method.
             collectionFailed:     $inv->status === 'uncollectible'
                                       || (((int) ($inv->attempt_count ?? 0)) > 0 && $inv->status !== 'paid'),
-            failureReason:        $inv->last_finalization_error->message ?? null,
+            // The DECLINE first, finalization only as fallback. `last_finalization_error` covers
+            // tax-id / missing-address faults and is null for an ordinary card decline — verified
+            // live — so reading it alone made every declined renewal report "no reason given"
+            // (prod incident 2026-08-29: insufficient_funds surfaced as a blank Reason).
+            failureReason:        $declineMsg ?? ($inv->last_finalization_error->message ?? null),
             hostedInvoiceUrl:     $inv->hosted_invoice_url ?? $inv->invoice_pdf,
             paymentMethodRemoteId: $pmRemoteId,
             paymentMethodBrand:    $pmBrand ?: null,
