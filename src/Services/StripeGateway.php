@@ -917,7 +917,12 @@ class StripeGateway implements
 
         // Minor units → major units via the canonical converter (handles zero/two/three-decimal
         // currencies) — the SAME helper getRemoteInvoice() uses, never a hardcoded /100.
-        $currency = strtoupper($data['currency'] ?? 'usd');
+        // A preview always carries its currency; without one the amount has no unit, so refuse
+        // rather than read it as dollars.
+        if (empty($data['currency'])) {
+            throw new \RuntimeException('Stripe invoice preview returned no currency — cannot read its amount.');
+        }
+        $currency = strtoupper((string) $data['currency']);
 
         return new RemotePlanChangePreviewDTO(
             amount: (float) $this->revertPrice((int) ($data['total'] ?? 0), $currency),
@@ -1378,7 +1383,9 @@ class StripeGateway implements
 
     public function convertPrice($price, $currency)
     {
-        $rate = $this->currencyRates()[$currency] ?? 100;
+        // The rate table is keyed by ISO code in upper case; a code stored as "vnd" must not fall
+        // through to the two-decimal default and be charged x100.
+        $rate = $this->currencyRates()[strtoupper(trim((string) $currency))] ?? 100;
         $amount = (int) round($price * $rate);
 
         // Three-decimal currencies settle to two decimals: Stripe rejects a minor-unit
@@ -1392,7 +1399,7 @@ class StripeGateway implements
 
     public function revertPrice($price, $currency)
     {
-        $rate = $this->currencyRates()[$currency] ?? 100;
+        $rate = $this->currencyRates()[strtoupper(trim((string) $currency))] ?? 100;
         return $price / $rate;
     }
 
