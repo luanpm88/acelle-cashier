@@ -12,6 +12,7 @@ use App\Cashier\Contracts\SupportsRemoteCatalogInterface;
 use App\Cashier\Contracts\SupportsOnSessionAuthentication;
 use App\Cashier\Contracts\SupportsRemotePlanChange;
 use App\Cashier\Contracts\SupportsDiscounts;
+use App\Cashier\DTO\DiscountAppliesTo;
 use App\Cashier\DTO\DiscountSpec;
 use App\Cashier\DTO\PaymentIntent;
 use App\Cashier\DTO\PaymentResult;
@@ -265,6 +266,7 @@ class StripeGateway implements
         }
 
         $params = ['id' => $id, 'duration' => 'once'];   // once = the up-front charge only (not recurring)
+        $params += $this->couponScope($discount)[1];
         if ($discount->type === DiscountSpec::TYPE_FIXED) {
             $params['amount_off'] = $this->convertPrice($discount->value, $discount->currency);
             $params['currency']   = strtolower((string) $discount->currency);
@@ -296,11 +298,29 @@ class StripeGateway implements
     {
         $value = rtrim(rtrim(number_format($discount->value, 2, '.', ''), '0'), '.');
         $value = str_replace('.', '_', $value);
+        [$scope] = $this->couponScope($discount);
 
         return match ($discount->type) {
-            DiscountSpec::TYPE_PERCENT => "disc_pct_{$value}",
-            DiscountSpec::TYPE_FIXED   => 'disc_fix_' . strtolower((string) $discount->currency) . "_{$value}",
+            DiscountSpec::TYPE_PERCENT => "disc_pct_{$value}{$scope}",
+            DiscountSpec::TYPE_FIXED   => 'disc_fix_' . strtolower((string) $discount->currency) . "_{$value}{$scope}",
             default                    => throw new \InvalidArgumentException("Unknown discount type: {$discount->type}"),
+        };
+    }
+
+    /**
+     * What the discount's scope adds to its Stripe coupon: an id suffix (a scoped coupon is a
+     * different coupon from an unscoped one of the same value, so they must not share an id) and
+     * the coupon's own params. ALL is a coupon with no `applies_to`, which Stripe applies to every
+     * line of the session or invoice; it keeps the bare id, so the coupons created before scopes
+     * existed are still the ones reused. No default arm: a new {@see DiscountAppliesTo} case throws
+     * here until it says how Stripe narrows the discount.
+     *
+     * @return array{0: string, 1: array<string, mixed>}  [id suffix, extra coupon params]
+     */
+    private function couponScope(DiscountSpec $discount): array
+    {
+        return match ($discount->appliesTo) {
+            DiscountAppliesTo::ALL => ['', []],
         };
     }
 

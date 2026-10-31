@@ -32,10 +32,10 @@ class DiscountSpec
         public readonly string $type,
         /** Percent (10 = 10%) or fixed amount (20.00) in $currency, in MAJOR units. */
         public readonly float $value,
+        /** What part of the charge the discount is taken from. Required: no scope is assumed. */
+        public readonly DiscountAppliesTo $appliesTo,
         /** Required for 'fixed' (pins the amount to a currency); null for 'percent'. */
         public readonly ?string $currency = null,
-        /** Scope hint: 'order' (whole checkout) | 'license' (the one-off line). Advisory. */
-        public readonly string $appliesTo = 'order',
         /** App-side code, for provider metadata / tracing only — never used to compute. */
         public readonly ?string $code = null,
     ) {}
@@ -47,19 +47,23 @@ class DiscountSpec
             'type'       => $this->type,
             'value'      => $this->value,
             'currency'   => $this->currency,
-            'applies_to' => $this->appliesTo,
+            'applies_to' => $this->appliesTo->value,
             'code'       => $this->code,
         ];
     }
 
-    /** Rebuild from the persisted metadata array (the inverse of {@see toArray()}). */
+    /**
+     * Rebuild from the persisted metadata array (the inverse of {@see toArray()}). The scope is read
+     * as stored, never assumed: a missing or unknown `applies_to` throws. The host migration that
+     * introduced {@see DiscountAppliesTo} rewrote every stored discount to a known scope.
+     */
     public static function fromArray(array $d): self
     {
         return new self(
             type:      (string) ($d['type'] ?? self::TYPE_PERCENT),
             value:     (float) ($d['value'] ?? 0),
+            appliesTo: DiscountAppliesTo::from($d['applies_to']),
             currency:  isset($d['currency']) ? (string) $d['currency'] : null,
-            appliesTo: (string) ($d['applies_to'] ?? 'order'),
             code:      isset($d['code']) ? (string) $d['code'] : null,
         );
     }
